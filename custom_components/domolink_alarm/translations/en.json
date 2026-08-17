@@ -17,6 +17,7 @@
         "description": "Select the devices used to alert on intrusion.",
         "data": {
           "sirens": "Sirens",
+          "lights": "Panic Lights",
           "media_players": "Media Players (for TTS)",
           "notify_services": "Notification Services"
         }
@@ -25,9 +26,10 @@
         "title": "Logic, Security & Delays",
         "description": "Configure the core logic of the alarm system.",
         "data": {
-          "main_code": "Main PIN Code",
-          "secondary_codes": "Secondary PIN Codes (comma separated)",
+          "users_codes": "Users & Codes (Format: Name1:1234, Name2:5678)",
+          "duress_code": "Duress Code (Panic SOS)",
           "bypass_allowed": "Allow Bypass (Arm with open sensors)",
+          "health_check": "Enable Health Check (Battery monitoring)",
           "exit_delay": "Exit Delay (seconds)",
           "entry_delay": "Entry Delay (seconds)",
           "siren_duration": "Siren Duration (seconds)"
