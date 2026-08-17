@@ -30,6 +30,7 @@
           "duress_code": "Duress Code (Panic SOS)",
           "bypass_allowed": "Allow Bypass (Arm with open sensors)",
           "health_check": "Enable Health Check (Battery monitoring)",
+          "geofence_auto_arm": "Enable Geofencing (Auto-Arm/Disarm based on presence)",
           "exit_delay": "Exit Delay (seconds)",
           "entry_delay": "Entry Delay (seconds)",
           "siren_duration": "Siren Duration (seconds)"
