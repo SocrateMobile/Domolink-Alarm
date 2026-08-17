@@ -9,6 +9,7 @@ from homeassistant.components.alarm_control_panel import (
     CodeFormat,
 )
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.event import (
     async_track_state_change_event,
     async_call_later,
@@ -18,6 +19,8 @@ from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import (
     DOMAIN,
+    CONF_NAME,
+    DEFAULT_NAME,
     CONF_OPENING_SENSORS,
     CONF_MOTION_SENSORS,
     CONF_CAMERAS,
@@ -62,8 +65,8 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
 class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
     """Representation of a Domolink Alarm."""
 
-    _attr_name = "Domolink Alarm"
     _attr_has_entity_name = True
+    _attr_name = None
     _attr_code_format = CodeFormat.NUMBER
     _attr_supported_features = (
         AlarmControlPanelEntityFeature.ARM_HOME
@@ -79,6 +82,13 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._state = AlarmControlPanelState.DISARMED
         self._pre_trigger_state = AlarmControlPanelState.DISARMED
         self._unique_id = f"domolink_alarm_{entry.entry_id}"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry.entry_id)},
+            name=entry.title or DEFAULT_NAME,
+            manufacturer="Domolink",
+            model="Domolink Smart Alarm",
+            sw_version="0.5.0",
+        )
 
         self._siren_task = None
         self._arming_task = None

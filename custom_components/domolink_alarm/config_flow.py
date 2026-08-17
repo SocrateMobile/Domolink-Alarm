@@ -7,6 +7,8 @@ from homeassistant.helpers import selector
 
 from .const import (
     DOMAIN,
+    CONF_NAME,
+    DEFAULT_NAME,
     CONF_OPENING_SENSORS,
     CONF_MOTION_SENSORS,
     CONF_CAMERAS,
@@ -47,7 +49,7 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return await self.async_step_sensors()
 
     async def async_step_sensors(self, user_input=None):
-        """Step 1: Configure sensors."""
+        """Step 1: Configure sensors and system name."""
         if user_input is not None:
             self.data.update(user_input)
             return await self.async_step_actuators()
@@ -56,6 +58,7 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="sensors",
             data_schema=vol.Schema(
                 {
+                    vol.Optional(CONF_NAME, default=DEFAULT_NAME): str,
                     vol.Optional(CONF_OPENING_SENSORS, default=[]): selector.EntitySelector(
                         selector.EntitySelectorConfig(
                             domain=["binary_sensor", "sensor"], 
@@ -117,7 +120,8 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Step 3: Configure logic and delays."""
         if user_input is not None:
             self.data.update(user_input)
-            return self.async_create_entry(title="Domolink Alarm", data=self.data)
+            title = self.data.get(CONF_NAME, DEFAULT_NAME)
+            return self.async_create_entry(title=title, data=self.data)
 
         return self.async_show_form(
             step_id="logic",

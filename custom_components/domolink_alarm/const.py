@@ -2,6 +2,9 @@
 
 DOMAIN = "domolink_alarm"
 
+CONF_NAME = "name"
+DEFAULT_NAME = "Domolink Alarm"
+
 CONF_OPENING_SENSORS = "opening_sensors"
 CONF_MOTION_SENSORS = "motion_sensors"
 CONF_CAMERAS = "cameras"
