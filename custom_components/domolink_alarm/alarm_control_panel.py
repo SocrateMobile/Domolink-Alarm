@@ -1,8 +1,6 @@
 """Interfaces with Domolink Alarm."""
-import asyncio
 import logging
 from datetime import timedelta
-import time
 
 from homeassistant.components.alarm_control_panel import (
     AlarmControlPanelEntity,
@@ -10,9 +8,12 @@ from homeassistant.components.alarm_control_panel import (
     AlarmControlPanelState,
     CodeFormat,
 )
-from homeassistant.const import EVENT_STATE_CHANGED
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.event import async_track_state_change_event, async_call_later, async_track_time_interval
+from homeassistant.helpers.event import (
+    async_track_state_change_event,
+    async_call_later,
+    async_track_time_interval,
+)
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import (
@@ -37,10 +38,25 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# Map string states back to AlarmControlPanelState enum for state restoration
+_STATE_MAP = {
+    "disarmed": AlarmControlPanelState.DISARMED,
+    "armed_home": AlarmControlPanelState.ARMED_HOME,
+    "armed_away": AlarmControlPanelState.ARMED_AWAY,
+    "armed_night": AlarmControlPanelState.ARMED_NIGHT,
+    "pending": AlarmControlPanelState.PENDING,
+    "arming": AlarmControlPanelState.ARMING,
+    "triggered": AlarmControlPanelState.TRIGGERED,
+}
+
 
 async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
     """Set up the alarm control panel from a config entry."""
-    async_add_entities([DomolinkAlarm(hass, entry)], True)
+    entity = DomolinkAlarm(hass, entry)
+    async_add_entities([entity], True)
+    # Store entity reference so __init__.py can forward options updates
+    hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN][entry.entry_id] = {"entity": entity}
 
 
 class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
@@ -67,36 +83,45 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._siren_task = None
         self._arming_task = None
         self._pending_task = None
-        self._health_check_remove = None
 
         self._failed_attempts = 0
-        self._blocked_until = 0
+        self._blocked_until = 0.0
 
-        self._users = {}  # dict of code: name
+        self._last_triggered_by = None
+        self._last_user = None
+
+        self._users = {}
         self._duress_code = ""
 
         self._load_config()
 
     def _load_config(self):
+        """Load configuration from entry data and options."""
         data = self._entry.data
         options = self._entry.options
 
-        # Users and Codes parsing
+        # Users and Codes parsing — format: "Jean:1234, Marie:5678"
         users_str = options.get(CONF_USERS_CODES, data.get(CONF_USERS_CODES, ""))
         self._users = {}
-        for pair in users_str.split(","):
-            if ":" in pair:
-                name, code = pair.split(":", 1)
-                self._users[code.strip()] = name.strip()
-                
-        self._duress_code = str(options.get(CONF_DURESS_CODE, data.get(CONF_DURESS_CODE, ""))).strip()
-        
-        self._exit_delay = options.get(CONF_EXIT_DELAY, data.get(CONF_EXIT_DELAY, 30))
-        self._entry_delay = options.get(CONF_ENTRY_DELAY, data.get(CONF_ENTRY_DELAY, 30))
-        self._siren_duration = options.get(CONF_SIREN_DURATION, data.get(CONF_SIREN_DURATION, 180))
-        self._bypass_allowed = options.get(CONF_BYPASS_ALLOWED, data.get(CONF_BYPASS_ALLOWED, False))
-        self._health_check = options.get(CONF_HEALTH_CHECK, data.get(CONF_HEALTH_CHECK, True))
-        self._geofence_auto_arm = options.get(CONF_GEOFENCE_AUTO_ARM, data.get(CONF_GEOFENCE_AUTO_ARM, False))
+        if users_str:
+            for pair in users_str.split(","):
+                pair = pair.strip()
+                if ":" in pair:
+                    name, code = pair.split(":", 1)
+                    name, code = name.strip(), code.strip()
+                    if name and code:
+                        self._users[code] = name
+
+        self._duress_code = str(
+            options.get(CONF_DURESS_CODE, data.get(CONF_DURESS_CODE, ""))
+        ).strip()
+
+        self._exit_delay = int(options.get(CONF_EXIT_DELAY, data.get(CONF_EXIT_DELAY, 30)))
+        self._entry_delay = int(options.get(CONF_ENTRY_DELAY, data.get(CONF_ENTRY_DELAY, 30)))
+        self._siren_duration = int(options.get(CONF_SIREN_DURATION, data.get(CONF_SIREN_DURATION, 180)))
+        self._bypass_allowed = bool(options.get(CONF_BYPASS_ALLOWED, data.get(CONF_BYPASS_ALLOWED, False)))
+        self._health_check = bool(options.get(CONF_HEALTH_CHECK, data.get(CONF_HEALTH_CHECK, True)))
+        self._geofence_auto_arm = bool(options.get(CONF_GEOFENCE_AUTO_ARM, data.get(CONF_GEOFENCE_AUTO_ARM, False)))
 
         self._opening_sensors = data.get(CONF_OPENING_SENSORS) or []
         self._motion_sensors = data.get(CONF_MOTION_SENSORS) or []
@@ -108,14 +133,22 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._media_players = data.get(CONF_MEDIA_PLAYERS) or []
         self._notify_services = data.get(CONF_NOTIFY_SERVICES) or []
 
+    @callback
+    def async_update_options(self):
+        """Reload config when options change (called from __init__.py listener)."""
+        self._load_config()
+        self.async_write_ha_state()
+
+    # ─── Properties ───────────────────────────────────────────────
+
     @property
     def unique_id(self):
-        """Return a unique ID to use for this entity."""
+        """Return a unique ID."""
         return self._unique_id
 
     @property
-    def state(self):
-        """Return the state of the device."""
+    def alarm_state(self):
+        """Return the state of the device (modern HA property)."""
         return self._state
 
     @property
@@ -123,12 +156,30 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         """Whether the code is required for arm actions."""
         return False
 
+    @property
+    def extra_state_attributes(self):
+        """Expose extra attributes for Lovelace and automations."""
+        return {
+            "last_triggered_by": self._last_triggered_by,
+            "last_user": self._last_user,
+            "failed_attempts": self._failed_attempts,
+            "geofence_active": self._geofence_auto_arm,
+            "health_check_active": self._health_check,
+        }
+
+    # ─── Lifecycle ────────────────────────────────────────────────
+
     async def async_added_to_hass(self):
         """Run when entity about to be added."""
         await super().async_added_to_hass()
-        state = await self.async_get_last_state()
-        if state:
-            self._state = state.state
+
+        # Restore state — map string back to Enum (Fix #3)
+        last_state = await self.async_get_last_state()
+        if last_state and last_state.state in _STATE_MAP:
+            self._state = _STATE_MAP[last_state.state]
+            if last_state.attributes:
+                self._last_triggered_by = last_state.attributes.get("last_triggered_by")
+                self._last_user = last_state.attributes.get("last_user")
 
         # Track sensor changes
         all_sensors = self._opening_sensors + self._motion_sensors + self._tamper_sensors
@@ -139,14 +190,15 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 )
             )
 
-        # Start health check if enabled
+        # Health check periodic task
         if self._health_check:
-            self._health_check_remove = async_track_time_interval(
-                self.hass, self._async_perform_health_check, timedelta(hours=4)
+            self.async_on_remove(
+                async_track_time_interval(
+                    self.hass, self._async_perform_health_check, timedelta(hours=4)
+                )
             )
-            self.async_on_remove(self._health_check_remove)
 
-        # Start geofencing tracking if enabled
+        # Geofencing
         if self._geofence_auto_arm:
             self.async_on_remove(
                 async_track_state_change_event(
@@ -154,78 +206,113 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 )
             )
 
-        # Listen to actionable notifications
-        self.hass.bus.async_listen("mobile_app_notification_action", self._async_handle_mobile_action)
+        # Actionable notifications listener — register cleanup (Fix #4)
+        self.async_on_remove(
+            self.hass.bus.async_listen(
+                "mobile_app_notification_action", self._async_handle_mobile_action
+            )
+        )
+
+    # ─── Geofencing ───────────────────────────────────────────────
 
     async def _async_zone_changed(self, event):
         """Handle zone.home state changes for auto arm/disarm."""
         new_state = event.data.get("new_state")
         old_state = event.data.get("old_state")
-        
+
         if not new_state or not old_state:
             return
 
         try:
             old_count = int(old_state.state)
             new_count = int(new_state.state)
-        except ValueError:
+        except (ValueError, TypeError):
             return
 
         if old_count > 0 and new_count == 0:
-            # Everyone left -> Auto Arm
+            # Everyone left → Auto Arm
             if self._state == AlarmControlPanelState.DISARMED:
                 _LOGGER.info("Geofencing: No one at home, auto arming away")
-                await self._async_send_notification("Domolink: Plus personne à la maison, armement automatique activé.")
+                await self._async_send_notification(
+                    "🏠 Domolink: Plus personne à la maison, armement automatique activé."
+                )
                 await self.async_alarm_arm_away()
 
         elif old_count == 0 and new_count > 0:
-            # Someone arrived -> Auto Disarm
-            if self._state in (AlarmControlPanelState.ARMED_AWAY, AlarmControlPanelState.ARMED_NIGHT):
+            # Someone arrived → Auto Disarm
+            if self._state in (
+                AlarmControlPanelState.ARMED_AWAY,
+                AlarmControlPanelState.ARMED_NIGHT,
+                AlarmControlPanelState.ARMING,
+            ):
                 _LOGGER.info("Geofencing: Someone arrived, auto disarming")
-                await self._async_send_notification("Domolink: Retour détecté, désarmement automatique.")
+                self._cancel_all_tasks()
                 self._state = AlarmControlPanelState.DISARMED
+                self._last_user = "Géolocalisation"
                 self.async_write_ha_state()
+                await self._async_turn_off_siren()
+                await self._async_send_notification(
+                    "🏠 Domolink: Retour détecté, désarmement automatique."
+                )
+
+    # ─── Mobile Actionable Notifications ──────────────────────────
 
     async def _async_handle_mobile_action(self, event):
         """Handle actionable notification button clicks."""
         action = event.data.get("action")
         if action == "DOMOLINK_DISARM":
             _LOGGER.info("Disarm triggered via mobile actionable notification")
-            # Force disarm bypassing code check since phone is unlocked
+            self._cancel_all_tasks()
             self._state = AlarmControlPanelState.DISARMED
+            self._last_user = "Mobile App"
             self.async_write_ha_state()
-            if self._arming_task:
-                self._arming_task()
-                self._arming_task = None
-            if self._pending_task:
-                self._pending_task()
-                self._pending_task = None
             await self._async_turn_off_siren()
-            await self._async_send_notification("Alarme désarmée via Apple Watch / Mobile.")
+            await self._async_send_notification(
+                "✅ Alarme désarmée via Apple Watch / Mobile."
+            )
+
+    # ─── Health Check ─────────────────────────────────────────────
 
     async def _async_perform_health_check(self, now=None):
-        """Check battery and availability of sensors."""
-        all_sensors = self._opening_sensors + self._motion_sensors + self._tamper_sensors
+        """Check battery and availability of all linked devices (Fix #13)."""
+        all_devices = (
+            self._opening_sensors
+            + self._motion_sensors
+            + self._tamper_sensors
+            + self._sirens
+            + self._cameras
+            + self._lights
+        )
+        if not all_devices:
+            return
+
         warnings = []
-        for sensor_id in all_sensors:
-            state = self.hass.states.get(sensor_id)
+        for device_id in all_devices:
+            state = self.hass.states.get(device_id)
             if not state or state.state in ("unavailable", "unknown"):
-                warnings.append(f"{sensor_id} est indisponible.")
+                friendly = state.name if state else device_id
+                warnings.append(f"⚠️ {friendly} est indisponible.")
                 continue
-            battery = state.attributes.get("battery")
+            # Check battery (try both common attribute names)
+            battery = state.attributes.get("battery_level") or state.attributes.get("battery")
             if battery is not None:
                 try:
-                    if int(battery) < 10:
-                        warnings.append(f"{sensor_id} batterie faible ({battery}%).")
-                except ValueError:
+                    if float(battery) < 10:
+                        warnings.append(f"🪫 {state.name} batterie faible ({battery}%).")
+                except (ValueError, TypeError):
                     pass
 
         if warnings:
-            notify_msg = "Health Check Alarme: \n" + "\n".join(warnings)
+            notify_msg = "🔋 Health Check Domolink:\n" + "\n".join(warnings)
             await self._async_send_notification(notify_msg)
 
+    # ─── Notifications ────────────────────────────────────────────
+
     async def _async_send_notification(self, message, is_alert=False):
-        """Helper to send notifications, with actionable buttons if it's an alert."""
+        """Send notifications, with actionable buttons if it's an alert."""
+        if not self._notify_services:
+            return
+
         data = {}
         if is_alert:
             data = {
@@ -233,20 +320,32 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                     "sound": {
                         "name": "default",
                         "critical": 1,
-                        "volume": 1.0
+                        "volume": 1.0,
                     }
                 },
                 "actions": [
-                    {"action": "DOMOLINK_DISARM", "title": "Désarmer l'alarme", "destructive": True}
-                ]
+                    {
+                        "action": "DOMOLINK_DISARM",
+                        "title": "🔓 Désarmer l'alarme",
+                        "destructive": True,
+                    }
+                ],
             }
 
         for notify_service in self._notify_services:
-            domain, service = notify_service.split(".", 1) if "." in notify_service else ("notify", notify_service)
+            if "." in notify_service:
+                domain, service = notify_service.split(".", 1)
+            else:
+                domain, service = "notify", notify_service
             try:
-                await self.hass.services.async_call(domain, service, {"message": message, "data": data})
+                payload = {"message": message}
+                if data:
+                    payload["data"] = data
+                await self.hass.services.async_call(domain, service, payload)
             except Exception as e:
-                _LOGGER.error(f"Failed to call notify service {notify_service}: {e}")
+                _LOGGER.error("Failed to call notify service %s: %s", notify_service, e)
+
+    # ─── Sensor Monitoring ────────────────────────────────────────
 
     async def _async_sensor_changed(self, event):
         """Handle sensor state changes."""
@@ -256,123 +355,242 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         if not new_state or new_state.state not in ("on", "open", "true"):
             return
 
-        _LOGGER.debug(f"Sensor {entity_id} triggered")
+        _LOGGER.debug("Sensor %s triggered", entity_id)
 
-        # Tamper triggers immediately regardless of state
+        # Tamper triggers immediately regardless of state (24/7)
         if entity_id in self._tamper_sensors:
-            _LOGGER.warning(f"Tamper detected on {entity_id}")
+            _LOGGER.warning("Tamper detected on %s", entity_id)
             await self._async_trigger_alarm(entity_id)
             return
 
-        if self._state == AlarmControlPanelState.DISARMED:
+        # Ignore sensors when disarmed or during exit delay (Fix #10)
+        if self._state in (
+            AlarmControlPanelState.DISARMED,
+            AlarmControlPanelState.ARMING,
+        ):
             return
 
-        # Handle different modes
+        # Already triggered, nothing to do
+        if self._state == AlarmControlPanelState.TRIGGERED:
+            return
+
+        # Handle different armed modes
         if self._state == AlarmControlPanelState.ARMED_HOME:
             if entity_id in self._opening_sensors:
                 await self._async_trigger_alarm(entity_id)
-        elif self._state in (AlarmControlPanelState.ARMED_AWAY, AlarmControlPanelState.ARMED_NIGHT):
+
+        elif self._state in (
+            AlarmControlPanelState.ARMED_AWAY,
+            AlarmControlPanelState.ARMED_NIGHT,
+        ):
             if entity_id in self._opening_sensors or entity_id in self._motion_sensors:
-                # If away, we have entry delay
+                # Entry delay only for ARMED_AWAY
                 if self._state == AlarmControlPanelState.ARMED_AWAY and self._entry_delay > 0:
                     if self._pending_task is None:
-                        _LOGGER.info("Starting entry delay")
+                        _LOGGER.info("Starting entry delay for %s", entity_id)
                         self._pre_trigger_state = self._state
                         self._state = AlarmControlPanelState.PENDING
                         self.async_write_ha_state()
-                        
-                        # Pre-alarm feedback (Lights + TTS)
                         await self._async_pre_alarm_feedback()
-                        
+                        # Send alert notification with disarm button
+                        await self._async_send_notification(
+                            f"⏳ Délai d'entrée déclenché par {new_state.name}. Veuillez désarmer.",
+                            is_alert=True,
+                        )
                         self._pending_task = async_call_later(
-                            self.hass, self._entry_delay, lambda now: self.hass.async_create_task(self._async_trigger_alarm(entity_id))
+                            self.hass,
+                            self._entry_delay,
+                            lambda now: self.hass.async_create_task(
+                                self._async_trigger_alarm(entity_id)
+                            ),
                         )
                 else:
                     await self._async_trigger_alarm(entity_id)
+
+        elif self._state == AlarmControlPanelState.PENDING:
+            # Already in pending state, additional sensor confirms intrusion but
+            # the timer is already running
+            pass
+
+    # ─── Pre-Alarm Feedback ───────────────────────────────────────
 
     async def _async_pre_alarm_feedback(self):
         """Flash lights and warn during pending state."""
         if self._lights:
             try:
-                await self.hass.services.async_call("light", "turn_on", {"entity_id": self._lights, "flash": "short"})
-            except:
-                await self.hass.services.async_call("homeassistant", "turn_on", {"entity_id": self._lights})
+                await self.hass.services.async_call(
+                    "light", "turn_on",
+                    {"entity_id": self._lights, "flash": "short"},
+                )
+            except Exception:
+                try:
+                    await self.hass.services.async_call(
+                        "homeassistant", "turn_on",
+                        {"entity_id": self._lights},
+                    )
+                except Exception as e:
+                    _LOGGER.error("Failed to flash panic lights: %s", e)
 
         for player in self._media_players:
             try:
-                await self.hass.services.async_call("tts", "google_translate_say", {"entity_id": player, "message": "Veuillez désarmer l'alarme immédiatement."})
-            except:
-                pass
+                await self.hass.services.async_call(
+                    "tts", "google_translate_say",
+                    {"entity_id": player, "message": "Veuillez désarmer l'alarme immédiatement."},
+                )
+            except Exception as e:
+                _LOGGER.debug("Failed TTS pre-alarm on %s: %s", player, e)
+
+    # ─── Alarm Triggering ─────────────────────────────────────────
 
     async def _async_trigger_alarm(self, triggering_entity):
-        """Trigger the alarm."""
+        """Trigger the alarm — full alert sequence."""
         if self._state == AlarmControlPanelState.TRIGGERED:
             return
 
         self._state = AlarmControlPanelState.TRIGGERED
+        self._last_triggered_by = triggering_entity
         self.async_write_ha_state()
 
+        # Cancel pending task if any
         if self._pending_task:
             self._pending_task()
             self._pending_task = None
 
         state = self.hass.states.get(triggering_entity)
         name = state.name if state else triggering_entity
-        
-        notify_msg = f"🚨 INTRUSION DÉTECTÉE 🚨\nCapteur : {name}"
-        await self._async_send_notification(notify_msg, is_alert=True)
+
+        # 1. Critical notification with disarm button
+        await self._async_send_notification(
+            f"🚨 INTRUSION DÉTECTÉE 🚨\nCapteur : {name}",
+            is_alert=True,
+        )
 
         # 2. Camera Recording
         for camera in self._cameras:
             try:
-                await self.hass.services.async_call("camera", "record", {"entity_id": camera, "duration": 30})
+                await self.hass.services.async_call(
+                    "camera", "record",
+                    {"entity_id": camera, "duration": 30},
+                )
             except Exception as e:
-                _LOGGER.error(f"Failed to record camera {camera}: {e}")
+                _LOGGER.error("Failed to record camera %s: %s", camera, e)
 
-        # 3. TTS (Only Away or Night modes for TTS in requirements)
-        if self._pre_trigger_state in (AlarmControlPanelState.ARMED_AWAY, AlarmControlPanelState.ARMED_NIGHT, AlarmControlPanelState.DISARMED) or triggering_entity in self._tamper_sensors:
-            tts_message = "Alerte intrusion détectée, le propriétaire et la police ont été prévenus. Les enregistrements photos et vidéo ont été réalisés à l'intérieur mais aussi à l'extérieur dès que vous avez pénétré dans la propriété. Tout est d'ores et déjà sauvegardé en ligne, sur des serveurs sécurisés."
+        # 3. TTS dissuasion (Away, Night, or Tamper)
+        should_tts = (
+            self._pre_trigger_state in (
+                AlarmControlPanelState.ARMED_AWAY,
+                AlarmControlPanelState.ARMED_NIGHT,
+                AlarmControlPanelState.DISARMED,
+            )
+            or triggering_entity in self._tamper_sensors
+        )
+        if should_tts:
+            tts_message = (
+                "Alerte intrusion détectée, le propriétaire et la police ont été prévenus. "
+                "Les enregistrements photos et vidéo ont été réalisés à l'intérieur mais aussi "
+                "à l'extérieur dès que vous avez pénétré dans la propriété. "
+                "Tout est d'ores et déjà sauvegardé en ligne, sur des serveurs sécurisés."
+            )
             for player in self._media_players:
                 try:
-                    await self.hass.services.async_call("tts", "google_translate_say", {"entity_id": player, "message": tts_message})
-                except Exception as e:
-                    pass
-
-        # 4. Siren & Panic Lights
-        if self._pre_trigger_state == AlarmControlPanelState.ARMED_AWAY or triggering_entity in self._tamper_sensors:
-            if self._sirens:
-                try:
-                    await self.hass.services.async_call("homeassistant", "turn_on", {"entity_id": self._sirens})
-                    self._siren_task = async_call_later(
-                        self.hass, self._siren_duration, self._async_turn_off_siren
+                    await self.hass.services.async_call(
+                        "tts", "google_translate_say",
+                        {"entity_id": player, "message": tts_message},
                     )
                 except Exception as e:
-                    _LOGGER.error(f"Failed to turn on sirens: {e}")
+                    _LOGGER.debug("Failed TTS on %s: %s", player, e)
+
+        # 4. Siren & Panic Lights (Away mode or Tamper)
+        should_siren = (
+            self._pre_trigger_state == AlarmControlPanelState.ARMED_AWAY
+            or triggering_entity in self._tamper_sensors
+        )
+        if should_siren:
+            if self._sirens:
+                try:
+                    await self.hass.services.async_call(
+                        "homeassistant", "turn_on",
+                        {"entity_id": self._sirens},
+                    )
+                    self._siren_task = async_call_later(
+                        self.hass,
+                        self._siren_duration,
+                        self._cb_turn_off_siren,  # Fix #1: sync callback
+                    )
+                except Exception as e:
+                    _LOGGER.error("Failed to turn on sirens: %s", e)
+
             if self._lights:
                 try:
-                    # Rouge si supporté, sinon allumage
-                    await self.hass.services.async_call("light", "turn_on", {"entity_id": self._lights, "color_name": "red", "brightness": 255})
-                except:
-                    await self.hass.services.async_call("homeassistant", "turn_on", {"entity_id": self._lights})
+                    await self.hass.services.async_call(
+                        "light", "turn_on",
+                        {"entity_id": self._lights, "color_name": "red", "brightness": 255},
+                    )
+                except Exception:
+                    try:
+                        await self.hass.services.async_call(
+                            "homeassistant", "turn_on",
+                            {"entity_id": self._lights},
+                        )
+                    except Exception as e:
+                        _LOGGER.error("Failed to turn on panic lights: %s", e)
+
+    # ─── Siren / Lights Off ───────────────────────────────────────
 
     @callback
-    async def _async_turn_off_siren(self, now=None):
+    def _cb_turn_off_siren(self, now=None):
+        """Sync @callback for async_call_later — schedules async cleanup (Fix #1)."""
+        self.hass.async_create_task(self._async_turn_off_siren())
+
+    async def _async_turn_off_siren(self):
+        """Turn off sirens and panic lights."""
         if self._sirens:
-            await self.hass.services.async_call("homeassistant", "turn_off", {"entity_id": self._sirens})
+            try:
+                await self.hass.services.async_call(
+                    "homeassistant", "turn_off",
+                    {"entity_id": self._sirens},
+                )
+            except Exception as e:
+                _LOGGER.error("Failed to turn off sirens: %s", e)
         if self._lights:
-            await self.hass.services.async_call("homeassistant", "turn_off", {"entity_id": self._lights})
+            try:
+                await self.hass.services.async_call(
+                    "homeassistant", "turn_off",
+                    {"entity_id": self._lights},
+                )
+            except Exception as e:
+                _LOGGER.error("Failed to turn off lights: %s", e)
         self._siren_task = None
+
+    # ─── Helper: Cancel All Tasks ─────────────────────────────────
+
+    def _cancel_all_tasks(self):
+        """Cancel any pending timers."""
+        if self._arming_task:
+            self._arming_task()
+            self._arming_task = None
+        if self._pending_task:
+            self._pending_task()
+            self._pending_task = None
+        if self._siren_task:
+            self._siren_task()
+            self._siren_task = None
+
+    # ─── Code Validation ──────────────────────────────────────────
 
     def _validate_code(self, code):
         """Validate given code and return user name if valid."""
         if not code:
             return None
-            
-        current_time = time.time()
+
+        current_time = self.hass.loop.time()  # Fix #15: async-safe time
+
         if self._blocked_until > current_time:
+            remaining = int(self._blocked_until - current_time)
+            _LOGGER.warning("Keypad blocked for %d more seconds", remaining)
             return None
 
-        # Check Duress
+        # Check Duress code
         if self._duress_code and code == self._duress_code:
             return "DURESS"
 
@@ -380,12 +598,24 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         if user_name:
             self._failed_attempts = 0
             return user_name
-        else:
-            self._failed_attempts += 1
-            if self._failed_attempts >= 3:
-                self._blocked_until = current_time + 300 # Block for 5 minutes
-                self.hass.async_create_task(self._async_send_notification("⚠️ Tentatives de désarmement bloquées (Brute-force). Pavé numérique verrouillé 5 minutes."))
-            return None
+
+        # Invalid code
+        self._failed_attempts += 1
+        _LOGGER.warning("Invalid code attempt %d/3", self._failed_attempts)
+
+        if self._failed_attempts >= 3:
+            self._blocked_until = current_time + 300  # 5 minutes
+            # Fix #18: notification BEFORE resetting counter
+            self.hass.async_create_task(
+                self._async_send_notification(
+                    f"⚠️ Clavier verrouillé 5 minutes après {self._failed_attempts} tentatives erronées."
+                )
+            )
+            self._failed_attempts = 0
+
+        return None
+
+    # ─── Arm / Disarm Commands ────────────────────────────────────
 
     async def async_alarm_disarm(self, code=None):
         """Send disarm command."""
@@ -395,29 +625,28 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             return
 
         if user == "DURESS":
-            # Silent SOS
-            await self._async_send_notification("🆘 ALERTE SOS SILENCIEUSE (Code de détresse utilisé) 🆘")
-            # We continue to disarm silently so the intruder doesn't know
+            await self._async_send_notification(
+                "🆘 ALERTE SOS SILENCIEUSE (Code de détresse utilisé) 🆘"
+            )
+            # Continue to disarm silently so intruder doesn't know
 
+        self._cancel_all_tasks()
         self._state = AlarmControlPanelState.DISARMED
+        self._last_user = user
         self.async_write_ha_state()
 
-        if self._arming_task:
-            self._arming_task()
-            self._arming_task = None
-        if self._pending_task:
-            self._pending_task()
-            self._pending_task = None
-        
         await self._async_turn_off_siren()
 
         if user != "DURESS":
             # Personalized TTS greeting
             for player in self._media_players:
                 try:
-                    await self.hass.services.async_call("tts", "google_translate_say", {"entity_id": player, "message": f"Alarme désarmée. Bienvenue {user}."})
-                except:
-                    pass
+                    await self.hass.services.async_call(
+                        "tts", "google_translate_say",
+                        {"entity_id": player, "message": f"Alarme désarmée. Bienvenue {user}."},
+                    )
+                except Exception as e:
+                    _LOGGER.debug("Failed TTS greeting on %s: %s", player, e)
 
     async def _check_bypass(self):
         """Check if sensors are open before arming."""
@@ -425,17 +654,30 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         for sensor in self._opening_sensors:
             state = self.hass.states.get(sensor)
             if state and state.state in ("on", "open", "true"):
-                open_sensors.append(sensor)
-        
-        if open_sensors and not self._bypass_allowed:
-            _LOGGER.warning(f"Cannot arm, sensors open: {open_sensors}")
-            return False
+                open_sensors.append(state.name or sensor)
+
+        if open_sensors:
+            if not self._bypass_allowed:
+                _LOGGER.warning("Cannot arm, sensors open: %s", open_sensors)
+                # Fix #16: Notify user which sensors are preventing arming
+                await self._async_send_notification(
+                    "⛔ Impossible d'armer l'alarme. Capteurs ouverts :\n"
+                    + "\n".join(f"• {s}" for s in open_sensors)
+                )
+                return False
+            else:
+                # Fix #16: Notify user which sensors are being bypassed
+                await self._async_send_notification(
+                    "⚠️ Alarme armée avec bypass. Capteurs ignorés :\n"
+                    + "\n".join(f"• {s}" for s in open_sensors)
+                )
         return True
 
     async def async_alarm_arm_home(self, code=None):
         """Send arm home command."""
         if not await self._check_bypass():
             return
+        self._pre_trigger_state = AlarmControlPanelState.ARMED_HOME  # Fix #11
         self._state = AlarmControlPanelState.ARMED_HOME
         self.async_write_ha_state()
 
@@ -443,18 +685,21 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         """Send arm away command."""
         if not await self._check_bypass():
             return
-        
+
         if self._exit_delay > 0:
             self._state = AlarmControlPanelState.ARMING
             self.async_write_ha_state()
             self._arming_task = async_call_later(
-                self.hass, self._exit_delay, self._async_arm_away_complete
+                self.hass,
+                self._exit_delay,
+                self._cb_arm_away_complete,  # Fix #2: sync callback
             )
         else:
-            await self._async_arm_away_complete()
+            self._cb_arm_away_complete()
 
     @callback
-    async def _async_arm_away_complete(self, now=None):
+    def _cb_arm_away_complete(self, now=None):
+        """Sync @callback: finalize arm away (Fix #2)."""
         self._state = AlarmControlPanelState.ARMED_AWAY
         self._pre_trigger_state = AlarmControlPanelState.ARMED_AWAY
         self.async_write_ha_state()
@@ -464,5 +709,6 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         """Send arm night command."""
         if not await self._check_bypass():
             return
+        self._pre_trigger_state = AlarmControlPanelState.ARMED_NIGHT  # Fix #11
         self._state = AlarmControlPanelState.ARMED_NIGHT
         self.async_write_ha_state()

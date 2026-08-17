@@ -97,10 +97,25 @@ card_mod:
 
 ## 📜 Changelog
 
-### 🚀 v0.3.0-beta (Current)
-- **Nouvelle Feature** : Intégration CarPlay et Apple Watch via Actionable Notifications.
-- **Nouvelle Feature** : Notification Critique iOS/Android.
-- **Nouvelle Feature** : Geofencing Automatique (Armement/Désarmement via `zone.home`).
+### 🔒 v0.4.0-beta (Current)
+- **Audit complet et refactoring** : 18 points corrigés.
+- 🔴 Fix critique : La sirène et les lumières s'éteignent correctement après le délai (callback `@callback` / `async` corrigé).
+- 🔴 Fix critique : L'armement "Absent" avec délai de sortie fonctionne (ne reste plus bloqué en "Armement en cours").
+- 🔴 Fix critique : Restauration d'état fiable après redémarrage HA (mapping string → Enum).
+- 🔴 Fix critique : Plus de fuite mémoire sur les listeners de notifications mobiles.
+- 🔴 Fix critique : Les options (délais, codes…) prennent effet immédiatement sans redémarrer HA.
+- 🟠 Fix : Les capteurs ne déclenchent plus l'alarme pendant le délai de sortie.
+- 🟠 Fix : `manifest.json` version et URLs GitHub corrigés.
+- 🟠 Fix : Tous les `except:` nus remplacés par `except Exception` avec logging.
+- ✨ Nouveau : Attributs d'entité enrichis (`last_triggered_by`, `last_user`, `failed_attempts`…).
+- ✨ Nouveau : Notification de bypass avec la liste des capteurs ignorés.
+- ✨ Nouveau : Health Check étendu aux sirènes, caméras et lumières.
+- ✨ Nouveau : Fichier `strings.json` et traductions `options` pour l'OptionsFlow.
+
+### 🚀 v0.3.0-beta
+- Intégration CarPlay et Apple Watch via Actionable Notifications.
+- Notification Critique iOS/Android.
+- Geofencing Automatique (Armement/Désarmement via `zone.home`).
 
 ### 💎 v0.2.0-beta
 - **Mise à jour majeure** : Architecture Premium.
