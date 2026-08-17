@@ -4,10 +4,10 @@
   "codeowners": ["@SocrateMobile"],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/SocrateMobile/domolink_alarm",
+  "documentation": "https://github.com/SocrateMobile/Domolink-Alarm",
   "integration_type": "hub",
   "iot_class": "local_push",
-  "issue_tracker": "https://github.com/SocrateMobile/domolink_alarm/issues",
+  "issue_tracker": "https://github.com/SocrateMobile/Domolink-Alarm/issues",
   "requirements": [],
-  "version": "0.1.0-beta"
+  "version": "0.4.0"
 }

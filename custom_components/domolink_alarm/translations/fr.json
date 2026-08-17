@@ -43,5 +43,23 @@
     "abort": {
       "already_configured": "L'appareil est déjà configuré"
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Paramètres Domolink Alarm",
+        "description": "Ajustez le comportement de l'alarme sans réinstaller.",
+        "data": {
+          "users_codes": "Utilisateurs & Codes (Format: Nom1:1234, Nom2:5678)",
+          "duress_code": "Code de Détresse (SOS silencieux)",
+          "bypass_allowed": "Autoriser le Bypass (Armer avec capteurs ouverts)",
+          "health_check": "Activer le Health Check (Surveillance batteries)",
+          "geofence_auto_arm": "Activer la Géolocalisation (Armement/Désarmement Auto)",
+          "exit_delay": "Délai de sortie (secondes)",
+          "entry_delay": "Délai d'entrée (secondes)",
+          "siren_duration": "Durée de la sirène (secondes)"
+        }
+      }
+    }
   }
 }
