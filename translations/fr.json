@@ -1,0 +1,44 @@
+{
+  "config": {
+    "step": {
+      "sensors": {
+        "title": "Entrées (Surveillance & Contrôle)",
+        "description": "Sélectionnez les capteurs qui déclencheront l'alarme.",
+        "data": {
+          "opening_sensors": "Capteurs d'ouverture",
+          "motion_sensors": "Radars de présence",
+          "cameras": "Caméras (Détection & Enregistrement)",
+          "tamper_sensors": "Capteurs de sabotage (24/7)",
+          "keypads": "Claviers physiques"
+        }
+      },
+      "actuators": {
+        "title": "Sorties (Alerte & Notification)",
+        "description": "Sélectionnez les appareils utilisés pour alerter en cas d'intrusion.",
+        "data": {
+          "sirens": "Sirènes",
+          "media_players": "Lecteurs Multimédia (pour TTS)",
+          "notify_services": "Services de notification"
+        }
+      },
+      "logic": {
+        "title": "Logique, Sécurité et Délais",
+        "description": "Configurez la logique principale du système d'alarme.",
+        "data": {
+          "main_code": "Code PIN Principal",
+          "secondary_codes": "Codes PIN Secondaires (séparés par des virgules)",
+          "bypass_allowed": "Autoriser le Bypass (Armer avec capteurs ouverts)",
+          "exit_delay": "Délai de sortie (secondes)",
+          "entry_delay": "Délai d'entrée (secondes)",
+          "siren_duration": "Durée de la sirène (secondes)"
+        }
+      }
+    },
+    "error": {
+      "unknown": "Erreur inattendue"
+    },
+    "abort": {
+      "already_configured": "L'appareil est déjà configuré"
+    }
+  }
+}
