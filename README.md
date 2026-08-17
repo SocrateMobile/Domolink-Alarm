@@ -241,7 +241,13 @@ card_mod:
 
 ## 📜 Changelog
 
-### 🔒 v0.4.0-beta (Current)
+### 🚀 v0.5.0-beta (Current)
+- 🏢 **Multi-Systèmes d'Alarme** : Support complet de multiples alarmes indépendantes (ex: "Alarme Maison", "Alarme Garage", "Alarme Bureau").
+- 🏷️ **Nom personnalisable** dans l'assistant de configuration avec création d'un appareil (`Device`) dédié pour chaque alarme.
+- 🛡️ **Icônes et Logos HACS / HA** : Ajout des icônes à tous les niveaux (`/`, `images/`, `.github/`, `custom_components/domolink_alarm/`) pour une visibilité immédiate dans HACS et la liste des intégrations.
+- ⚡ **Amélioration Détection Capteurs** : Détection insensible à la casse et support étendu des formats d'états (`on`, `open`, `true`, `detected`, `unlocked`, `1`).
+
+### 🔒 v0.4.0-beta
 - **Audit complet et refactoring** : 18 points corrigés.
 - 🔴 Fix critique : La sirène et les lumières s'éteignent correctement après le délai (callback `@callback` / `async` corrigé).
 - 🔴 Fix critique : L'armement "Absent" avec délai de sortie fonctionne (ne reste plus bloqué en "Armement en cours").

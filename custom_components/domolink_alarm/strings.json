@@ -5,6 +5,7 @@
         "title": "Inputs (Sensors & Control)",
         "description": "Select the sensors that will trigger the alarm.",
         "data": {
+          "name": "Alarm System Name (e.g. House Alarm, Garage Alarm)",
           "opening_sensors": "Opening Sensors (Doors/Windows)",
           "motion_sensors": "Motion/Occupancy Sensors",
           "cameras": "Cameras (Detection & Recording)",

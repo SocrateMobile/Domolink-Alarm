@@ -5,6 +5,7 @@
         "title": "Entrées (Surveillance & Contrôle)",
         "description": "Sélectionnez les capteurs qui déclencheront l'alarme.",
         "data": {
+          "name": "Nom du système d'alarme (ex: Alarme Maison, Alarme Garage)",
           "opening_sensors": "Capteurs d'ouverture",
           "motion_sensors": "Radars de présence",
           "cameras": "Caméras (Détection & Enregistrement)",
