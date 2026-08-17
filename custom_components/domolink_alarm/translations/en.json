@@ -1,0 +1,44 @@
+{
+  "config": {
+    "step": {
+      "sensors": {
+        "title": "Inputs (Sensors & Control)",
+        "description": "Select the sensors that will trigger the alarm.",
+        "data": {
+          "opening_sensors": "Opening Sensors (Doors/Windows)",
+          "motion_sensors": "Motion/Occupancy Sensors",
+          "cameras": "Cameras (Detection & Recording)",
+          "tamper_sensors": "Tamper Sensors (24/7)",
+          "keypads": "Physical Keypads"
+        }
+      },
+      "actuators": {
+        "title": "Outputs (Alerts & Notifications)",
+        "description": "Select the devices used to alert on intrusion.",
+        "data": {
+          "sirens": "Sirens",
+          "media_players": "Media Players (for TTS)",
+          "notify_services": "Notification Services"
+        }
+      },
+      "logic": {
+        "title": "Logic, Security & Delays",
+        "description": "Configure the core logic of the alarm system.",
+        "data": {
+          "main_code": "Main PIN Code",
+          "secondary_codes": "Secondary PIN Codes (comma separated)",
+          "bypass_allowed": "Allow Bypass (Arm with open sensors)",
+          "exit_delay": "Exit Delay (seconds)",
+          "entry_delay": "Entry Delay (seconds)",
+          "siren_duration": "Siren Duration (seconds)"
+        }
+      }
+    },
+    "error": {
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "Device is already configured"
+    }
+  }
+}
