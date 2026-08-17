@@ -17,6 +17,7 @@
         "description": "Sélectionnez les appareils utilisés pour alerter en cas d'intrusion.",
         "data": {
           "sirens": "Sirènes",
+          "lights": "Lumières de panique",
           "media_players": "Lecteurs Multimédia (pour TTS)",
           "notify_services": "Services de notification"
         }
@@ -25,9 +26,10 @@
         "title": "Logique, Sécurité et Délais",
         "description": "Configurez la logique principale du système d'alarme.",
         "data": {
-          "main_code": "Code PIN Principal",
-          "secondary_codes": "Codes PIN Secondaires (séparés par des virgules)",
+          "users_codes": "Utilisateurs & Codes (Format: Nom1:1234, Nom2:5678)",
+          "duress_code": "Code de Détresse (SOS silencieux)",
           "bypass_allowed": "Autoriser le Bypass (Armer avec capteurs ouverts)",
+          "health_check": "Activer le Health Check (Surveillance batteries)",
           "exit_delay": "Délai de sortie (secondes)",
           "entry_delay": "Délai d'entrée (secondes)",
           "siren_duration": "Durée de la sirène (secondes)"
