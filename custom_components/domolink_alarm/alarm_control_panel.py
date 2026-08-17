@@ -80,14 +80,14 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._siren_duration = options.get(CONF_SIREN_DURATION, data.get(CONF_SIREN_DURATION, 180))
         self._bypass_allowed = options.get(CONF_BYPASS_ALLOWED, data.get(CONF_BYPASS_ALLOWED, False))
 
-        self._opening_sensors = data.get(CONF_OPENING_SENSORS, [])
-        self._motion_sensors = data.get(CONF_MOTION_SENSORS, [])
-        self._cameras = data.get(CONF_CAMERAS, [])
-        self._tamper_sensors = data.get(CONF_TAMPER_SENSORS, [])
+        self._opening_sensors = data.get(CONF_OPENING_SENSORS) or []
+        self._motion_sensors = data.get(CONF_MOTION_SENSORS) or []
+        self._cameras = data.get(CONF_CAMERAS) or []
+        self._tamper_sensors = data.get(CONF_TAMPER_SENSORS) or []
 
-        self._sirens = data.get(CONF_SIRENS, [])
-        self._media_players = data.get(CONF_MEDIA_PLAYERS, [])
-        self._notify_services = data.get(CONF_NOTIFY_SERVICES, [])
+        self._sirens = data.get(CONF_SIRENS) or []
+        self._media_players = data.get(CONF_MEDIA_PLAYERS) or []
+        self._notify_services = data.get(CONF_NOTIFY_SERVICES) or []
 
     @property
     def unique_id(self):
