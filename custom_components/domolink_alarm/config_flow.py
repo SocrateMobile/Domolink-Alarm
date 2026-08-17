@@ -52,16 +52,28 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Optional(CONF_OPENING_SENSORS, default=[]): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain=["binary_sensor", "sensor"], multiple=True)
+                        selector.EntitySelectorConfig(
+                            domain=["binary_sensor", "sensor"], 
+                            device_class=["door", "window", "opening", "garage_door"],
+                            multiple=True
+                        )
                     ),
                     vol.Optional(CONF_MOTION_SENSORS, default=[]): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain=["binary_sensor", "sensor"], multiple=True)
+                        selector.EntitySelectorConfig(
+                            domain=["binary_sensor", "sensor"],
+                            device_class=["motion", "occupancy", "presence"],
+                            multiple=True
+                        )
                     ),
                     vol.Optional(CONF_CAMERAS, default=[]): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain="camera", multiple=True)
                     ),
                     vol.Optional(CONF_TAMPER_SENSORS, default=[]): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain=["binary_sensor", "sensor"], multiple=True)
+                        selector.EntitySelectorConfig(
+                            domain=["binary_sensor", "sensor"],
+                            device_class=["tamper", "safety", "problem"],
+                            multiple=True
+                        )
                     ),
                     vol.Optional(CONF_KEYPADS, default=[]): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain=["alarm_control_panel", "sensor"], multiple=True)
