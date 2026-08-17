@@ -42,21 +42,160 @@ Conçue pour dépasser les standards du marché, elle offre une configuration 10
 
 ## 🎨 Dashboard Premium - iOS 26 Liquid Glass
 
-Pour accompagner cette alarme, voici le code YAML d'une carte Lovelace au design ultra-moderne.  
+Pour accompagner cette alarme, voici deux propositions de cartes Lovelace au design ultra-moderne (*Liquid Glass*).  
 *(Nécessite [Mushroom Cards](https://github.com/piitaya/lovelace-mushroom) et [Card-Mod](https://github.com/thomasloven/lovelace-card-mod) d'installés).*
 
-Ce design inclut un effet **Glassmorphism** (fond flouté translucide), des animations de pulsation pendant l'armement, et un pavé numérique élégant.
+### 🎛️ Option 1 : Dashboard Complet Pro (Pavé Numérique & Monitoring)
+
+Cette carte complète intègre le pavé numérique pour la saisie des codes utilisateurs/détresse ainsi que la surveillance en temps réel de tous les indicateurs clés (dernier utilisateur, dernier capteur déclencheur, statut géolocalisation, health check, compteur brute-force).
 
 ```yaml
-type: custom:mushroom-alarm-control-panel
+type: vertical-stack
+cards:
+  # ─── En-tête : État de l'alarme avec pavé numérique ───
+  - type: alarm-panel
+    entity: alarm_control_panel.domolink_alarm
+    states:
+      - arm_home
+      - arm_away
+      - arm_night
+    card_mod:
+      style: |
+        ha-card {
+          background: rgba(255, 255, 255, 0.08) !important;
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          border-radius: 24px;
+          box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+          overflow: hidden;
+        }
+
+        {% if is_state(config.entity, 'arming') or is_state(config.entity, 'pending') %}
+        ha-card {
+          animation: pulse-warn 2s infinite;
+        }
+        {% endif %}
+
+        {% if is_state(config.entity, 'triggered') %}
+        ha-card {
+          animation: pulse-danger 1s infinite;
+        }
+        {% endif %}
+
+        @keyframes pulse-warn {
+          0%, 100% { border-color: rgba(255, 165, 0, 0.3); box-shadow: 0 0 10px rgba(255, 165, 0, 0.1); }
+          50% { border-color: rgba(255, 165, 0, 1); box-shadow: 0 0 25px rgba(255, 165, 0, 0.6); }
+        }
+
+        @keyframes pulse-danger {
+          0%, 100% { border-color: rgba(255, 0, 0, 0.3); box-shadow: 0 0 10px rgba(255, 0, 0, 0.1); }
+          50% { border-color: rgba(255, 0, 0, 1); box-shadow: 0 0 30px rgba(255, 0, 0, 0.7); }
+        }
+
+  # ─── Infos : Dernier événement / Dernier utilisateur ───
+  - type: horizontal-stack
+    cards:
+      - type: custom:mushroom-template-card
+        primary: "{{ state_attr('alarm_control_panel.domolink_alarm', 'last_user') or '—' }}"
+        secondary: Dernier utilisateur
+        icon: mdi:account-check
+        icon_color: teal
+        card_mod:
+          style: |
+            ha-card {
+              background: rgba(255, 255, 255, 0.05) !important;
+              border: 1px solid rgba(255, 255, 255, 0.1);
+              border-radius: 16px;
+            }
+
+      - type: custom:mushroom-template-card
+        primary: >-
+          {{ state_attr('alarm_control_panel.domolink_alarm', 'last_triggered_by') 
+             | default('Aucun', true) 
+             | regex_replace('.*\\.', '') 
+             | replace('_', ' ') 
+             | title }}
+        secondary: Dernier déclencheur
+        icon: mdi:alarm-light
+        icon_color: >-
+          {% if is_state('alarm_control_panel.domolink_alarm', 'triggered') %}red
+          {% else %}grey{% endif %}
+        card_mod:
+          style: |
+            ha-card {
+              background: rgba(255, 255, 255, 0.05) !important;
+              border: 1px solid rgba(255, 255, 255, 0.1);
+              border-radius: 16px;
+            }
+
+  # ─── Monitoring : Géolocalisation / Health Check / Tentatives ───
+  - type: horizontal-stack
+    cards:
+      - type: custom:mushroom-template-card
+        primary: >-
+          {% if state_attr('alarm_control_panel.domolink_alarm', 'geofence_active') %}Actif
+          {% else %}Inactif{% endif %}
+        secondary: Géolocalisation
+        icon: mdi:map-marker-radius
+        icon_color: >-
+          {% if state_attr('alarm_control_panel.domolink_alarm', 'geofence_active') %}green
+          {% else %}grey{% endif %}
+        card_mod:
+          style: |
+            ha-card {
+              background: rgba(255, 255, 255, 0.05) !important;
+              border: 1px solid rgba(255, 255, 255, 0.1);
+              border-radius: 16px;
+            }
+
+      - type: custom:mushroom-template-card
+        primary: >-
+          {% if state_attr('alarm_control_panel.domolink_alarm', 'health_check_active') %}Actif
+          {% else %}Inactif{% endif %}
+        secondary: Health Check
+        icon: mdi:heart-pulse
+        icon_color: >-
+          {% if state_attr('alarm_control_panel.domolink_alarm', 'health_check_active') %}green
+          {% else %}grey{% endif %}
+        card_mod:
+          style: |
+            ha-card {
+              background: rgba(255, 255, 255, 0.05) !important;
+              border: 1px solid rgba(255, 255, 255, 0.1);
+              border-radius: 16px;
+            }
+
+      - type: custom:mushroom-template-card
+        primary: "{{ state_attr('alarm_control_panel.domolink_alarm', 'failed_attempts') or 0 }}/3"
+        secondary: Tentatives
+        icon: mdi:lock-alert
+        icon_color: >-
+          {% set n = state_attr('alarm_control_panel.domolink_alarm', 'failed_attempts') | int(0) %}
+          {% if n >= 2 %}red{% elif n >= 1 %}orange{% else %}grey{% endif %}
+        card_mod:
+          style: |
+            ha-card {
+              background: rgba(255, 255, 255, 0.05) !important;
+              border: 1px solid rgba(255, 255, 255, 0.1);
+              border-radius: 16px;
+            }
+```
+
+---
+
+### 🔲 Option 2 : Carte Épurée Mushroom (Compacte)
+
+Une version compacte idéale pour une vue d'ensemble ou une barre latérale.
+
+```yaml
+type: custom:mushroom-alarm-control-panel-card
 entity: alarm_control_panel.domolink_alarm
 states:
   - armed_home
   - armed_away
   - armed_night
 show_keypad: true
-primary_info: state
-secondary_info: last-changed
 card_mod:
   style: |
     ha-card {
@@ -69,11 +208,19 @@ card_mod:
       padding: 16px;
       transition: all 0.3s ease;
     }
-    
+
     /* Animation de pulsation si en délai d'armement ou de déclenchement */
     {% if is_state(config.entity, 'arming') or is_state(config.entity, 'pending') %}
     ha-card {
       animation: pulse-border 2s infinite;
+    }
+    {% endif %}
+
+    /* Animation de pulsation rouge si déclenchée */
+    {% if is_state(config.entity, 'triggered') %}
+    ha-card {
+      animation: pulse-danger 1s infinite;
+      border-color: rgba(255, 0, 0, 0.8) !important;
     }
     {% endif %}
 
@@ -83,13 +230,10 @@ card_mod:
       100% { border-color: rgba(255, 165, 0, 0.3); box-shadow: 0 0 10px rgba(255, 165, 0, 0.1); }
     }
 
-    /* Style du pavé numérique (Boutons Glass) */
-    mwc-button {
-      --mdc-theme-primary: white !important;
-      background: rgba(255, 255, 255, 0.05);
-      border-radius: 12px;
-      border: 1px solid rgba(255,255,255,0.1);
-      backdrop-filter: blur(5px);
+    @keyframes pulse-danger {
+      0% { border-color: rgba(255, 0, 0, 0.3); box-shadow: 0 0 10px rgba(255, 0, 0, 0.1); }
+      50% { border-color: rgba(255, 0, 0, 1); box-shadow: 0 0 25px rgba(255, 0, 0, 0.7); }
+      100% { border-color: rgba(255, 0, 0, 0.3); box-shadow: 0 0 10px rgba(255, 0, 0, 0.1); }
     }
 ```
 
