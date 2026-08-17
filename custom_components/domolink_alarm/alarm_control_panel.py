@@ -351,23 +351,37 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         """Handle sensor state changes."""
         entity_id = event.data.get("entity_id")
         new_state = event.data.get("new_state")
+        old_state = event.data.get("old_state")
 
-        if not new_state or new_state.state not in ("on", "open", "true"):
+        if not new_state:
             return
 
-        _LOGGER.debug("Sensor %s triggered", entity_id)
+        state_val = str(new_state.state).lower()
+        if state_val not in ("on", "open", "true", "detected", "unlocked", "1"):
+            return
+
+        _LOGGER.info(
+            "Domolink Alarm: Détection sur %s (état: %s, état alarme: %s)",
+            entity_id,
+            state_val,
+            self._state,
+        )
 
         # Tamper triggers immediately regardless of state (24/7)
         if entity_id in self._tamper_sensors:
-            _LOGGER.warning("Tamper detected on %s", entity_id)
+            _LOGGER.warning("Tamper / Sabotage détecté sur %s !", entity_id)
             await self._async_trigger_alarm(entity_id)
             return
 
-        # Ignore sensors when disarmed or during exit delay (Fix #10)
+        # Ignore sensors when disarmed or during exit delay
         if self._state in (
             AlarmControlPanelState.DISARMED,
             AlarmControlPanelState.ARMING,
         ):
+            _LOGGER.debug(
+                "Capteur ignoré car l'alarme est en état %s (délai de sortie ou désarmée)",
+                self._state,
+            )
             return
 
         # Already triggered, nothing to do
