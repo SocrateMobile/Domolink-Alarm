@@ -29,6 +29,7 @@ from .const import (
     CONF_DURESS_CODE,
     CONF_BYPASS_ALLOWED,
     CONF_HEALTH_CHECK,
+    CONF_GEOFENCE_AUTO_ARM,
     CONF_EXIT_DELAY,
     CONF_ENTRY_DELAY,
     CONF_SIREN_DURATION,
@@ -95,6 +96,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._siren_duration = options.get(CONF_SIREN_DURATION, data.get(CONF_SIREN_DURATION, 180))
         self._bypass_allowed = options.get(CONF_BYPASS_ALLOWED, data.get(CONF_BYPASS_ALLOWED, False))
         self._health_check = options.get(CONF_HEALTH_CHECK, data.get(CONF_HEALTH_CHECK, True))
+        self._geofence_auto_arm = options.get(CONF_GEOFENCE_AUTO_ARM, data.get(CONF_GEOFENCE_AUTO_ARM, False))
 
         self._opening_sensors = data.get(CONF_OPENING_SENSORS) or []
         self._motion_sensors = data.get(CONF_MOTION_SENSORS) or []
@@ -144,6 +146,63 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             )
             self.async_on_remove(self._health_check_remove)
 
+        # Start geofencing tracking if enabled
+        if self._geofence_auto_arm:
+            self.async_on_remove(
+                async_track_state_change_event(
+                    self.hass, ["zone.home"], self._async_zone_changed
+                )
+            )
+
+        # Listen to actionable notifications
+        self.hass.bus.async_listen("mobile_app_notification_action", self._async_handle_mobile_action)
+
+    async def _async_zone_changed(self, event):
+        """Handle zone.home state changes for auto arm/disarm."""
+        new_state = event.data.get("new_state")
+        old_state = event.data.get("old_state")
+        
+        if not new_state or not old_state:
+            return
+
+        try:
+            old_count = int(old_state.state)
+            new_count = int(new_state.state)
+        except ValueError:
+            return
+
+        if old_count > 0 and new_count == 0:
+            # Everyone left -> Auto Arm
+            if self._state == AlarmControlPanelState.DISARMED:
+                _LOGGER.info("Geofencing: No one at home, auto arming away")
+                await self._async_send_notification("Domolink: Plus personne à la maison, armement automatique activé.")
+                await self.async_alarm_arm_away()
+
+        elif old_count == 0 and new_count > 0:
+            # Someone arrived -> Auto Disarm
+            if self._state in (AlarmControlPanelState.ARMED_AWAY, AlarmControlPanelState.ARMED_NIGHT):
+                _LOGGER.info("Geofencing: Someone arrived, auto disarming")
+                await self._async_send_notification("Domolink: Retour détecté, désarmement automatique.")
+                self._state = AlarmControlPanelState.DISARMED
+                self.async_write_ha_state()
+
+    async def _async_handle_mobile_action(self, event):
+        """Handle actionable notification button clicks."""
+        action = event.data.get("action")
+        if action == "DOMOLINK_DISARM":
+            _LOGGER.info("Disarm triggered via mobile actionable notification")
+            # Force disarm bypassing code check since phone is unlocked
+            self._state = AlarmControlPanelState.DISARMED
+            self.async_write_ha_state()
+            if self._arming_task:
+                self._arming_task()
+                self._arming_task = None
+            if self._pending_task:
+                self._pending_task()
+                self._pending_task = None
+            await self._async_turn_off_siren()
+            await self._async_send_notification("Alarme désarmée via Apple Watch / Mobile.")
+
     async def _async_perform_health_check(self, now=None):
         """Check battery and availability of sensors."""
         all_sensors = self._opening_sensors + self._motion_sensors + self._tamper_sensors
@@ -165,12 +224,27 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             notify_msg = "Health Check Alarme: \n" + "\n".join(warnings)
             await self._async_send_notification(notify_msg)
 
-    async def _async_send_notification(self, message):
-        """Helper to send notifications."""
+    async def _async_send_notification(self, message, is_alert=False):
+        """Helper to send notifications, with actionable buttons if it's an alert."""
+        data = {}
+        if is_alert:
+            data = {
+                "push": {
+                    "sound": {
+                        "name": "default",
+                        "critical": 1,
+                        "volume": 1.0
+                    }
+                },
+                "actions": [
+                    {"action": "DOMOLINK_DISARM", "title": "Désarmer l'alarme", "destructive": True}
+                ]
+            }
+
         for notify_service in self._notify_services:
             domain, service = notify_service.split(".", 1) if "." in notify_service else ("notify", notify_service)
             try:
-                await self.hass.services.async_call(domain, service, {"message": message})
+                await self.hass.services.async_call(domain, service, {"message": message, "data": data})
             except Exception as e:
                 _LOGGER.error(f"Failed to call notify service {notify_service}: {e}")
 
@@ -246,7 +320,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         name = state.name if state else triggering_entity
         
         notify_msg = f"🚨 INTRUSION DÉTECTÉE 🚨\nCapteur : {name}"
-        await self._async_send_notification(notify_msg)
+        await self._async_send_notification(notify_msg, is_alert=True)
 
         # 2. Camera Recording
         for camera in self._cameras:

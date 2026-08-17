@@ -20,6 +20,7 @@ from .const import (
     CONF_DURESS_CODE,
     CONF_BYPASS_ALLOWED,
     CONF_HEALTH_CHECK,
+    CONF_GEOFENCE_AUTO_ARM,
     CONF_EXIT_DELAY,
     CONF_ENTRY_DELAY,
     CONF_SIREN_DURATION,
@@ -28,6 +29,7 @@ from .const import (
     DEFAULT_SIREN_DURATION,
     DEFAULT_BYPASS_ALLOWED,
     DEFAULT_HEALTH_CHECK,
+    DEFAULT_GEOFENCE_AUTO_ARM,
 )
 
 
@@ -125,6 +127,7 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Optional(CONF_DURESS_CODE, default=""): str,
                     vol.Optional(CONF_BYPASS_ALLOWED, default=DEFAULT_BYPASS_ALLOWED): bool,
                     vol.Optional(CONF_HEALTH_CHECK, default=DEFAULT_HEALTH_CHECK): bool,
+                    vol.Optional(CONF_GEOFENCE_AUTO_ARM, default=DEFAULT_GEOFENCE_AUTO_ARM): bool,
                     vol.Optional(CONF_EXIT_DELAY, default=DEFAULT_EXIT_DELAY): int,
                     vol.Optional(CONF_ENTRY_DELAY, default=DEFAULT_ENTRY_DELAY): int,
                     vol.Optional(CONF_SIREN_DURATION, default=DEFAULT_SIREN_DURATION): int,
@@ -159,6 +162,7 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
                     vol.Optional(CONF_DURESS_CODE, default=self.config_entry.data.get(CONF_DURESS_CODE, "")): str,
                     vol.Optional(CONF_BYPASS_ALLOWED, default=self.config_entry.data.get(CONF_BYPASS_ALLOWED, DEFAULT_BYPASS_ALLOWED)): bool,
                     vol.Optional(CONF_HEALTH_CHECK, default=self.config_entry.data.get(CONF_HEALTH_CHECK, DEFAULT_HEALTH_CHECK)): bool,
+                    vol.Optional(CONF_GEOFENCE_AUTO_ARM, default=self.config_entry.data.get(CONF_GEOFENCE_AUTO_ARM, DEFAULT_GEOFENCE_AUTO_ARM)): bool,
                     vol.Optional(CONF_EXIT_DELAY, default=self.config_entry.data.get(CONF_EXIT_DELAY, DEFAULT_EXIT_DELAY)): int,
                     vol.Optional(CONF_ENTRY_DELAY, default=self.config_entry.data.get(CONF_ENTRY_DELAY, DEFAULT_ENTRY_DELAY)): int,
                     vol.Optional(CONF_SIREN_DURATION, default=self.config_entry.data.get(CONF_SIREN_DURATION, DEFAULT_SIREN_DURATION)): int,
