@@ -6,18 +6,10 @@ from datetime import timedelta
 from homeassistant.components.alarm_control_panel import (
     AlarmControlPanelEntity,
     AlarmControlPanelEntityFeature,
+    AlarmControlPanelState,
     CodeFormat,
 )
-from homeassistant.const import (
-    STATE_ALARM_ARMED_AWAY,
-    STATE_ALARM_ARMED_HOME,
-    STATE_ALARM_ARMED_NIGHT,
-    STATE_ALARM_ARMING,
-    STATE_ALARM_DISARMED,
-    STATE_ALARM_PENDING,
-    STATE_ALARM_TRIGGERED,
-    EVENT_STATE_CHANGED,
-)
+from homeassistant.const import EVENT_STATE_CHANGED
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import async_track_state_change_event, async_call_later
 from homeassistant.helpers.restore_state import RestoreEntity
@@ -64,8 +56,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         """Initialize the alarm."""
         self.hass = hass
         self._entry = entry
-        self._state = STATE_ALARM_DISARMED
-        self._pre_trigger_state = STATE_ALARM_DISARMED
+        self._state = AlarmControlPanelState.DISARMED
+        self._pre_trigger_state = AlarmControlPanelState.DISARMED
         self._unique_id = f"domolink_alarm_{entry.entry_id}"
 
         self._siren_task = None
@@ -144,21 +136,21 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             await self._async_trigger_alarm(entity_id)
             return
 
-        if self._state == STATE_ALARM_DISARMED:
+        if self._state == AlarmControlPanelState.DISARMED:
             return
 
         # Handle different modes
-        if self._state == STATE_ALARM_ARMED_HOME:
+        if self._state == AlarmControlPanelState.ARMED_HOME:
             if entity_id in self._opening_sensors:
                 await self._async_trigger_alarm(entity_id)
-        elif self._state in (STATE_ALARM_ARMED_AWAY, STATE_ALARM_ARMED_NIGHT):
+        elif self._state in (AlarmControlPanelState.ARMED_AWAY, AlarmControlPanelState.ARMED_NIGHT):
             if entity_id in self._opening_sensors or entity_id in self._motion_sensors:
                 # If away, we have entry delay
-                if self._state == STATE_ALARM_ARMED_AWAY and self._entry_delay > 0:
+                if self._state == AlarmControlPanelState.ARMED_AWAY and self._entry_delay > 0:
                     if self._pending_task is None:
                         _LOGGER.info("Starting entry delay")
                         self._pre_trigger_state = self._state
-                        self._state = STATE_ALARM_PENDING
+                        self._state = AlarmControlPanelState.PENDING
                         self.async_write_ha_state()
                         self._pending_task = async_call_later(
                             self.hass, self._entry_delay, lambda now: self.hass.async_create_task(self._async_trigger_alarm(entity_id))
@@ -168,10 +160,10 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
     async def _async_trigger_alarm(self, triggering_entity):
         """Trigger the alarm."""
-        if self._state == STATE_ALARM_TRIGGERED:
+        if self._state == AlarmControlPanelState.TRIGGERED:
             return
 
-        self._state = STATE_ALARM_TRIGGERED
+        self._state = AlarmControlPanelState.TRIGGERED
         self.async_write_ha_state()
 
         if self._pending_task:
@@ -206,7 +198,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 _LOGGER.error(f"Failed to record camera {camera}: {e}")
 
         # 3. TTS (Only Away or Night modes for TTS in requirements)
-        if self._pre_trigger_state in (STATE_ALARM_ARMED_AWAY, STATE_ALARM_ARMED_NIGHT, STATE_ALARM_DISARMED) or triggering_entity in self._tamper_sensors:
+        if self._pre_trigger_state in (AlarmControlPanelState.ARMED_AWAY, AlarmControlPanelState.ARMED_NIGHT, AlarmControlPanelState.DISARMED) or triggering_entity in self._tamper_sensors:
             tts_message = "Alerte intrusion détectée, le propriétaire et la police ont été prévenus. Les enregistrements photos et vidéo ont été réalisés à l'intérieur mais aussi à l'extérieur dès que vous avez pénétré dans la propriété. Tout est d'ores et déjà sauvegardé en ligne, sur des serveurs sécurisés."
             for player in self._media_players:
                 try:
@@ -215,7 +207,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                     _LOGGER.error(f"Failed to play TTS on {player}: {e}")
 
         # 4. Siren (Only Away mode or Tamper)
-        if self._pre_trigger_state == STATE_ALARM_ARMED_AWAY or triggering_entity in self._tamper_sensors:
+        if self._pre_trigger_state == AlarmControlPanelState.ARMED_AWAY or triggering_entity in self._tamper_sensors:
             if self._sirens:
                 try:
                     await self.hass.services.async_call("homeassistant", "turn_on", {"entity_id": self._sirens})
@@ -239,11 +231,11 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
     async def async_alarm_disarm(self, code=None):
         """Send disarm command."""
-        if not self._validate_code(code, STATE_ALARM_DISARMED):
+        if not self._validate_code(code, AlarmControlPanelState.DISARMED):
             _LOGGER.warning("Invalid code provided for disarm")
             return
 
-        self._state = STATE_ALARM_DISARMED
+        self._state = AlarmControlPanelState.DISARMED
         self.async_write_ha_state()
 
         if self._arming_task:
@@ -272,7 +264,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         """Send arm home command."""
         if not await self._check_bypass():
             return
-        self._state = STATE_ALARM_ARMED_HOME
+        self._state = AlarmControlPanelState.ARMED_HOME
         self.async_write_ha_state()
 
     async def async_alarm_arm_away(self, code=None):
@@ -281,7 +273,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             return
         
         if self._exit_delay > 0:
-            self._state = STATE_ALARM_ARMING
+            self._state = AlarmControlPanelState.ARMING
             self.async_write_ha_state()
             self._arming_task = async_call_later(
                 self.hass, self._exit_delay, self._async_arm_away_complete
@@ -291,8 +283,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
     @callback
     async def _async_arm_away_complete(self, now=None):
-        self._state = STATE_ALARM_ARMED_AWAY
-        self._pre_trigger_state = STATE_ALARM_ARMED_AWAY
+        self._state = AlarmControlPanelState.ARMED_AWAY
+        self._pre_trigger_state = AlarmControlPanelState.ARMED_AWAY
         self.async_write_ha_state()
         self._arming_task = None
 
@@ -300,5 +292,5 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         """Send arm night command."""
         if not await self._check_bypass():
             return
-        self._state = STATE_ALARM_ARMED_NIGHT
+        self._state = AlarmControlPanelState.ARMED_NIGHT
         self.async_write_ha_state()
