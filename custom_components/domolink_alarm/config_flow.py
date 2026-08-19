@@ -37,7 +37,24 @@ from .const import (
 )
 
 
+
+def _get_entity_options(hass, domains, device_classes=None):
+    options = []
+    if isinstance(domains, str):
+        domains = [domains]
+    for state in hass.states.async_all(domains):
+        if device_classes:
+            d_class = state.attributes.get("device_class")
+            if d_class not in device_classes:
+                continue
+        options.append({
+            "value": state.entity_id,
+            "label": f"{state.name} ({state.entity_id})"
+        })
+    return sorted(options, key=lambda x: x["label"].lower())
+
 class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+
     """Handle a config flow for Domolink Alarm."""
 
     VERSION = 1
@@ -61,38 +78,53 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Optional(CONF_NAME, default=DEFAULT_NAME): str,
-                    vol.Optional(CONF_NIGHT_SENSORS, default=[]): selector.EntitySelector(
-                        selector.EntitySelectorConfig(
-                            domain=["binary_sensor", "sensor"],
-                            multiple=True
+                    vol.Optional(CONF_NIGHT_SENSORS, default=[]): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=_get_entity_options(self.hass, ["binary_sensor", "sensor"], None),
+                            multiple=True,
+                            mode=selector.SelectSelectorMode.LIST,
+                            custom_value=True
                         )
                     ),
-                    vol.Optional(CONF_OPENING_SENSORS, default=[]): selector.EntitySelector(
-                        selector.EntitySelectorConfig(
-                            domain=["binary_sensor", "sensor"], 
-                            device_class=["door", "window", "opening", "garage_door"],
-                            multiple=True
+                    vol.Optional(CONF_OPENING_SENSORS, default=[]): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=_get_entity_options(self.hass, ["binary_sensor", "sensor"], ["door", "window", "opening", "garage_door"]),
+                            multiple=True,
+                            mode=selector.SelectSelectorMode.LIST,
+                            custom_value=True
                         )
                     ),
-                    vol.Optional(CONF_MOTION_SENSORS, default=[]): selector.EntitySelector(
-                        selector.EntitySelectorConfig(
-                            domain=["binary_sensor", "sensor"],
-                            device_class=["motion", "occupancy", "presence"],
-                            multiple=True
+                    vol.Optional(CONF_MOTION_SENSORS, default=[]): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=_get_entity_options(self.hass, ["binary_sensor", "sensor"], ["motion", "occupancy", "presence"]),
+                            multiple=True,
+                            mode=selector.SelectSelectorMode.LIST,
+                            custom_value=True
                         )
                     ),
-                    vol.Optional(CONF_CAMERAS, default=[]): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain="camera", multiple=True)
-                    ),
-                    vol.Optional(CONF_TAMPER_SENSORS, default=[]): selector.EntitySelector(
-                        selector.EntitySelectorConfig(
-                            domain=["binary_sensor", "sensor"],
-                            device_class=["tamper", "safety", "problem"],
-                            multiple=True
+                    vol.Optional(CONF_CAMERAS, default=[]): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=_get_entity_options(self.hass, "camera", None),
+                            multiple=True,
+                            mode=selector.SelectSelectorMode.LIST,
+                            custom_value=True
                         )
                     ),
-                    vol.Optional(CONF_KEYPADS, default=[]): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain=["alarm_control_panel", "sensor"], multiple=True)
+                    vol.Optional(CONF_TAMPER_SENSORS, default=[]): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=_get_entity_options(self.hass, ["binary_sensor", "sensor"], ["tamper", "safety", "problem"]),
+                            multiple=True,
+                            mode=selector.SelectSelectorMode.LIST,
+                            custom_value=True
+                        )
+                    ),
+                    vol.Optional(CONF_KEYPADS, default=[]): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=_get_entity_options(self.hass, ["alarm_control_panel", "sensor"], None),
+                            multiple=True,
+                            mode=selector.SelectSelectorMode.LIST,
+                            custom_value=True
+                        )
                     ),
                 }
             ),
@@ -108,17 +140,37 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="actuators",
             data_schema=vol.Schema(
                 {
-                    vol.Optional(CONF_SIRENS, default=[]): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain=["switch", "siren"], multiple=True)
+                    vol.Optional(CONF_SIRENS, default=[]): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=_get_entity_options(self.hass, ["switch", "siren"], None),
+                            multiple=True,
+                            mode=selector.SelectSelectorMode.LIST,
+                            custom_value=True
+                        )
                     ),
-                    vol.Optional(CONF_LIGHTS, default=[]): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain="light", multiple=True)
+                    vol.Optional(CONF_LIGHTS, default=[]): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=_get_entity_options(self.hass, "light", None),
+                            multiple=True,
+                            mode=selector.SelectSelectorMode.LIST,
+                            custom_value=True
+                        )
                     ),
-                    vol.Optional(CONF_MEDIA_PLAYERS, default=[]): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain="media_player", multiple=True)
+                    vol.Optional(CONF_MEDIA_PLAYERS, default=[]): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=_get_entity_options(self.hass, "media_player", None),
+                            multiple=True,
+                            mode=selector.SelectSelectorMode.LIST,
+                            custom_value=True
+                        )
                     ),
-                    vol.Optional(CONF_NOTIFY_SERVICES, default=[]): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain="notify", multiple=True)
+                    vol.Optional(CONF_NOTIFY_SERVICES, default=[]): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=_get_entity_options(self.hass, "notify", None),
+                            multiple=True,
+                            mode=selector.SelectSelectorMode.LIST,
+                            custom_value=True
+                        )
                     ),
                 }
             ),
@@ -135,8 +187,13 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="logic",
             data_schema=vol.Schema(
                 {
-                    vol.Optional(CONF_PERSONS, default=[]): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain="person", multiple=True)
+                    vol.Optional(CONF_PERSONS, default=[]): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=_get_entity_options(self.hass, "person", None),
+                            multiple=True,
+                            mode=selector.SelectSelectorMode.LIST,
+                            custom_value=True
+                        )
                     ),
                     vol.Required(CONF_USERS_CODES): str,
                     vol.Optional(CONF_DURESS_CODE, default=""): str,
@@ -180,38 +237,53 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
             data_schema=vol.Schema(
                 {
                     vol.Optional(CONF_NAME, default=self.options.get(CONF_NAME, DEFAULT_NAME)): str,
-                    vol.Optional(CONF_NIGHT_SENSORS, default=self.options.get(CONF_NIGHT_SENSORS, [])): selector.EntitySelector(
-                        selector.EntitySelectorConfig(
-                            domain=["binary_sensor", "sensor"],
-                            multiple=True
+                    vol.Optional(CONF_NIGHT_SENSORS, default=self.options.get(CONF_NIGHT_SENSORS, [])): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=_get_entity_options(self.hass, ["binary_sensor", "sensor"], None),
+                            multiple=True,
+                            mode=selector.SelectSelectorMode.LIST,
+                            custom_value=True
                         )
                     ),
-                    vol.Optional(CONF_OPENING_SENSORS, default=self.options.get(CONF_OPENING_SENSORS, [])): selector.EntitySelector(
-                        selector.EntitySelectorConfig(
-                            domain=["binary_sensor", "sensor"], 
-                            device_class=["door", "window", "opening", "garage_door"],
-                            multiple=True
+                    vol.Optional(CONF_OPENING_SENSORS, default=self.options.get(CONF_OPENING_SENSORS, [])): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=_get_entity_options(self.hass, ["binary_sensor", "sensor"], ["door", "window", "opening", "garage_door"]),
+                            multiple=True,
+                            mode=selector.SelectSelectorMode.LIST,
+                            custom_value=True
                         )
                     ),
-                    vol.Optional(CONF_MOTION_SENSORS, default=self.options.get(CONF_MOTION_SENSORS, [])): selector.EntitySelector(
-                        selector.EntitySelectorConfig(
-                            domain=["binary_sensor", "sensor"],
-                            device_class=["motion", "occupancy", "presence"],
-                            multiple=True
+                    vol.Optional(CONF_MOTION_SENSORS, default=self.options.get(CONF_MOTION_SENSORS, [])): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=_get_entity_options(self.hass, ["binary_sensor", "sensor"], ["motion", "occupancy", "presence"]),
+                            multiple=True,
+                            mode=selector.SelectSelectorMode.LIST,
+                            custom_value=True
                         )
                     ),
-                    vol.Optional(CONF_CAMERAS, default=self.options.get(CONF_CAMERAS, [])): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain="camera", multiple=True)
-                    ),
-                    vol.Optional(CONF_TAMPER_SENSORS, default=self.options.get(CONF_TAMPER_SENSORS, [])): selector.EntitySelector(
-                        selector.EntitySelectorConfig(
-                            domain=["binary_sensor", "sensor"],
-                            device_class=["tamper", "safety", "problem"],
-                            multiple=True
+                    vol.Optional(CONF_CAMERAS, default=self.options.get(CONF_CAMERAS, [])): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=_get_entity_options(self.hass, "camera", None),
+                            multiple=True,
+                            mode=selector.SelectSelectorMode.LIST,
+                            custom_value=True
                         )
                     ),
-                    vol.Optional(CONF_KEYPADS, default=self.options.get(CONF_KEYPADS, [])): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain=["alarm_control_panel", "sensor"], multiple=True)
+                    vol.Optional(CONF_TAMPER_SENSORS, default=self.options.get(CONF_TAMPER_SENSORS, [])): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=_get_entity_options(self.hass, ["binary_sensor", "sensor"], ["tamper", "safety", "problem"]),
+                            multiple=True,
+                            mode=selector.SelectSelectorMode.LIST,
+                            custom_value=True
+                        )
+                    ),
+                    vol.Optional(CONF_KEYPADS, default=self.options.get(CONF_KEYPADS, [])): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=_get_entity_options(self.hass, ["alarm_control_panel", "sensor"], None),
+                            multiple=True,
+                            mode=selector.SelectSelectorMode.LIST,
+                            custom_value=True
+                        )
                     ),
                 }
             ),
@@ -227,17 +299,37 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
             step_id="actuators",
             data_schema=vol.Schema(
                 {
-                    vol.Optional(CONF_SIRENS, default=self.options.get(CONF_SIRENS, [])): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain=["switch", "siren"], multiple=True)
+                    vol.Optional(CONF_SIRENS, default=self.options.get(CONF_SIRENS, [])): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=_get_entity_options(self.hass, ["switch", "siren"], None),
+                            multiple=True,
+                            mode=selector.SelectSelectorMode.LIST,
+                            custom_value=True
+                        )
                     ),
-                    vol.Optional(CONF_LIGHTS, default=self.options.get(CONF_LIGHTS, [])): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain="light", multiple=True)
+                    vol.Optional(CONF_LIGHTS, default=self.options.get(CONF_LIGHTS, [])): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=_get_entity_options(self.hass, "light", None),
+                            multiple=True,
+                            mode=selector.SelectSelectorMode.LIST,
+                            custom_value=True
+                        )
                     ),
-                    vol.Optional(CONF_MEDIA_PLAYERS, default=self.options.get(CONF_MEDIA_PLAYERS, [])): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain="media_player", multiple=True)
+                    vol.Optional(CONF_MEDIA_PLAYERS, default=self.options.get(CONF_MEDIA_PLAYERS, [])): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=_get_entity_options(self.hass, "media_player", None),
+                            multiple=True,
+                            mode=selector.SelectSelectorMode.LIST,
+                            custom_value=True
+                        )
                     ),
-                    vol.Optional(CONF_NOTIFY_SERVICES, default=self.options.get(CONF_NOTIFY_SERVICES, [])): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain="notify", multiple=True)
+                    vol.Optional(CONF_NOTIFY_SERVICES, default=self.options.get(CONF_NOTIFY_SERVICES, [])): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=_get_entity_options(self.hass, "notify", None),
+                            multiple=True,
+                            mode=selector.SelectSelectorMode.LIST,
+                            custom_value=True
+                        )
                     ),
                 }
             ),
@@ -253,8 +345,13 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
             step_id="logic",
             data_schema=vol.Schema(
                 {
-                    vol.Optional(CONF_PERSONS, default=self.options.get(CONF_PERSONS, [])): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain="person", multiple=True)
+                    vol.Optional(CONF_PERSONS, default=self.options.get(CONF_PERSONS, [])): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=_get_entity_options(self.hass, "person", None),
+                            multiple=True,
+                            mode=selector.SelectSelectorMode.LIST,
+                            custom_value=True
+                        )
                     ),
                     vol.Required(CONF_USERS_CODES, default=self.options.get(CONF_USERS_CODES, "")): str,
                     vol.Optional(CONF_DURESS_CODE, default=self.options.get(CONF_DURESS_CODE, "")): str,

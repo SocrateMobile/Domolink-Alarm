@@ -284,7 +284,10 @@ card_mod:
 
 ## 📜 Changelog
 
-### 🚀 v0.6.6-beta (Current)
+### 🚀 v0.6.7-beta (Current)
+- 🎛️ **Amélioration UX (UI)** : Remplacement des menus déroulants de sélection d'entités par des vraies **listes de cases à cocher** déroulables, générées dynamiquement. Il est désormais beaucoup plus intuitif et visuel de sélectionner plusieurs capteurs ou caméras d'un seul coup directement sur la page !
+
+### 🚀 v0.6.6-beta
 - 🐛 **Fix OptionsFlow** : Correction de l'erreur `500 Internal Server Error` qui empêchait la modification de la configuration de l'alarme, causée par le renommage récent des étapes de configuration dans les fichiers de langue (sensors, actuators, logic).
 
 ### 🚀 v0.6.5-beta
