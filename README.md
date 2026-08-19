@@ -284,7 +284,10 @@ card_mod:
 
 ## 📜 Changelog
 
-### 🚀 v0.6.2-beta (Current)
+### 🚀 v0.6.3-beta (Current)
+- 🎨 **Fix Icônes** : Les icônes sont désormais servies depuis le dossier `brand/` conformément au standard Home Assistant 2026.3+. Elles apparaissent maintenant dans la page Intégrations et Appareils.
+
+### 🚀 v0.6.2-beta
 - 🚨 **Notifications Continues** : Si l'alarme est déjà déclenchée et qu'un nouveau capteur détecte une intrusion, une nouvelle alerte est envoyée ("Détection supplémentaire").
 - 🐛 **Fix Journal d'Événements** : Correction d'un bug qui effaçait le capteur de log en cas de déclenchement.
 - 🐛 **Fix Mode Nuit & Geofencing** : Correction d'une régression dans l'évaluation des états des capteurs.
