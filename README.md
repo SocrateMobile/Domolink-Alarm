@@ -129,6 +129,49 @@ cards:
               border-radius: 16px;
             }
 
+
+  # ─── SOS & Journal d'Événements ───
+  - type: horizontal-stack
+    cards:
+      - type: custom:mushroom-template-card
+        entity: button.domolink_sos_votre_id
+        primary: "Panique SOS"
+        secondary: "Déclencher l'alarme"
+        icon: mdi:alert-decagram
+        icon_color: red
+        layout: horizontal
+        tap_action:
+          action: call-service
+          service: button.press
+          target:
+            entity_id: button.domolink_sos_votre_id
+          confirmation:
+            text: "Voulez-vous vraiment déclencher l'alarme ?"
+        card_mod:
+          style: |
+            ha-card {
+              background: rgba(255, 0, 0, 0.1) !important;
+              border: 1px solid rgba(255, 0, 0, 0.3);
+              border-radius: 16px;
+            }
+
+      - type: custom:mushroom-template-card
+        entity: sensor.domolink_event_log_votre_id
+        primary: "Dernier Événement"
+        secondary: "{{ states('sensor.domolink_event_log_votre_id') }}"
+        icon: mdi:history
+        icon_color: blue
+        layout: horizontal
+        tap_action:
+          action: more-info
+        card_mod:
+          style: |
+            ha-card {
+              background: rgba(255, 255, 255, 0.05) !important;
+              border: 1px solid rgba(255, 255, 255, 0.1);
+              border-radius: 16px;
+            }
+
   # ─── Monitoring : Géolocalisation / Health Check / Tentatives ───
   - type: horizontal-stack
     cards:
@@ -241,7 +284,20 @@ card_mod:
 
 ## 📜 Changelog
 
-### 🚀 v0.5.0-beta (Current)
+### 🚀 v0.6.0-beta (Current)
+- 🌙 **Mode Nuit (`Arm Night`)** : Sélection d'un groupe spécifique de capteurs (ex: portes/fenêtres uniquement) qui s'activeront la nuit.
+- 🧑‍🤝‍🧑 **Geofencing intelligent (Personnes)** : L'alarme s'arme automatiquement (Absent) si toutes les personnes sélectionnées quittent la maison, et se désarme si une personne rentre.
+- 🆘 **Entité Bouton de Panique (SOS)** : Nouvelle entité `button.domolink_sos` permettant de déclencher les sirènes immédiatement.
+- 📜 **Journal d'Événements** : Nouvelle entité `sensor.domolink_event_log` stockant le dernier événement et un historique de 20 événements en attribut.
+- 🔍 **Détail des Défauts** : L'entité alarme liste désormais les capteurs ouverts (`faults`) et le capteur exact de déclenchement (`triggered_by`) en attributs.
+- 📱 **Notifications Apple Watch / CarPlay Enrichies** : Ajout du flux/snapshot de la caméra directement dans les alertes push iOS.
+- ⚙️ **Configuration Dynamique** : Tous les capteurs et actionneurs peuvent désormais être ajoutés/supprimés depuis le bouton "Configurer" sans réinstaller l'alarme.
+
+### 🏢 v0.5.2-beta
+- Ajout d'une action "Ouvrir l'application" au clic sur une notification.
+- Restructuration totale du menu "Configurer" (OptionsFlow) pour permettre la modification des capteurs/actionneurs.
+
+### 🏢 v0.5.0-beta
 - 🏢 **Multi-Systèmes d'Alarme** : Support complet de multiples alarmes indépendantes (ex: "Alarme Maison", "Alarme Garage", "Alarme Bureau").
 - 🏷️ **Nom personnalisable** dans l'assistant de configuration avec création d'un appareil (`Device`) dédié pour chaque alarme.
 - 🛡️ **Icônes et Logos HACS / HA** : Ajout des icônes à tous les niveaux (`/`, `images/`, `.github/`, `custom_components/domolink_alarm/`) pour une visibilité immédiate dans HACS et la liste des intégrations.
