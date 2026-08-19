@@ -1,0 +1,86 @@
+{
+  "config": {
+    "title": "Сигналізація Domolink",
+    "step": {
+      "user": {
+        "title": "Налаштування Domolink",
+        "description": "Виберіть датчики та пристрої.",
+        "data": {
+          "name": "Назва сигналізації",
+          "opening_sensors": "Датчики відкриття",
+          "motion_sensors": "Датчики руху",
+          "tamper_sensors": "Датчики саботажу (24/7)",
+          "night_sensors": "Датчики нічного режиму",
+          "sirens": "Сирени",
+          "lights": "Тривожне освітлення",
+          "media_players": "Медіаплеєри (TTS)",
+          "cameras": "Камери",
+          "notify_devices": "Пристрої для сповіщень (Необов'язково)",
+          "persons": "Люди (Геозони)",
+          "exit_delay": "Затримка на вихід (секунди)",
+          "entry_delay": "Затримка на вхід (секунди)",
+          "code": "PIN-код"
+        }
+      }
+    },
+    "error": {
+      "invalid_code": "Код має бути числовим.",
+      "cannot_connect": "Помилка підключення",
+      "unknown": "Невідома помилка"
+    },
+    "abort": {
+      "already_configured": "Пристрій вже налаштовано"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Змінити налаштування Domolink",
+        "data": {
+          "opening_sensors": "Датчики відкриття",
+          "motion_sensors": "Датчики руху",
+          "tamper_sensors": "Датчики саботажу (24/7)",
+          "night_sensors": "Датчики нічного режиму",
+          "sirens": "Сирени",
+          "lights": "Тривожне освітлення",
+          "media_players": "Медіаплеєри (TTS)",
+          "cameras": "Камери",
+          "notify_devices": "Пристрої для сповіщень (Необов'язково)",
+          "persons": "Люди (Геозони)",
+          "exit_delay": "Затримка на вихід (секунди)",
+          "entry_delay": "Затримка на вхід (секунди)"
+        }
+      }
+    }
+  },
+  "state": {
+    "alarm_control_panel": {
+      "domolink_alarm": {
+        "disarmed": "Вимкнено",
+        "armed_home": "Увімкнено (Вдома)",
+        "armed_away": "Увімкнено (Не вдома)",
+        "armed_night": "Увімкнено (Ніч)",
+        "arming": "Вмикається...",
+        "pending": "Очікування...",
+        "triggered": "ТРИВОГА"
+      }
+    },
+    "sensor": {
+      "domolink_event_log": {
+        "unknown": "Невідомо"
+      }
+    }
+  },
+  "entity": {
+    "button": {
+      "domolink_sos": {
+        "name": "Тривожна кнопка SOS"
+      }
+    },
+    "sensor": {
+      "domolink_event_log": {
+        "name": "Остання подія"
+      }
+    }
+  }
+}

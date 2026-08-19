@@ -284,7 +284,10 @@ card_mod:
 
 ## 📜 Changelog
 
-### 🚀 v0.6.4-beta (Current)
+### 🚀 v0.6.5-beta (Current)
+- 🌍 **Internationalisation (i18n)** : Ajout des traductions complètes pour l'intégration et les entités en Français, Anglais, Espagnol, Italien, Allemand et Ukrainien (notamment pour l'état "unknown" des capteurs et les boutons d'entité).
+
+### 🚀 v0.6.4-beta
 - 📝 **Journal détaillé (Audit Trail)** : Le capteur d'événements (`sensor.domolink_event_log`) enregistre maintenant finement chaque action technique du système lors d'une alerte : allumage des amplis, réglage du volume, diffusion du message TTS, envoi des notifications, activation des caméras, déclenchement et arrêt des sirènes/lumières.
 
 ### 🚀 v0.6.3-beta

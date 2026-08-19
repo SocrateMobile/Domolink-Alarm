@@ -1,0 +1,86 @@
+{
+  "config": {
+    "title": "Allarme Domolink",
+    "step": {
+      "user": {
+        "title": "Configura Allarme Domolink",
+        "description": "Seleziona i tuoi sensori e dispositivi.",
+        "data": {
+          "name": "Nome dell'allarme",
+          "opening_sensors": "Sensori di Apertura",
+          "motion_sensors": "Sensori di Movimento",
+          "tamper_sensors": "Sensori di Manomissione (24/7)",
+          "night_sensors": "Sensori Modalità Notte",
+          "sirens": "Sirene",
+          "lights": "Luci di Panico",
+          "media_players": "Lettori Multimediali (TTS)",
+          "cameras": "Telecamere",
+          "notify_devices": "Dispositivi di Notifica (Opzionale)",
+          "persons": "Persone (Geofencing)",
+          "exit_delay": "Ritardo di Uscita (secondi)",
+          "entry_delay": "Ritardo di Ingresso (secondi)",
+          "code": "Codice PIN"
+        }
+      }
+    },
+    "error": {
+      "invalid_code": "Il codice deve essere numerico.",
+      "cannot_connect": "Impossibile connettersi",
+      "unknown": "Errore inaspettato"
+    },
+    "abort": {
+      "already_configured": "Il dispositivo è già configurato"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Regola le impostazioni di Allarme Domolink",
+        "data": {
+          "opening_sensors": "Sensori di Apertura",
+          "motion_sensors": "Sensori di Movimento",
+          "tamper_sensors": "Sensori di Manomissione (24/7)",
+          "night_sensors": "Sensori Modalità Notte",
+          "sirens": "Sirene",
+          "lights": "Luci di Panico",
+          "media_players": "Lettori Multimediali (TTS)",
+          "cameras": "Telecamere",
+          "notify_devices": "Dispositivi di Notifica (Opzionale)",
+          "persons": "Persone (Geofencing)",
+          "exit_delay": "Ritardo di Uscita (secondi)",
+          "entry_delay": "Ritardo di Ingresso (secondi)"
+        }
+      }
+    }
+  },
+  "state": {
+    "alarm_control_panel": {
+      "domolink_alarm": {
+        "disarmed": "Disinserito",
+        "armed_home": "Inserito (Casa)",
+        "armed_away": "Inserito (Fuori)",
+        "armed_night": "Inserito (Notte)",
+        "arming": "Inserimento...",
+        "pending": "In attesa...",
+        "triggered": "SCATTATO"
+      }
+    },
+    "sensor": {
+      "domolink_event_log": {
+        "unknown": "Sconosciuto"
+      }
+    }
+  },
+  "entity": {
+    "button": {
+      "domolink_sos": {
+        "name": "Panico SOS"
+      }
+    },
+    "sensor": {
+      "domolink_event_log": {
+        "name": "Ultimo Evento"
+      }
+    }
+  }
+}

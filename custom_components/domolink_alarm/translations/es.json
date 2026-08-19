@@ -1,0 +1,86 @@
+{
+  "config": {
+    "title": "Alarma Domolink",
+    "step": {
+      "user": {
+        "title": "Configurar Alarma Domolink",
+        "description": "Seleccione sus sensores y dispositivos.",
+        "data": {
+          "name": "Nombre de la Alarma",
+          "opening_sensors": "Sensores de Apertura",
+          "motion_sensors": "Sensores de Movimiento",
+          "tamper_sensors": "Sensores de Sabotaje (24/7)",
+          "night_sensors": "Sensores Modo Noche",
+          "sirens": "Sirenas",
+          "lights": "Luces de Pánico",
+          "media_players": "Reproductores Multimedia (TTS)",
+          "cameras": "Cámaras",
+          "notify_devices": "Dispositivos de Notificación (Opcional)",
+          "persons": "Personas (Geofencing)",
+          "exit_delay": "Retraso de Salida (segundos)",
+          "entry_delay": "Retraso de Entrada (segundos)",
+          "code": "Código PIN"
+        }
+      }
+    },
+    "error": {
+      "invalid_code": "El código debe ser numérico.",
+      "cannot_connect": "Fallo al conectar",
+      "unknown": "Error inesperado"
+    },
+    "abort": {
+      "already_configured": "El dispositivo ya está configurado"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Ajustar opciones de la Alarma Domolink",
+        "data": {
+          "opening_sensors": "Sensores de Apertura",
+          "motion_sensors": "Sensores de Movimiento",
+          "tamper_sensors": "Sensores de Sabotaje (24/7)",
+          "night_sensors": "Sensores Modo Noche",
+          "sirens": "Sirenas",
+          "lights": "Luces de Pánico",
+          "media_players": "Reproductores Multimedia (TTS)",
+          "cameras": "Cámaras",
+          "notify_devices": "Dispositivos de Notificación (Opcional)",
+          "persons": "Personas (Geofencing)",
+          "exit_delay": "Retraso de Salida (segundos)",
+          "entry_delay": "Retraso de Entrada (segundos)"
+        }
+      }
+    }
+  },
+  "state": {
+    "alarm_control_panel": {
+      "domolink_alarm": {
+        "disarmed": "Desarmada",
+        "armed_home": "Armada (Casa)",
+        "armed_away": "Armada (Ausente)",
+        "armed_night": "Armada (Noche)",
+        "arming": "Armando...",
+        "pending": "Pendiente...",
+        "triggered": "DISPARADA"
+      }
+    },
+    "sensor": {
+      "domolink_event_log": {
+        "unknown": "Desconocido"
+      }
+    }
+  },
+  "entity": {
+    "button": {
+      "domolink_sos": {
+        "name": "Pánico SOS"
+      }
+    },
+    "sensor": {
+      "domolink_event_log": {
+        "name": "Último Evento"
+      }
+    }
+  }
+}

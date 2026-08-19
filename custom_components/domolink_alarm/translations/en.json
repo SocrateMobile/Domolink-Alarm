@@ -1,46 +1,31 @@
 {
   "config": {
+    "title": "Domolink Alarm",
     "step": {
-      "sensors": {
-        "title": "Inputs (Sensors & Control)",
-        "description": "Select the sensors that will trigger the alarm.",
+      "user": {
+        "title": "Configure Domolink Alarm",
+        "description": "Select your sensors and devices.",
         "data": {
-          "name": "Alarm System Name (e.g. House Alarm, Garage Alarm)",
-          "opening_sensors": "Opening Sensors (Doors/Windows)",
-          "motion_sensors": "Motion/Occupancy Sensors",
-          "cameras": "Cameras (Detection & Recording)",
+          "name": "Alarm Name",
+          "opening_sensors": "Opening Sensors",
+          "motion_sensors": "Motion Sensors",
           "tamper_sensors": "Tamper Sensors (24/7)",
-          "keypads": "Physical Keypads",
-          "night_sensors": "Night Mode Sensors (Perimeter)"
-        }
-      },
-      "actuators": {
-        "title": "Outputs (Alerts & Notifications)",
-        "description": "Select the devices used to alert on intrusion.",
-        "data": {
+          "night_sensors": "Night Mode Sensors",
           "sirens": "Sirens",
           "lights": "Panic Lights",
-          "media_players": "Media Players (for TTS)",
-          "notify_services": "Notification Services"
-        }
-      },
-      "logic": {
-        "title": "Logic, Security & Delays",
-        "description": "Configure the core logic of the alarm system.",
-        "data": {
-          "users_codes": "Users & Codes (Format: Name1:1234, Name2:5678)",
-          "duress_code": "Duress Code (Panic SOS)",
-          "bypass_allowed": "Allow Bypass (Arm with open sensors)",
-          "health_check": "Enable Health Check (Battery monitoring)",
-          "geofence_auto_arm": "Enable Geofencing (Auto-Arm/Disarm based on presence)",
+          "media_players": "Media Players (TTS)",
+          "cameras": "Cameras",
+          "notify_devices": "Notification Devices (Optional)",
+          "persons": "Persons (Geofencing)",
           "exit_delay": "Exit Delay (seconds)",
           "entry_delay": "Entry Delay (seconds)",
-          "siren_duration": "Siren Duration (seconds)",
-          "persons": "Persons (Geofencing Auto-Arm)"
+          "code": "Alarm PIN Code"
         }
       }
     },
     "error": {
+      "invalid_code": "Code must be numeric.",
+      "cannot_connect": "Failed to connect",
       "unknown": "Unexpected error"
     },
     "abort": {
@@ -50,46 +35,51 @@
   "options": {
     "step": {
       "init": {
-        "title": "Domolink Alarm Settings",
-        "description": "Adjust alarm behaviour without reinstalling."
-      },
-      "sensors": {
-        "title": "Inputs (Sensors & Control)",
-        "description": "Select the sensors that will trigger the alarm.",
+        "title": "Adjust Domolink Alarm settings",
         "data": {
-          "name": "Alarm System Name (e.g. House Alarm, Garage Alarm)",
-          "opening_sensors": "Opening Sensors (Doors/Windows)",
-          "motion_sensors": "Motion/Occupancy Sensors",
-          "cameras": "Cameras (Detection & Recording)",
+          "opening_sensors": "Opening Sensors",
+          "motion_sensors": "Motion Sensors",
           "tamper_sensors": "Tamper Sensors (24/7)",
-          "keypads": "Physical Keypads",
-          "night_sensors": "Night Mode Sensors (Perimeter)"
-        }
-      },
-      "actuators": {
-        "title": "Outputs (Alerts & Notifications)",
-        "description": "Select the devices used to alert on intrusion.",
-        "data": {
+          "night_sensors": "Night Mode Sensors",
           "sirens": "Sirens",
           "lights": "Panic Lights",
-          "media_players": "Media Players (for TTS)",
-          "notify_services": "Notification Services"
-        }
-      },
-      "logic": {
-        "title": "Logic, Security & Delays",
-        "description": "Configure the core logic of the alarm system.",
-        "data": {
-          "users_codes": "Users & Codes (Format: Name1:1234, Name2:5678)",
-          "duress_code": "Duress Code (Panic SOS)",
-          "bypass_allowed": "Allow Bypass (Arm with open sensors)",
-          "health_check": "Enable Health Check (Battery monitoring)",
-          "geofence_auto_arm": "Enable Geofencing (Auto-Arm/Disarm based on presence)",
+          "media_players": "Media Players (TTS)",
+          "cameras": "Cameras",
+          "notify_devices": "Notification Devices (Optional)",
+          "persons": "Persons (Geofencing)",
           "exit_delay": "Exit Delay (seconds)",
-          "entry_delay": "Entry Delay (seconds)",
-          "siren_duration": "Siren Duration (seconds)",
-          "persons": "Persons (Geofencing Auto-Arm)"
+          "entry_delay": "Entry Delay (seconds)"
         }
+      }
+    }
+  },
+  "state": {
+    "alarm_control_panel": {
+      "domolink_alarm": {
+        "disarmed": "Disarmed",
+        "armed_home": "Armed (Home)",
+        "armed_away": "Armed (Away)",
+        "armed_night": "Armed (Night)",
+        "arming": "Arming...",
+        "pending": "Pending...",
+        "triggered": "TRIGGERED"
+      }
+    },
+    "sensor": {
+      "domolink_event_log": {
+        "unknown": "Unknown"
+      }
+    }
+  },
+  "entity": {
+    "button": {
+      "domolink_sos": {
+        "name": "SOS Panic"
+      }
+    },
+    "sensor": {
+      "domolink_event_log": {
+        "name": "Last Event"
       }
     }
   }
