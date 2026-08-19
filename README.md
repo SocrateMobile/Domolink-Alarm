@@ -284,7 +284,10 @@ card_mod:
 
 ## 📜 Changelog
 
-### 🚀 v0.6.0-beta (Current)
+### 🚀 v0.6.1-beta (Current)
+- 🔊 **Ampli & Media Players** : Avant de lire un message TTS vocal, Domolink s'assure maintenant d'allumer le lecteur (ex: Ampli Home-Cinéma) et règle automatiquement le volume à 50% pour garantir que le message soit entendu !
+
+### 🚀 v0.6.0-beta
 - 🌙 **Mode Nuit (`Arm Night`)** : Sélection d'un groupe spécifique de capteurs (ex: portes/fenêtres uniquement) qui s'activeront la nuit.
 - 🧑‍🤝‍🧑 **Geofencing intelligent (Personnes)** : L'alarme s'arme automatiquement (Absent) si toutes les personnes sélectionnées quittent la maison, et se désarme si une personne rentre.
 - 🆘 **Entité Bouton de Panique (SOS)** : Nouvelle entité `button.domolink_sos` permettant de déclencher les sirènes immédiatement.

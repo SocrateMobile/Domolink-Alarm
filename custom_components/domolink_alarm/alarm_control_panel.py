@@ -2,6 +2,7 @@
 import logging
 from datetime import timedelta
 
+import asyncio
 from homeassistant.components.alarm_control_panel import (
     AlarmControlPanelEntity,
     AlarmControlPanelEntityFeature,
@@ -90,7 +91,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.6.0",
+            sw_version="0.6.1",
         )
 
         self._siren_task = None
@@ -524,6 +525,45 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 self._faults.append(entity_id)
             self.async_write_ha_state()
 
+    # ─── TTS Helper ───────────────────────────────────────────────
+
+    async def _async_play_tts(self, message):
+        """Prepare media players and play TTS message in background."""
+        if not self._media_players:
+            return
+
+        for player in self._media_players:
+            try:
+                # 1. Allumer l'ampli/player
+                await self.hass.services.async_call(
+                    "media_player", "turn_on",
+                    {"entity_id": player},
+                )
+            except Exception as e:
+                pass
+                
+            try:
+                # 2. Régler le volume à 50%
+                await self.hass.services.async_call(
+                    "media_player", "volume_set",
+                    {"entity_id": player, "volume_level": 0.5},
+                )
+            except Exception as e:
+                pass
+
+        # 3. Attendre 2.5s que l'ampli s'allume et se connecte (Onkyo etc.)
+        await asyncio.sleep(2.5)
+
+        for player in self._media_players:
+            try:
+                # 4. Envoyer le TTS
+                await self.hass.services.async_call(
+                    "tts", "google_translate_say",
+                    {"entity_id": player, "message": message},
+                )
+            except Exception as e:
+                _LOGGER.debug("Failed to play TTS on %s: %s", player, e)
+
     # ─── Pre-Alarm Feedback ───────────────────────────────────────
 
     async def _async_pre_alarm_feedback(self):
@@ -543,14 +583,9 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 except Exception as e:
                     _LOGGER.error("Failed to flash panic lights: %s", e)
 
-        for player in self._media_players:
-            try:
-                await self.hass.services.async_call(
-                    "tts", "google_translate_say",
-                    {"entity_id": player, "message": "Veuillez désarmer l'alarme immédiatement."},
-                )
-            except Exception as e:
-                _LOGGER.debug("Failed TTS pre-alarm on %s: %s", player, e)
+        self.hass.async_create_task(
+            self._async_play_tts("Veuillez désarmer l'alarme immédiatement.")
+        )
 
     # ─── Alarm Triggering ─────────────────────────────────────────
 
@@ -606,14 +641,9 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 "à l'extérieur dès que vous avez pénétré dans la propriété. "
                 "Tout est d'ores et déjà sauvegardé en ligne, sur des serveurs sécurisés."
             )
-            for player in self._media_players:
-                try:
-                    await self.hass.services.async_call(
-                        "tts", "google_translate_say",
-                        {"entity_id": player, "message": tts_message},
-                    )
-                except Exception as e:
-                    _LOGGER.debug("Failed TTS on %s: %s", player, e)
+            self.hass.async_create_task(
+                self._async_play_tts(tts_message)
+            )
 
         # 4. Siren & Panic Lights (Away mode or Tamper)
         should_siren = (
@@ -760,14 +790,9 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
         if user != "DURESS":
             # Personalized TTS greeting
-            for player in self._media_players:
-                try:
-                    await self.hass.services.async_call(
-                        "tts", "google_translate_say",
-                        {"entity_id": player, "message": f"Alarme désarmée. Bienvenue {user}."},
-                    )
-                except Exception as e:
-                    _LOGGER.debug("Failed TTS greeting on %s: %s", player, e)
+            self.hass.async_create_task(
+                self._async_play_tts(f"Alarme désarmée. Bienvenue {user}.")
+            )
 
     async def _check_bypass(self):
         """Check if sensors are open before arming."""
