@@ -1,0 +1,86 @@
+{
+  "config": {
+    "title": "Domolink Alarm",
+    "step": {
+      "user": {
+        "title": "Domolink Alarm Konfigurieren",
+        "description": "Wählen Sie Ihre Sensoren und Geräte aus.",
+        "data": {
+          "name": "Alarmname",
+          "opening_sensors": "Öffnungssensoren",
+          "motion_sensors": "Bewegungssensoren",
+          "tamper_sensors": "Sabotagesensoren (24/7)",
+          "night_sensors": "Nachtmodus Sensoren",
+          "sirens": "Sirenen",
+          "lights": "Panikbeleuchtung",
+          "media_players": "Mediaplayer (TTS)",
+          "cameras": "Kameras",
+          "notify_devices": "Benachrichtigungsgeräte (Optional)",
+          "persons": "Personen (Geofencing)",
+          "exit_delay": "Ausgangsverzögerung (Sekunden)",
+          "entry_delay": "Eingangsverzögerung (Sekunden)",
+          "code": "PIN-Code"
+        }
+      }
+    },
+    "error": {
+      "invalid_code": "Der Code muss numerisch sein.",
+      "cannot_connect": "Verbindung fehlgeschlagen",
+      "unknown": "Unerwarteter Fehler"
+    },
+    "abort": {
+      "already_configured": "Gerät ist bereits konfiguriert"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Domolink Alarm Einstellungen anpassen",
+        "data": {
+          "opening_sensors": "Öffnungssensoren",
+          "motion_sensors": "Bewegungssensoren",
+          "tamper_sensors": "Sabotagesensoren (24/7)",
+          "night_sensors": "Nachtmodus Sensoren",
+          "sirens": "Sirenen",
+          "lights": "Panikbeleuchtung",
+          "media_players": "Mediaplayer (TTS)",
+          "cameras": "Kameras",
+          "notify_devices": "Benachrichtigungsgeräte (Optional)",
+          "persons": "Personen (Geofencing)",
+          "exit_delay": "Ausgangsverzögerung (Sekunden)",
+          "entry_delay": "Eingangsverzögerung (Sekunden)"
+        }
+      }
+    }
+  },
+  "state": {
+    "alarm_control_panel": {
+      "domolink_alarm": {
+        "disarmed": "Unscharf",
+        "armed_home": "Scharf (Zuhause)",
+        "armed_away": "Scharf (Unterwegs)",
+        "armed_night": "Scharf (Nacht)",
+        "arming": "Wird scharfgeschaltet...",
+        "pending": "Ausstehend...",
+        "triggered": "AUSGELÖST"
+      }
+    },
+    "sensor": {
+      "domolink_event_log": {
+        "unknown": "Unbekannt"
+      }
+    }
+  },
+  "entity": {
+    "button": {
+      "domolink_sos": {
+        "name": "SOS Panik"
+      }
+    },
+    "sensor": {
+      "domolink_event_log": {
+        "name": "Letztes Ereignis"
+      }
+    }
+  }
+}

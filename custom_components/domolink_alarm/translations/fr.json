@@ -1,46 +1,31 @@
 {
   "config": {
+    "title": "Domolink Alarm",
     "step": {
-      "sensors": {
-        "title": "Entrées (Surveillance & Contrôle)",
-        "description": "Sélectionnez les capteurs qui déclencheront l'alarme.",
+      "user": {
+        "title": "Configuration de Domolink Alarm",
+        "description": "Sélectionnez vos capteurs et dispositifs.",
         "data": {
-          "name": "Nom du système d'alarme (ex: Alarme Maison, Alarme Garage)",
+          "name": "Nom de l'alarme",
           "opening_sensors": "Capteurs d'ouverture",
-          "motion_sensors": "Radars de présence",
-          "cameras": "Caméras (Détection & Enregistrement)",
+          "motion_sensors": "Capteurs de mouvement",
           "tamper_sensors": "Capteurs de sabotage (24/7)",
-          "keypads": "Claviers physiques",
-          "night_sensors": "Capteurs Mode Nuit (Périmétriques)"
-        }
-      },
-      "actuators": {
-        "title": "Sorties (Alerte & Notification)",
-        "description": "Sélectionnez les appareils utilisés pour alerter en cas d'intrusion.",
-        "data": {
+          "night_sensors": "Capteurs Mode Nuit",
           "sirens": "Sirènes",
-          "lights": "Lumières de panique",
-          "media_players": "Lecteurs Multimédia (pour TTS)",
-          "notify_services": "Services de notification"
-        }
-      },
-      "logic": {
-        "title": "Logique, Sécurité et Délais",
-        "description": "Configurez la logique principale du système d'alarme.",
-        "data": {
-          "users_codes": "Utilisateurs & Codes (Format: Nom1:1234, Nom2:5678)",
-          "duress_code": "Code de Détresse (SOS silencieux)",
-          "bypass_allowed": "Autoriser le Bypass (Armer avec capteurs ouverts)",
-          "health_check": "Activer le Health Check (Surveillance batteries)",
-          "geofence_auto_arm": "Activer la Géolocalisation (Armement/Désarmement Auto)",
+          "lights": "Lumières d'urgence",
+          "media_players": "Lecteurs multimédia (TTS)",
+          "cameras": "Caméras",
+          "notify_devices": "Appareils pour Notifications (Optionnel)",
+          "persons": "Personnes (Géolocalisation)",
           "exit_delay": "Délai de sortie (secondes)",
           "entry_delay": "Délai d'entrée (secondes)",
-          "siren_duration": "Durée de la sirène (secondes)",
-          "persons": "Personnes (Geofencing Auto-Arm)"
+          "code": "Code PIN de l'alarme"
         }
       }
     },
     "error": {
+      "invalid_code": "Le code doit être numérique.",
+      "cannot_connect": "Échec de la connexion",
       "unknown": "Erreur inattendue"
     },
     "abort": {
@@ -50,46 +35,51 @@
   "options": {
     "step": {
       "init": {
-        "title": "Paramètres Domolink Alarm",
-        "description": "Ajustez le comportement de l'alarme sans réinstaller."
-      },
-      "sensors": {
-        "title": "Entrées (Surveillance & Contrôle)",
-        "description": "Sélectionnez les capteurs qui déclencheront l'alarme.",
+        "title": "Ajuster les paramètres de Domolink Alarm",
         "data": {
-          "name": "Nom du système d'alarme (ex: Alarme Maison, Alarme Garage)",
           "opening_sensors": "Capteurs d'ouverture",
-          "motion_sensors": "Radars de présence",
-          "cameras": "Caméras (Détection & Enregistrement)",
+          "motion_sensors": "Capteurs de mouvement",
           "tamper_sensors": "Capteurs de sabotage (24/7)",
-          "keypads": "Claviers physiques",
-          "night_sensors": "Capteurs Mode Nuit (Périmétriques)"
-        }
-      },
-      "actuators": {
-        "title": "Sorties (Alerte & Notification)",
-        "description": "Sélectionnez les appareils utilisés pour alerter en cas d'intrusion.",
-        "data": {
+          "night_sensors": "Capteurs Mode Nuit",
           "sirens": "Sirènes",
-          "lights": "Lumières de panique",
-          "media_players": "Lecteurs Multimédia (pour TTS)",
-          "notify_services": "Services de notification"
-        }
-      },
-      "logic": {
-        "title": "Logique, Sécurité et Délais",
-        "description": "Configurez la logique principale du système d'alarme.",
-        "data": {
-          "users_codes": "Utilisateurs & Codes (Format: Nom1:1234, Nom2:5678)",
-          "duress_code": "Code de Détresse (SOS silencieux)",
-          "bypass_allowed": "Autoriser le Bypass (Armer avec capteurs ouverts)",
-          "health_check": "Activer le Health Check (Surveillance batteries)",
-          "geofence_auto_arm": "Activer la Géolocalisation (Armement/Désarmement Auto)",
+          "lights": "Lumières d'urgence",
+          "media_players": "Lecteurs multimédia (TTS)",
+          "cameras": "Caméras",
+          "notify_devices": "Appareils pour Notifications (Optionnel)",
+          "persons": "Personnes (Géolocalisation)",
           "exit_delay": "Délai de sortie (secondes)",
-          "entry_delay": "Délai d'entrée (secondes)",
-          "siren_duration": "Durée de la sirène (secondes)",
-          "persons": "Personnes (Geofencing Auto-Arm)"
+          "entry_delay": "Délai d'entrée (secondes)"
         }
+      }
+    }
+  },
+  "state": {
+    "alarm_control_panel": {
+      "domolink_alarm": {
+        "disarmed": "Désarmée",
+        "armed_home": "Armée (Présence)",
+        "armed_away": "Armée (Absence)",
+        "armed_night": "Armée (Nuit)",
+        "arming": "Armement...",
+        "pending": "En attente...",
+        "triggered": "DÉCLENCHÉE"
+      }
+    },
+    "sensor": {
+      "domolink_event_log": {
+        "unknown": "Inconnu"
+      }
+    }
+  },
+  "entity": {
+    "button": {
+      "domolink_sos": {
+        "name": "Panique SOS"
+      }
+    },
+    "sensor": {
+      "domolink_event_log": {
+        "name": "Dernier Événement"
       }
     }
   }
