@@ -284,7 +284,10 @@ card_mod:
 
 ## 📜 Changelog
 
-### 🚀 v0.6.7-beta (Current)
+### 🚀 v0.6.8-beta (Current)
+- 🐛 **Fix Critique 500** : Le système de cases à cocher forcées sur la version 0.6.7 provoquait un plantage du serveur interne Home Assistant (Erreur 500) à cause d'une incompatibilité de validation des schémas. Rétro-pédalage vers le sélecteur natif HA.
+
+### 🚀 v0.6.7-beta
 - 🎛️ **Amélioration UX (UI)** : Remplacement des menus déroulants de sélection d'entités par des vraies **listes de cases à cocher** déroulables, générées dynamiquement. Il est désormais beaucoup plus intuitif et visuel de sélectionner plusieurs capteurs ou caméras d'un seul coup directement sur la page !
 
 ### 🚀 v0.6.6-beta
