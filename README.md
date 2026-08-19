@@ -284,7 +284,12 @@ card_mod:
 
 ## 📜 Changelog
 
-### 🚀 v0.6.1-beta (Current)
+### 🚀 v0.6.2-beta (Current)
+- 🚨 **Notifications Continues** : Si l'alarme est déjà déclenchée et qu'un nouveau capteur détecte une intrusion, une nouvelle alerte est envoyée ("Détection supplémentaire").
+- 🐛 **Fix Journal d'Événements** : Correction d'un bug qui effaçait le capteur de log en cas de déclenchement.
+- 🐛 **Fix Mode Nuit & Geofencing** : Correction d'une régression dans l'évaluation des états des capteurs.
+
+### 🚀 v0.6.1-beta
 - 🔊 **Ampli & Media Players** : Avant de lire un message TTS vocal, Domolink s'assure maintenant d'allumer le lecteur (ex: Ampli Home-Cinéma) et règle automatiquement le volume à 50% pour garantir que le message soit entendu !
 
 ### 🚀 v0.6.0-beta
