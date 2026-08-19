@@ -2,8 +2,8 @@
   "config": {
     "title": "Alarma Domolink",
     "step": {
-      "user": {
-        "title": "Configurar Alarma Domolink",
+      "sensors": {
+        "title": "Configurar Alarma Domolink (1/3)",
         "description": "Seleccione sus sensores y dispositivos.",
         "data": {
           "name": "Nombre de la Alarma",
@@ -11,15 +11,30 @@
           "motion_sensors": "Sensores de Movimiento",
           "tamper_sensors": "Sensores de Sabotaje (24/7)",
           "night_sensors": "Sensores Modo Noche",
+          "keypads": "Teclados"
+        }
+      },
+      "actuators": {
+        "title": "Configurar Alarma Domolink (2/3)",
+        "data": {
           "sirens": "Sirenas",
           "lights": "Luces de Pánico",
           "media_players": "Reproductores Multimedia (TTS)",
-          "cameras": "Cámaras",
-          "notify_devices": "Dispositivos de Notificación (Opcional)",
+          "notify_services": "Dispositivos de Notificación (Opcional)"
+        }
+      },
+      "logic": {
+        "title": "Configurar Alarma Domolink (3/3)",
+        "data": {
           "persons": "Personas (Geofencing)",
+          "users_codes": "Códigos",
+          "duress_code": "Código de Coacción",
+          "bypass_allowed": "Permitir omitir",
+          "health_check": "Chequeo de salud",
+          "geofence_auto_arm": "Auto-armar Geocerca",
           "exit_delay": "Retraso de Salida (segundos)",
           "entry_delay": "Retraso de Entrada (segundos)",
-          "code": "Código PIN"
+          "siren_duration": "Duración Sirena"
         }
       }
     },
@@ -34,21 +49,38 @@
   },
   "options": {
     "step": {
-      "init": {
-        "title": "Ajustar opciones de la Alarma Domolink",
+      "sensors": {
+        "title": "Configurar Alarma Domolink (1/3)",
         "data": {
+          "name": "Nombre de la Alarma",
           "opening_sensors": "Sensores de Apertura",
           "motion_sensors": "Sensores de Movimiento",
           "tamper_sensors": "Sensores de Sabotaje (24/7)",
           "night_sensors": "Sensores Modo Noche",
+          "keypads": "Teclados"
+        }
+      },
+      "actuators": {
+        "title": "Configurar Alarma Domolink (2/3)",
+        "data": {
           "sirens": "Sirenas",
           "lights": "Luces de Pánico",
           "media_players": "Reproductores Multimedia (TTS)",
-          "cameras": "Cámaras",
-          "notify_devices": "Dispositivos de Notificación (Opcional)",
+          "notify_services": "Dispositivos de Notificación (Opcional)"
+        }
+      },
+      "logic": {
+        "title": "Configurar Alarma Domolink (3/3)",
+        "data": {
           "persons": "Personas (Geofencing)",
+          "users_codes": "Códigos",
+          "duress_code": "Código de Coacción",
+          "bypass_allowed": "Permitir omitir",
+          "health_check": "Chequeo de salud",
+          "geofence_auto_arm": "Auto-armar Geocerca",
           "exit_delay": "Retraso de Salida (segundos)",
-          "entry_delay": "Retraso de Entrada (segundos)"
+          "entry_delay": "Retraso de Entrada (segundos)",
+          "siren_duration": "Duración Sirena"
         }
       }
     }

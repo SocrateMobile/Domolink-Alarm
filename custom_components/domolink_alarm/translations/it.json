@@ -2,8 +2,8 @@
   "config": {
     "title": "Allarme Domolink",
     "step": {
-      "user": {
-        "title": "Configura Allarme Domolink",
+      "sensors": {
+        "title": "Configura Allarme Domolink (1/3)",
         "description": "Seleziona i tuoi sensori e dispositivi.",
         "data": {
           "name": "Nome dell'allarme",
@@ -11,15 +11,30 @@
           "motion_sensors": "Sensori di Movimento",
           "tamper_sensors": "Sensori di Manomissione (24/7)",
           "night_sensors": "Sensori Modalità Notte",
+          "keypads": "Tastiere"
+        }
+      },
+      "actuators": {
+        "title": "Configura Allarme Domolink (2/3)",
+        "data": {
           "sirens": "Sirene",
           "lights": "Luci di Panico",
           "media_players": "Lettori Multimediali (TTS)",
-          "cameras": "Telecamere",
-          "notify_devices": "Dispositivi di Notifica (Opzionale)",
+          "notify_services": "Dispositivi di Notifica (Opzionale)"
+        }
+      },
+      "logic": {
+        "title": "Configura Allarme Domolink (3/3)",
+        "data": {
           "persons": "Persone (Geofencing)",
+          "users_codes": "Codici",
+          "duress_code": "Codice di Costrizione",
+          "bypass_allowed": "Consenti bypass",
+          "health_check": "Controllo salute",
+          "geofence_auto_arm": "Auto-inserimento Geofence",
           "exit_delay": "Ritardo di Uscita (secondi)",
           "entry_delay": "Ritardo di Ingresso (secondi)",
-          "code": "Codice PIN"
+          "siren_duration": "Durata Sirena"
         }
       }
     },
@@ -34,21 +49,38 @@
   },
   "options": {
     "step": {
-      "init": {
-        "title": "Regola le impostazioni di Allarme Domolink",
+      "sensors": {
+        "title": "Configura Allarme Domolink (1/3)",
         "data": {
+          "name": "Nome dell'allarme",
           "opening_sensors": "Sensori di Apertura",
           "motion_sensors": "Sensori di Movimento",
           "tamper_sensors": "Sensori di Manomissione (24/7)",
           "night_sensors": "Sensori Modalità Notte",
+          "keypads": "Tastiere"
+        }
+      },
+      "actuators": {
+        "title": "Configura Allarme Domolink (2/3)",
+        "data": {
           "sirens": "Sirene",
           "lights": "Luci di Panico",
           "media_players": "Lettori Multimediali (TTS)",
-          "cameras": "Telecamere",
-          "notify_devices": "Dispositivi di Notifica (Opzionale)",
+          "notify_services": "Dispositivi di Notifica (Opzionale)"
+        }
+      },
+      "logic": {
+        "title": "Configura Allarme Domolink (3/3)",
+        "data": {
           "persons": "Persone (Geofencing)",
+          "users_codes": "Codici",
+          "duress_code": "Codice di Costrizione",
+          "bypass_allowed": "Consenti bypass",
+          "health_check": "Controllo salute",
+          "geofence_auto_arm": "Auto-inserimento Geofence",
           "exit_delay": "Ritardo di Uscita (secondi)",
-          "entry_delay": "Ritardo di Ingresso (secondi)"
+          "entry_delay": "Ritardo di Ingresso (secondi)",
+          "siren_duration": "Durata Sirena"
         }
       }
     }

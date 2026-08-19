@@ -2,8 +2,8 @@
   "config": {
     "title": "Domolink Alarm",
     "step": {
-      "user": {
-        "title": "Configuration de Domolink Alarm",
+      "sensors": {
+        "title": "Configuration de Domolink Alarm (1/3)",
         "description": "Sélectionnez vos capteurs et dispositifs.",
         "data": {
           "name": "Nom de l'alarme",
@@ -11,15 +11,30 @@
           "motion_sensors": "Capteurs de mouvement",
           "tamper_sensors": "Capteurs de sabotage (24/7)",
           "night_sensors": "Capteurs Mode Nuit",
+          "keypads": "Claviers"
+        }
+      },
+      "actuators": {
+        "title": "Configuration de Domolink Alarm (2/3)",
+        "data": {
           "sirens": "Sirènes",
           "lights": "Lumières d'urgence",
           "media_players": "Lecteurs multimédia (TTS)",
-          "cameras": "Caméras",
-          "notify_devices": "Appareils pour Notifications (Optionnel)",
+          "notify_services": "Appareils pour Notifications (Optionnel)"
+        }
+      },
+      "logic": {
+        "title": "Configuration de Domolink Alarm (3/3)",
+        "data": {
           "persons": "Personnes (Géolocalisation)",
+          "users_codes": "Codes Utilisateurs",
+          "duress_code": "Code Sous Contrainte",
+          "bypass_allowed": "Autoriser le contournement",
+          "health_check": "Vérification de santé",
+          "geofence_auto_arm": "Auto-armement Géolocalisation",
           "exit_delay": "Délai de sortie (secondes)",
           "entry_delay": "Délai d'entrée (secondes)",
-          "code": "Code PIN de l'alarme"
+          "siren_duration": "Durée Sirène"
         }
       }
     },
@@ -34,21 +49,38 @@
   },
   "options": {
     "step": {
-      "init": {
-        "title": "Ajuster les paramètres de Domolink Alarm",
+      "sensors": {
+        "title": "Configuration de Domolink Alarm (1/3)",
         "data": {
+          "name": "Nom de l'alarme",
           "opening_sensors": "Capteurs d'ouverture",
           "motion_sensors": "Capteurs de mouvement",
           "tamper_sensors": "Capteurs de sabotage (24/7)",
           "night_sensors": "Capteurs Mode Nuit",
+          "keypads": "Claviers"
+        }
+      },
+      "actuators": {
+        "title": "Configuration de Domolink Alarm (2/3)",
+        "data": {
           "sirens": "Sirènes",
           "lights": "Lumières d'urgence",
           "media_players": "Lecteurs multimédia (TTS)",
-          "cameras": "Caméras",
-          "notify_devices": "Appareils pour Notifications (Optionnel)",
+          "notify_services": "Appareils pour Notifications (Optionnel)"
+        }
+      },
+      "logic": {
+        "title": "Configuration de Domolink Alarm (3/3)",
+        "data": {
           "persons": "Personnes (Géolocalisation)",
+          "users_codes": "Codes Utilisateurs",
+          "duress_code": "Code Sous Contrainte",
+          "bypass_allowed": "Autoriser le contournement",
+          "health_check": "Vérification de santé",
+          "geofence_auto_arm": "Auto-armement Géolocalisation",
           "exit_delay": "Délai de sortie (secondes)",
-          "entry_delay": "Délai d'entrée (secondes)"
+          "entry_delay": "Délai d'entrée (secondes)",
+          "siren_duration": "Durée Sirène"
         }
       }
     }
