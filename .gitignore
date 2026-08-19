@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+patch_*.py
+update_*.py
+fix_*.py
