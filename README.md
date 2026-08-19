@@ -284,7 +284,10 @@ card_mod:
 
 ## 📜 Changelog
 
-### 🚀 v0.6.5-beta (Current)
+### 🚀 v0.6.6-beta (Current)
+- 🐛 **Fix OptionsFlow** : Correction de l'erreur `500 Internal Server Error` qui empêchait la modification de la configuration de l'alarme, causée par le renommage récent des étapes de configuration dans les fichiers de langue (sensors, actuators, logic).
+
+### 🚀 v0.6.5-beta
 - 🌍 **Internationalisation (i18n)** : Ajout des traductions complètes pour l'intégration et les entités en Français, Anglais, Espagnol, Italien, Allemand et Ukrainien (notamment pour l'état "unknown" des capteurs et les boutons d'entité).
 
 ### 🚀 v0.6.4-beta

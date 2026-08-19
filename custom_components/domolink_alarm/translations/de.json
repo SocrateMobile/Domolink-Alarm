@@ -2,8 +2,8 @@
   "config": {
     "title": "Domolink Alarm",
     "step": {
-      "user": {
-        "title": "Domolink Alarm Konfigurieren",
+      "sensors": {
+        "title": "Domolink Alarm Konfigurieren (1/3)",
         "description": "Wählen Sie Ihre Sensoren und Geräte aus.",
         "data": {
           "name": "Alarmname",
@@ -11,15 +11,30 @@
           "motion_sensors": "Bewegungssensoren",
           "tamper_sensors": "Sabotagesensoren (24/7)",
           "night_sensors": "Nachtmodus Sensoren",
+          "keypads": "Tastaturen"
+        }
+      },
+      "actuators": {
+        "title": "Domolink Alarm Konfigurieren (2/3)",
+        "data": {
           "sirens": "Sirenen",
           "lights": "Panikbeleuchtung",
           "media_players": "Mediaplayer (TTS)",
-          "cameras": "Kameras",
-          "notify_devices": "Benachrichtigungsgeräte (Optional)",
+          "notify_services": "Benachrichtigungsgeräte (Optional)"
+        }
+      },
+      "logic": {
+        "title": "Domolink Alarm Konfigurieren (3/3)",
+        "data": {
           "persons": "Personen (Geofencing)",
+          "users_codes": "Codes",
+          "duress_code": "Bedrohungscode",
+          "bypass_allowed": "Bypass erlauben",
+          "health_check": "Gesundheitsprüfung",
+          "geofence_auto_arm": "Auto-Scharfschalten Geofence",
           "exit_delay": "Ausgangsverzögerung (Sekunden)",
           "entry_delay": "Eingangsverzögerung (Sekunden)",
-          "code": "PIN-Code"
+          "siren_duration": "Sirenen-Dauer"
         }
       }
     },
@@ -34,21 +49,38 @@
   },
   "options": {
     "step": {
-      "init": {
-        "title": "Domolink Alarm Einstellungen anpassen",
+      "sensors": {
+        "title": "Domolink Alarm Konfigurieren (1/3)",
         "data": {
+          "name": "Alarmname",
           "opening_sensors": "Öffnungssensoren",
           "motion_sensors": "Bewegungssensoren",
           "tamper_sensors": "Sabotagesensoren (24/7)",
           "night_sensors": "Nachtmodus Sensoren",
+          "keypads": "Tastaturen"
+        }
+      },
+      "actuators": {
+        "title": "Domolink Alarm Konfigurieren (2/3)",
+        "data": {
           "sirens": "Sirenen",
           "lights": "Panikbeleuchtung",
           "media_players": "Mediaplayer (TTS)",
-          "cameras": "Kameras",
-          "notify_devices": "Benachrichtigungsgeräte (Optional)",
+          "notify_services": "Benachrichtigungsgeräte (Optional)"
+        }
+      },
+      "logic": {
+        "title": "Domolink Alarm Konfigurieren (3/3)",
+        "data": {
           "persons": "Personen (Geofencing)",
+          "users_codes": "Codes",
+          "duress_code": "Bedrohungscode",
+          "bypass_allowed": "Bypass erlauben",
+          "health_check": "Gesundheitsprüfung",
+          "geofence_auto_arm": "Auto-Scharfschalten Geofence",
           "exit_delay": "Ausgangsverzögerung (Sekunden)",
-          "entry_delay": "Eingangsverzögerung (Sekunden)"
+          "entry_delay": "Eingangsverzögerung (Sekunden)",
+          "siren_duration": "Sirenen-Dauer"
         }
       }
     }

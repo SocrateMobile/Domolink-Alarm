@@ -2,8 +2,8 @@
   "config": {
     "title": "Сигналізація Domolink",
     "step": {
-      "user": {
-        "title": "Налаштування Domolink",
+      "sensors": {
+        "title": "Налаштування Domolink (1/3)",
         "description": "Виберіть датчики та пристрої.",
         "data": {
           "name": "Назва сигналізації",
@@ -11,15 +11,30 @@
           "motion_sensors": "Датчики руху",
           "tamper_sensors": "Датчики саботажу (24/7)",
           "night_sensors": "Датчики нічного режиму",
+          "keypads": "Клавіатури"
+        }
+      },
+      "actuators": {
+        "title": "Налаштування Domolink (2/3)",
+        "data": {
           "sirens": "Сирени",
           "lights": "Тривожне освітлення",
           "media_players": "Медіаплеєри (TTS)",
-          "cameras": "Камери",
-          "notify_devices": "Пристрої для сповіщень (Необов'язково)",
+          "notify_services": "Пристрої для сповіщень (Необов'язково)"
+        }
+      },
+      "logic": {
+        "title": "Налаштування Domolink (3/3)",
+        "data": {
           "persons": "Люди (Геозони)",
+          "users_codes": "Коди",
+          "duress_code": "Код під примусом",
+          "bypass_allowed": "Дозволити обхід",
+          "health_check": "Перевірка здоров'я",
+          "geofence_auto_arm": "Авто-постановка Геозони",
           "exit_delay": "Затримка на вихід (секунди)",
           "entry_delay": "Затримка на вхід (секунди)",
-          "code": "PIN-код"
+          "siren_duration": "Тривалість сирени"
         }
       }
     },
@@ -34,21 +49,38 @@
   },
   "options": {
     "step": {
-      "init": {
-        "title": "Змінити налаштування Domolink",
+      "sensors": {
+        "title": "Налаштування Domolink (1/3)",
         "data": {
+          "name": "Назва сигналізації",
           "opening_sensors": "Датчики відкриття",
           "motion_sensors": "Датчики руху",
           "tamper_sensors": "Датчики саботажу (24/7)",
           "night_sensors": "Датчики нічного режиму",
+          "keypads": "Клавіатури"
+        }
+      },
+      "actuators": {
+        "title": "Налаштування Domolink (2/3)",
+        "data": {
           "sirens": "Сирени",
           "lights": "Тривожне освітлення",
           "media_players": "Медіаплеєри (TTS)",
-          "cameras": "Камери",
-          "notify_devices": "Пристрої для сповіщень (Необов'язково)",
+          "notify_services": "Пристрої для сповіщень (Необов'язково)"
+        }
+      },
+      "logic": {
+        "title": "Налаштування Domolink (3/3)",
+        "data": {
           "persons": "Люди (Геозони)",
+          "users_codes": "Коди",
+          "duress_code": "Код під примусом",
+          "bypass_allowed": "Дозволити обхід",
+          "health_check": "Перевірка здоров'я",
+          "geofence_auto_arm": "Авто-постановка Геозони",
           "exit_delay": "Затримка на вихід (секунди)",
-          "entry_delay": "Затримка на вхід (секунди)"
+          "entry_delay": "Затримка на вхід (секунди)",
+          "siren_duration": "Тривалість сирени"
         }
       }
     }

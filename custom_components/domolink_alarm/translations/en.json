@@ -2,8 +2,8 @@
   "config": {
     "title": "Domolink Alarm",
     "step": {
-      "user": {
-        "title": "Configure Domolink Alarm",
+      "sensors": {
+        "title": "Configure Domolink Alarm (1/3)",
         "description": "Select your sensors and devices.",
         "data": {
           "name": "Alarm Name",
@@ -11,15 +11,30 @@
           "motion_sensors": "Motion Sensors",
           "tamper_sensors": "Tamper Sensors (24/7)",
           "night_sensors": "Night Mode Sensors",
+          "keypads": "Keypads"
+        }
+      },
+      "actuators": {
+        "title": "Configure Domolink Alarm (2/3)",
+        "data": {
           "sirens": "Sirens",
           "lights": "Panic Lights",
           "media_players": "Media Players (TTS)",
-          "cameras": "Cameras",
-          "notify_devices": "Notification Devices (Optional)",
+          "notify_services": "Notification Devices (Optional)"
+        }
+      },
+      "logic": {
+        "title": "Configure Domolink Alarm (3/3)",
+        "data": {
           "persons": "Persons (Geofencing)",
+          "users_codes": "Codes",
+          "duress_code": "Duress Code",
+          "bypass_allowed": "Allow Bypass",
+          "health_check": "Health Check",
+          "geofence_auto_arm": "Auto-arm Geofence",
           "exit_delay": "Exit Delay (seconds)",
           "entry_delay": "Entry Delay (seconds)",
-          "code": "Alarm PIN Code"
+          "siren_duration": "Siren Duration"
         }
       }
     },
@@ -34,21 +49,38 @@
   },
   "options": {
     "step": {
-      "init": {
-        "title": "Adjust Domolink Alarm settings",
+      "sensors": {
+        "title": "Configure Domolink Alarm (1/3)",
         "data": {
+          "name": "Alarm Name",
           "opening_sensors": "Opening Sensors",
           "motion_sensors": "Motion Sensors",
           "tamper_sensors": "Tamper Sensors (24/7)",
           "night_sensors": "Night Mode Sensors",
+          "keypads": "Keypads"
+        }
+      },
+      "actuators": {
+        "title": "Configure Domolink Alarm (2/3)",
+        "data": {
           "sirens": "Sirens",
           "lights": "Panic Lights",
           "media_players": "Media Players (TTS)",
-          "cameras": "Cameras",
-          "notify_devices": "Notification Devices (Optional)",
+          "notify_services": "Notification Devices (Optional)"
+        }
+      },
+      "logic": {
+        "title": "Configure Domolink Alarm (3/3)",
+        "data": {
           "persons": "Persons (Geofencing)",
+          "users_codes": "Codes",
+          "duress_code": "Duress Code",
+          "bypass_allowed": "Allow Bypass",
+          "health_check": "Health Check",
+          "geofence_auto_arm": "Auto-arm Geofence",
           "exit_delay": "Exit Delay (seconds)",
-          "entry_delay": "Entry Delay (seconds)"
+          "entry_delay": "Entry Delay (seconds)",
+          "siren_duration": "Siren Duration"
         }
       }
     }
