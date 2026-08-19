@@ -49,7 +49,33 @@
     "step": {
       "init": {
         "title": "Paramètres Domolink Alarm",
-        "description": "Ajustez le comportement de l'alarme sans réinstaller.",
+        "description": "Ajustez le comportement de l'alarme sans réinstaller."
+      },
+      "sensors": {
+        "title": "Entrées (Surveillance & Contrôle)",
+        "description": "Sélectionnez les capteurs qui déclencheront l'alarme.",
+        "data": {
+          "name": "Nom du système d'alarme (ex: Alarme Maison, Alarme Garage)",
+          "opening_sensors": "Capteurs d'ouverture",
+          "motion_sensors": "Radars de présence",
+          "cameras": "Caméras (Détection & Enregistrement)",
+          "tamper_sensors": "Capteurs de sabotage (24/7)",
+          "keypads": "Claviers physiques"
+        }
+      },
+      "actuators": {
+        "title": "Sorties (Alerte & Notification)",
+        "description": "Sélectionnez les appareils utilisés pour alerter en cas d'intrusion.",
+        "data": {
+          "sirens": "Sirènes",
+          "lights": "Lumières de panique",
+          "media_players": "Lecteurs Multimédia (pour TTS)",
+          "notify_services": "Services de notification"
+        }
+      },
+      "logic": {
+        "title": "Logique, Sécurité et Délais",
+        "description": "Configurez la logique principale du système d'alarme.",
         "data": {
           "users_codes": "Utilisateurs & Codes (Format: Nom1:1234, Nom2:5678)",
           "duress_code": "Code de Détresse (SOS silencieux)",
