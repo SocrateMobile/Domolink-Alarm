@@ -83,11 +83,11 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._pre_trigger_state = AlarmControlPanelState.DISARMED
         self._unique_id = f"domolink_alarm_{entry.entry_id}"
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)},
-            name=entry.title or DEFAULT_NAME,
+            identifiers={(DOMAIN, self._unique_id)},
+            name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.5.1",
+            sw_version="0.5.2-beta",
         )
 
         self._siren_task = None
@@ -323,9 +323,14 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         if not self._notify_services:
             return
 
-        data = {}
+        # Action par défaut: ouvrir l'application sur le tableau de bord
+        data = {
+            "url": "/",
+            "clickAction": "/"
+        }
+        
         if is_alert:
-            data = {
+            data.update({
                 "push": {
                     "sound": {
                         "name": "default",
@@ -340,7 +345,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                         "destructive": True,
                     }
                 ],
-            }
+            })
 
         for target in self._notify_services:
             sent = False
