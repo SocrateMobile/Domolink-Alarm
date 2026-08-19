@@ -10,7 +10,8 @@
           "motion_sensors": "Radars de présence",
           "cameras": "Caméras (Détection & Enregistrement)",
           "tamper_sensors": "Capteurs de sabotage (24/7)",
-          "keypads": "Claviers physiques"
+          "keypads": "Claviers physiques",
+          "night_sensors": "Capteurs Mode Nuit (Périmétriques)"
         }
       },
       "actuators": {
@@ -34,7 +35,8 @@
           "geofence_auto_arm": "Activer la Géolocalisation (Armement/Désarmement Auto)",
           "exit_delay": "Délai de sortie (secondes)",
           "entry_delay": "Délai d'entrée (secondes)",
-          "siren_duration": "Durée de la sirène (secondes)"
+          "siren_duration": "Durée de la sirène (secondes)",
+          "persons": "Personnes (Geofencing Auto-Arm)"
         }
       }
     },
@@ -60,7 +62,8 @@
           "motion_sensors": "Radars de présence",
           "cameras": "Caméras (Détection & Enregistrement)",
           "tamper_sensors": "Capteurs de sabotage (24/7)",
-          "keypads": "Claviers physiques"
+          "keypads": "Claviers physiques",
+          "night_sensors": "Capteurs Mode Nuit (Périmétriques)"
         }
       },
       "actuators": {
@@ -84,7 +87,8 @@
           "geofence_auto_arm": "Activer la Géolocalisation (Armement/Désarmement Auto)",
           "exit_delay": "Délai de sortie (secondes)",
           "entry_delay": "Délai d'entrée (secondes)",
-          "siren_duration": "Durée de la sirène (secondes)"
+          "siren_duration": "Durée de la sirène (secondes)",
+          "persons": "Personnes (Geofencing Auto-Arm)"
         }
       }
     }

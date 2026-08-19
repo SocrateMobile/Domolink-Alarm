@@ -10,10 +10,12 @@ from .const import (
     CONF_NAME,
     DEFAULT_NAME,
     CONF_OPENING_SENSORS,
+    CONF_NIGHT_SENSORS,
     CONF_MOTION_SENSORS,
     CONF_CAMERAS,
     CONF_TAMPER_SENSORS,
     CONF_KEYPADS,
+    CONF_PERSONS,
     CONF_SIRENS,
     CONF_LIGHTS,
     CONF_MEDIA_PLAYERS,
@@ -59,6 +61,12 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Optional(CONF_NAME, default=DEFAULT_NAME): str,
+                    vol.Optional(CONF_NIGHT_SENSORS, default=[]): selector.EntitySelector(
+                        selector.EntitySelectorConfig(
+                            domain=["binary_sensor", "sensor"],
+                            multiple=True
+                        )
+                    ),
                     vol.Optional(CONF_OPENING_SENSORS, default=[]): selector.EntitySelector(
                         selector.EntitySelectorConfig(
                             domain=["binary_sensor", "sensor"], 
@@ -127,6 +135,9 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="logic",
             data_schema=vol.Schema(
                 {
+                    vol.Optional(CONF_PERSONS, default=[]): selector.EntitySelector(
+                        selector.EntitySelectorConfig(domain="person", multiple=True)
+                    ),
                     vol.Required(CONF_USERS_CODES): str,
                     vol.Optional(CONF_DURESS_CODE, default=""): str,
                     vol.Optional(CONF_BYPASS_ALLOWED, default=DEFAULT_BYPASS_ALLOWED): bool,
@@ -169,6 +180,12 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
             data_schema=vol.Schema(
                 {
                     vol.Optional(CONF_NAME, default=self.options.get(CONF_NAME, DEFAULT_NAME)): str,
+                    vol.Optional(CONF_NIGHT_SENSORS, default=self.options.get(CONF_NIGHT_SENSORS, [])): selector.EntitySelector(
+                        selector.EntitySelectorConfig(
+                            domain=["binary_sensor", "sensor"],
+                            multiple=True
+                        )
+                    ),
                     vol.Optional(CONF_OPENING_SENSORS, default=self.options.get(CONF_OPENING_SENSORS, [])): selector.EntitySelector(
                         selector.EntitySelectorConfig(
                             domain=["binary_sensor", "sensor"], 
@@ -236,6 +253,9 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
             step_id="logic",
             data_schema=vol.Schema(
                 {
+                    vol.Optional(CONF_PERSONS, default=self.options.get(CONF_PERSONS, [])): selector.EntitySelector(
+                        selector.EntitySelectorConfig(domain="person", multiple=True)
+                    ),
                     vol.Required(CONF_USERS_CODES, default=self.options.get(CONF_USERS_CODES, "")): str,
                     vol.Optional(CONF_DURESS_CODE, default=self.options.get(CONF_DURESS_CODE, "")): str,
                     vol.Optional(CONF_BYPASS_ALLOWED, default=self.options.get(CONF_BYPASS_ALLOWED, DEFAULT_BYPASS_ALLOWED)): bool,

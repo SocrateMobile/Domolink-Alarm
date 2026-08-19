@@ -16,12 +16,15 @@ from homeassistant.helpers.event import (
     async_track_time_interval,
 )
 from homeassistant.helpers.restore_state import RestoreEntity
+from homeassistant.util.dt import utcnow
 
 from .const import (
     DOMAIN,
     CONF_NAME,
     DEFAULT_NAME,
     CONF_OPENING_SENSORS,
+    CONF_NIGHT_SENSORS,
+    CONF_PERSONS,
     CONF_MOTION_SENSORS,
     CONF_CAMERAS,
     CONF_TAMPER_SENSORS,
@@ -87,12 +90,15 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.5.2-beta",
+            sw_version="0.6.0-beta",
         )
 
         self._siren_task = None
         self._arming_task = None
         self._pending_task = None
+        self._faults = []
+        self._triggered_by = None
+        self._event_sensor = None
 
         self._failed_attempts = 0
         self._blocked_until = 0.0
@@ -133,15 +139,17 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._health_check = bool(options.get(CONF_HEALTH_CHECK, data.get(CONF_HEALTH_CHECK, True)))
         self._geofence_auto_arm = bool(options.get(CONF_GEOFENCE_AUTO_ARM, data.get(CONF_GEOFENCE_AUTO_ARM, False)))
 
-        self._opening_sensors = data.get(CONF_OPENING_SENSORS) or []
-        self._motion_sensors = data.get(CONF_MOTION_SENSORS) or []
-        self._cameras = data.get(CONF_CAMERAS) or []
-        self._tamper_sensors = data.get(CONF_TAMPER_SENSORS) or []
+        self._opening_sensors = options.get(CONF_OPENING_SENSORS, data.get(CONF_OPENING_SENSORS)) or []
+        self._night_sensors = options.get(CONF_NIGHT_SENSORS, data.get(CONF_NIGHT_SENSORS)) or []
+        self._persons = options.get(CONF_PERSONS, data.get(CONF_PERSONS)) or []
+        self._motion_sensors = options.get(CONF_MOTION_SENSORS, data.get(CONF_MOTION_SENSORS)) or []
+        self._cameras = options.get(CONF_CAMERAS, data.get(CONF_CAMERAS)) or []
+        self._tamper_sensors = options.get(CONF_TAMPER_SENSORS, data.get(CONF_TAMPER_SENSORS)) or []
 
-        self._sirens = data.get(CONF_SIRENS) or []
-        self._lights = data.get(CONF_LIGHTS) or []
-        self._media_players = data.get(CONF_MEDIA_PLAYERS) or []
-        self._notify_services = data.get(CONF_NOTIFY_SERVICES) or []
+        self._sirens = options.get(CONF_SIRENS, data.get(CONF_SIRENS)) or []
+        self._lights = options.get(CONF_LIGHTS, data.get(CONF_LIGHTS)) or []
+        self._media_players = options.get(CONF_MEDIA_PLAYERS, data.get(CONF_MEDIA_PLAYERS)) or []
+        self._notify_services = options.get(CONF_NOTIFY_SERVICES, data.get(CONF_NOTIFY_SERVICES)) or []
 
     @callback
     def async_update_options(self):
@@ -155,6 +163,14 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
     def unique_id(self):
         """Return a unique ID."""
         return self._unique_id
+
+    @property
+    def extra_state_attributes(self):
+        """Return the state attributes."""
+        return {
+            "faults": self._faults,
+            "triggered_by": self._triggered_by,
+        }
 
     @property
     def alarm_state(self):
@@ -177,6 +193,15 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             "health_check_active": self._health_check,
         }
 
+    def set_log_sensor(self, sensor):
+        """Register the event log sensor."""
+        self._event_sensor = sensor
+
+    def _log_event(self, message):
+        """Log an event and notify sensor."""
+        if self._event_sensor:
+            self._event_sensor.async_add_event(utcnow().isoformat(), message)
+
     # ─── Lifecycle ────────────────────────────────────────────────
 
     async def async_added_to_hass(self):
@@ -192,7 +217,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 self._last_user = last_state.attributes.get("last_user")
 
         # Track sensor changes
-        all_sensors = self._opening_sensors + self._motion_sensors + self._tamper_sensors
+        all_sensors = list(set(self._opening_sensors + self._motion_sensors + self._tamper_sensors + self._night_sensors + self._persons))
         if all_sensors:
             self.async_on_remove(
                 async_track_state_change_event(
@@ -330,8 +355,9 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         }
         
         if is_alert:
-            data.update({
+            alert_data = {
                 "push": {
+                    "category": "camera",
                     "sound": {
                         "name": "default",
                         "critical": 1,
@@ -345,7 +371,10 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                         "destructive": True,
                     }
                 ],
-            })
+            }
+            if self._cameras:
+                alert_data["entity_id"] = self._cameras[0]
+            data.update(alert_data)
 
         for target in self._notify_services:
             sent = False
@@ -394,6 +423,21 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
             if not sent:
                 _LOGGER.warning("Domolink: Impossible de trouver un service de notification valide pour %s", target)
+
+    async def _async_handle_person_changed(self):
+        """Handle geofencing auto-arm logic."""
+        if not self._geofence_auto_arm or not self._persons:
+            return
+            
+        states = [self.hass.states.get(p) for p in self._persons]
+        states = [s.state for s in states if s is not None]
+        
+        if all(s != "home" for s in states) and self._state == AlarmControlPanelState.DISARMED:
+            self._log_event("Auto-armement (Toutes les personnes sont absentes)")
+            await self.async_alarm_arm_away()
+        elif any(s == "home" for s in states) and self._state in (AlarmControlPanelState.ARMED_AWAY, AlarmControlPanelState.ARMING):
+            self._log_event("Auto-désarmement (Une personne est arrivée)")
+            await self.async_alarm_disarm(code=None)  # Auto disarm
 
     # ─── Sensor Monitoring ────────────────────────────────────────
 
@@ -454,6 +498,9 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                         _LOGGER.info("Starting entry delay for %s", entity_id)
                         self._pre_trigger_state = self._state
                         self._state = AlarmControlPanelState.PENDING
+                        if entity_id not in self._faults:
+                            self._faults.append(entity_id)
+                        self._triggered_by = new_state.name
                         self.async_write_ha_state()
                         await self._async_pre_alarm_feedback()
                         # Send alert notification with disarm button
@@ -472,9 +519,10 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                     await self._async_trigger_alarm(entity_id)
 
         elif self._state == AlarmControlPanelState.PENDING:
-            # Already in pending state, additional sensor confirms intrusion but
-            # the timer is already running
-            pass
+            # Already in pending state, additional sensor confirms intrusion
+            if entity_id not in self._faults:
+                self._faults.append(entity_id)
+            self.async_write_ha_state()
 
     # ─── Pre-Alarm Feedback ───────────────────────────────────────
 
@@ -519,6 +567,9 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         if self._pending_task:
             self._pending_task()
             self._pending_task = None
+        self._faults = []
+        self._triggered_by = None
+        self._event_sensor = None
 
         state = self.hass.states.get(triggering_entity)
         name = state.name if state else triggering_entity
@@ -636,6 +687,9 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         if self._pending_task:
             self._pending_task()
             self._pending_task = None
+        self._faults = []
+        self._triggered_by = None
+        self._event_sensor = None
         if self._siren_task:
             self._siren_task()
             self._siren_task = None
@@ -697,6 +751,9 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._cancel_all_tasks()
         self._state = AlarmControlPanelState.DISARMED
         self._last_user = user
+        self._faults.clear()
+        self._triggered_by = None
+        self._log_event(f"Alarme Désarmée (Utilisateur: {user})")
         self.async_write_ha_state()
 
         await self._async_turn_off_siren()
@@ -743,6 +800,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             return
         self._pre_trigger_state = AlarmControlPanelState.ARMED_HOME  # Fix #11
         self._state = AlarmControlPanelState.ARMED_HOME
+        self._log_event("Alarme Armée (Mode: Présent)")
         self.async_write_ha_state()
 
     async def async_alarm_arm_away(self, code=None):
@@ -766,6 +824,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         """Sync @callback: finalize arm away (Fix #2)."""
         self._state = AlarmControlPanelState.ARMED_AWAY
         self._pre_trigger_state = AlarmControlPanelState.ARMED_AWAY
+        self._log_event("Alarme Armée (Mode: Absent)")
         self.async_write_ha_state()
         self._arming_task = None
 
@@ -775,4 +834,5 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             return
         self._pre_trigger_state = AlarmControlPanelState.ARMED_NIGHT  # Fix #11
         self._state = AlarmControlPanelState.ARMED_NIGHT
+        self._log_event("Alarme Armée (Mode: Nuit)")
         self.async_write_ha_state()
