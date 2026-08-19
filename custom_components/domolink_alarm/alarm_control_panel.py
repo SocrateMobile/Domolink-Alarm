@@ -91,7 +91,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.6.1",
+            sw_version="0.6.2",
         )
 
         self._siren_task = None
@@ -451,6 +451,11 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         if not new_state:
             return
 
+        # Geofencing
+        if entity_id in self._persons:
+            await self._async_handle_person_changed()
+            return
+
         state_val = str(new_state.state).lower()
         if state_val not in ("on", "open", "true", "detected", "unlocked", "1"):
             return
@@ -479,8 +484,13 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             )
             return
 
-        # Already triggered, nothing to do
+        # Already triggered, add to faults if new and optionally notify
         if self._state == AlarmControlPanelState.TRIGGERED:
+            if entity_id not in self._faults:
+                self._faults.append(entity_id)
+                self.async_write_ha_state()
+                self._log_event(f"Autre détection: {new_state.name}")
+                await self._async_send_notification(f"🚨 Détection supplémentaire : {new_state.name}", is_alert=True)
             return
 
         # Handle different armed modes
@@ -492,7 +502,13 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             AlarmControlPanelState.ARMED_AWAY,
             AlarmControlPanelState.ARMED_NIGHT,
         ):
-            if entity_id in self._opening_sensors or entity_id in self._motion_sensors:
+            is_valid_sensor = False
+            if self._state == AlarmControlPanelState.ARMED_NIGHT:
+                is_valid_sensor = entity_id in self._night_sensors
+            else:
+                is_valid_sensor = (entity_id in self._opening_sensors) or (entity_id in self._motion_sensors)
+
+            if is_valid_sensor:
                 # Entry delay only for ARMED_AWAY
                 if self._state == AlarmControlPanelState.ARMED_AWAY and self._entry_delay > 0:
                     if self._pending_task is None:
@@ -602,11 +618,14 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         if self._pending_task:
             self._pending_task()
             self._pending_task = None
-        self._faults = []
-        self._triggered_by = None
-        self._event_sensor = None
+
+        if triggering_entity not in self._faults:
+            self._faults.append(triggering_entity)
 
         state = self.hass.states.get(triggering_entity)
+        self._triggered_by = state.name if state else triggering_entity
+        
+        self._log_event(f"Alarme DÉCLENCHÉE par {self._triggered_by}")
         name = state.name if state else triggering_entity
 
         # 1. Critical notification with disarm button
@@ -717,9 +736,6 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         if self._pending_task:
             self._pending_task()
             self._pending_task = None
-        self._faults = []
-        self._triggered_by = None
-        self._event_sensor = None
         if self._siren_task:
             self._siren_task()
             self._siren_task = None
