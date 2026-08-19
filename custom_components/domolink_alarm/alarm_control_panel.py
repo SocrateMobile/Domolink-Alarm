@@ -87,7 +87,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=entry.title or DEFAULT_NAME,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.5.0",
+            sw_version="0.5.1",
         )
 
         self._siren_task = None
@@ -319,7 +319,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
     # ─── Notifications ────────────────────────────────────────────
 
     async def _async_send_notification(self, message, is_alert=False):
-        """Send notifications, with actionable buttons if it's an alert."""
+        """Send notifications to configured services/entities with universal compatibility."""
         if not self._notify_services:
             return
 
@@ -342,18 +342,53 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 ],
             }
 
-        for notify_service in self._notify_services:
-            if "." in notify_service:
-                domain, service = notify_service.split(".", 1)
-            else:
-                domain, service = "notify", notify_service
-            try:
-                payload = {"message": message}
-                if data:
-                    payload["data"] = data
-                await self.hass.services.async_call(domain, service, payload)
-            except Exception as e:
-                _LOGGER.error("Failed to call notify service %s: %s", notify_service, e)
+        for target in self._notify_services:
+            sent = False
+
+            # Strategy 1: Modern HA Notify Entity (`notify.send_message` with entity_id)
+            if self.hass.services.has_service("notify", "send_message"):
+                try:
+                    payload = {"entity_id": target, "message": message}
+                    if data:
+                        payload["data"] = data
+                    await self.hass.services.async_call("notify", "send_message", payload)
+                    sent = True
+                    _LOGGER.debug("Domolink: Notification envoyée via notify.send_message à %s", target)
+                except Exception as e:
+                    _LOGGER.debug("Domolink: notify.send_message échoué pour %s: %s", target, e)
+
+            # Strategy 2: Direct service call (e.g. notify.mobile_app_iphone, notify.telegram)
+            if not sent:
+                if "." in target:
+                    domain, service = target.split(".", 1)
+                else:
+                    domain, service = "notify", target
+
+                if self.hass.services.has_service(domain, service):
+                    try:
+                        payload = {"message": message}
+                        if data:
+                            payload["data"] = data
+                        await self.hass.services.async_call(domain, service, payload)
+                        sent = True
+                        _LOGGER.debug("Domolink: Notification envoyée directement à %s.%s", domain, service)
+                    except Exception as e:
+                        _LOGGER.error("Domolink: Échec d'envoi vers %s.%s: %s", domain, service, e)
+
+                # Strategy 3: Target is notify.iphone -> try notify.mobile_app_iphone
+                elif domain == "notify" and self.hass.services.has_service("notify", f"mobile_app_{service}"):
+                    try:
+                        payload = {"message": message}
+                        if data:
+                            payload["data"] = data
+                        await self.hass.services.async_call("notify", f"mobile_app_{service}", payload)
+                        sent = True
+                        _LOGGER.debug("Domolink: Notification envoyée à notify.mobile_app_%s", service)
+                    except Exception as e:
+                        _LOGGER.error("Domolink: Échec d'envoi vers notify.mobile_app_%s: %s", service, e)
+
+            if not sent:
+                _LOGGER.warning("Domolink: Impossible de trouver un service de notification valide pour %s", target)
 
     # ─── Sensor Monitoring ────────────────────────────────────────
 
