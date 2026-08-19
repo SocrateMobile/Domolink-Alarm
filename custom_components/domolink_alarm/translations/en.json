@@ -10,7 +10,8 @@
           "motion_sensors": "Motion/Occupancy Sensors",
           "cameras": "Cameras (Detection & Recording)",
           "tamper_sensors": "Tamper Sensors (24/7)",
-          "keypads": "Physical Keypads"
+          "keypads": "Physical Keypads",
+          "night_sensors": "Night Mode Sensors (Perimeter)"
         }
       },
       "actuators": {
@@ -34,7 +35,8 @@
           "geofence_auto_arm": "Enable Geofencing (Auto-Arm/Disarm based on presence)",
           "exit_delay": "Exit Delay (seconds)",
           "entry_delay": "Entry Delay (seconds)",
-          "siren_duration": "Siren Duration (seconds)"
+          "siren_duration": "Siren Duration (seconds)",
+          "persons": "Persons (Geofencing Auto-Arm)"
         }
       }
     },
@@ -60,7 +62,8 @@
           "motion_sensors": "Motion/Occupancy Sensors",
           "cameras": "Cameras (Detection & Recording)",
           "tamper_sensors": "Tamper Sensors (24/7)",
-          "keypads": "Physical Keypads"
+          "keypads": "Physical Keypads",
+          "night_sensors": "Night Mode Sensors (Perimeter)"
         }
       },
       "actuators": {
@@ -84,7 +87,8 @@
           "geofence_auto_arm": "Enable Geofencing (Auto-Arm/Disarm based on presence)",
           "exit_delay": "Exit Delay (seconds)",
           "entry_delay": "Entry Delay (seconds)",
-          "siren_duration": "Siren Duration (seconds)"
+          "siren_duration": "Siren Duration (seconds)",
+          "persons": "Persons (Geofencing Auto-Arm)"
         }
       }
     }

@@ -6,10 +6,12 @@ CONF_NAME = "name"
 DEFAULT_NAME = "Domolink Alarm"
 
 CONF_OPENING_SENSORS = "opening_sensors"
+CONF_NIGHT_SENSORS = "night_sensors"
 CONF_MOTION_SENSORS = "motion_sensors"
 CONF_CAMERAS = "cameras"
 CONF_TAMPER_SENSORS = "tamper_sensors"
 CONF_KEYPADS = "keypads"
+CONF_PERSONS = "persons"
 
 CONF_SIRENS = "sirens"
 CONF_LIGHTS = "lights"
