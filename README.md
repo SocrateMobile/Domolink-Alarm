@@ -284,7 +284,10 @@ card_mod:
 
 ## 📜 Changelog
 
-### 🚀 v0.6.3-beta (Current)
+### 🚀 v0.6.4-beta (Current)
+- 📝 **Journal détaillé (Audit Trail)** : Le capteur d'événements (`sensor.domolink_event_log`) enregistre maintenant finement chaque action technique du système lors d'une alerte : allumage des amplis, réglage du volume, diffusion du message TTS, envoi des notifications, activation des caméras, déclenchement et arrêt des sirènes/lumières.
+
+### 🚀 v0.6.3-beta
 - 🎨 **Fix Icônes** : Les icônes sont désormais servies depuis le dossier `brand/` conformément au standard Home Assistant 2026.3+. Elles apparaissent maintenant dans la page Intégrations et Appareils.
 
 ### 🚀 v0.6.2-beta

@@ -91,7 +91,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.6.3",
+            sw_version="0.6.4",
         )
 
         self._siren_task = None
@@ -635,6 +635,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         )
 
         # 2. Camera Recording
+        if self._cameras:
+            self._log_event(f"Lancement de l'enregistrement sur {len(self._cameras)} caméra(s)")
         for camera in self._cameras:
             try:
                 await self.hass.services.async_call(
@@ -670,6 +672,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             or triggering_entity in self._tamper_sensors
         )
         if should_siren:
+            self._log_event("Activation des sirènes et lumières d'urgence")
             if self._sirens:
                 try:
                     await self.hass.services.async_call(
@@ -708,6 +711,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
     async def _async_turn_off_siren(self):
         """Turn off sirens and panic lights."""
+        self._log_event("Arrêt des sirènes et des lumières (Désarmement)")
         if self._sirens:
             try:
                 await self.hass.services.async_call(
