@@ -20,11 +20,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Handle options update — forward to entity without restart."""
-    data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
-    entity = data.get("entity")
-    if entity:
-        entity.async_update_options()
+    """Handle options update — automatically reload the integration."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

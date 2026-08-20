@@ -284,7 +284,12 @@ card_mod:
 
 ## 📜 Changelog
 
-### 🚀 v0.6.10-beta (Current)
+### 🚀 v0.6.11-beta (Current)
+- 🔄 **Rechargement automatique à chaud** : Dès validation du menu de configuration (Options Flow), l'intégration se recharge automatiquement pour appliquer immédiatement tous les ajouts/retraits de capteurs sans action manuelle.
+- 📱 **Notification interactive de Bypass (Mise en marche forcée)** : Si un ou plusieurs capteurs sont ouverts lors de l'armement, l'application mobile envoie une notification avec la liste des capteurs ouverts, un bouton "Forcer la mise en marche" (avec saisie du code PIN) et un bouton "Annuler".
+- 🔁 **Réarmement automatique & Réactivation des alertes** : Après la fin de la durée de sirène (ex: 3 min), le système se ré-arme automatiquement. Tout nouveau mouvement ou ouverture ultérieure (même 10+ min après, sur le même capteur ou un autre) déclenche un nouveau cycle d'alerte complet (Sirène, Flash, TTS, Caméras, Push).
+
+### 🚀 v0.6.10-beta
 - 🐛 **Fix Critique Erreur 500** : Résolution définitive du crash 500 sur le menu d'options. Cause racine : dans les versions récentes de Home Assistant (2025+), `config_entry` est une propriété en lecture seule sur `OptionsFlow`. Le constructeur tentait de l'écraser (`self.config_entry = ...`), ce qui provoquait une `AttributeError` systématique.
 
 ### 🚀 v0.6.9-beta

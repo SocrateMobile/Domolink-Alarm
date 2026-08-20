@@ -91,7 +91,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.6.10",
+            sw_version="0.6.11",
         )
 
         self._siren_task = None
@@ -296,16 +296,51 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
     async def _async_handle_mobile_action(self, event):
         """Handle actionable notification button clicks."""
         action = event.data.get("action")
+        reply_text = event.data.get("reply_text")
+
         if action == "DOMOLINK_DISARM":
             _LOGGER.info("Disarm triggered via mobile actionable notification")
             self._cancel_all_tasks()
             self._state = AlarmControlPanelState.DISARMED
             self._last_user = "Mobile App"
+            self._faults.clear()
+            self._triggered_by = None
             self.async_write_ha_state()
             await self._async_turn_off_siren()
+            self._log_event("Alarme Désarmée (Mobile App)")
             await self._async_send_notification(
                 "✅ Alarme désarmée via Apple Watch / Mobile."
             )
+
+        elif action in ("DOMOLINK_FORCE_ARM_AWAY", "DOMOLINK_FORCE_ARM_HOME", "DOMOLINK_FORCE_ARM_NIGHT"):
+            # Check user PIN code if provided
+            user = "Mobile App"
+            if reply_text:
+                user = self._validate_code(str(reply_text).strip())
+                if not user:
+                    _LOGGER.warning("Invalid code for forced arming from mobile app")
+                    await self._async_send_notification("⛔ Code erroné. Armement forcé refusé.")
+                    return
+
+            mode_map = {
+                "DOMOLINK_FORCE_ARM_AWAY": (AlarmControlPanelState.ARMED_AWAY, "Absent"),
+                "DOMOLINK_FORCE_ARM_HOME": (AlarmControlPanelState.ARMED_HOME, "Présent"),
+                "DOMOLINK_FORCE_ARM_NIGHT": (AlarmControlPanelState.ARMED_NIGHT, "Nuit"),
+            }
+            target_state, mode_name = mode_map[action]
+            self._cancel_all_tasks()
+            self._state = target_state
+            self._pre_trigger_state = target_state
+            self._last_user = user
+            self.async_write_ha_state()
+            self._log_event(f"Alarme Armée avec Bypass forcé ({mode_name}) par {user}")
+            await self._async_send_notification(
+                f"⚠️ Alarme armée avec mise en marche forcée (Mode: {mode_name})."
+            )
+
+        elif action == "DOMOLINK_CANCEL_ARM":
+            self._log_event("Armement annulé par l'utilisateur")
+            await self._async_send_notification("❌ Armement annulé.")
 
     # ─── Health Check ─────────────────────────────────────────────
 
@@ -344,7 +379,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
     # ─── Notifications ────────────────────────────────────────────
 
-    async def _async_send_notification(self, message, is_alert=False):
+    async def _async_send_notification(self, message, is_alert=False, custom_data=None):
         """Send notifications to configured services/entities with universal compatibility."""
         if not self._notify_services:
             return
@@ -376,6 +411,9 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             if self._cameras:
                 alert_data["entity_id"] = self._cameras[0]
             data.update(alert_data)
+
+        if custom_data:
+            data.update(custom_data)
 
         for target in self._notify_services:
             sent = False
@@ -484,10 +522,14 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             )
             return
 
-        # Already triggered, add to faults if new and optionally notify
+        # Already triggered: if sirens stopped, re-trigger full sequence; otherwise notify additional detection
         if self._state == AlarmControlPanelState.TRIGGERED:
-            if entity_id not in self._faults:
-                self._faults.append(entity_id)
+            if self._siren_task is None:
+                _LOGGER.info("Domolink: Nouveau déclenchement après arrêt sirène sur %s", entity_id)
+                await self._async_trigger_alarm(entity_id)
+            else:
+                if entity_id not in self._faults:
+                    self._faults.append(entity_id)
                 self.async_write_ha_state()
                 self._log_event(f"Autre détection: {new_state.name}")
                 await self._async_send_notification(f"🚨 Détection supplémentaire : {new_state.name}", is_alert=True)
@@ -607,7 +649,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
     async def _async_trigger_alarm(self, triggering_entity):
         """Trigger the alarm — full alert sequence."""
-        if self._state == AlarmControlPanelState.TRIGGERED:
+        # Only ignore if already triggered AND siren is currently ringing
+        if self._state == AlarmControlPanelState.TRIGGERED and self._siren_task is not None:
             return
 
         self._state = AlarmControlPanelState.TRIGGERED
@@ -711,7 +754,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
     async def _async_turn_off_siren(self):
         """Turn off sirens and panic lights."""
-        self._log_event("Arrêt des sirènes et des lumières (Désarmement)")
+        self._log_event("Arrêt des sirènes et des lumières")
         if self._sirens:
             try:
                 await self.hass.services.async_call(
@@ -729,6 +772,19 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             except Exception as e:
                 _LOGGER.error("Failed to turn off lights: %s", e)
         self._siren_task = None
+
+        # If sirens turned off after cycle and alarm was not disarmed, re-arm to pre-trigger state
+        # so any subsequent detection triggers a full alarm cycle again
+        if self._state == AlarmControlPanelState.TRIGGERED:
+            target_state = (
+                self._pre_trigger_state
+                if self._pre_trigger_state != AlarmControlPanelState.DISARMED
+                else AlarmControlPanelState.ARMED_AWAY
+            )
+            self._state = target_state
+            self._faults.clear()
+            self._log_event(f"Fin de cycle sirène — Système ré-armé ({target_state.value})")
+            self.async_write_ha_state()
 
     # ─── Helper: Cancel All Tasks ─────────────────────────────────
 
@@ -814,34 +870,64 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 self._async_play_tts(f"Alarme désarmée. Bienvenue {user}.")
             )
 
-    async def _check_bypass(self):
+    async def _check_bypass(self, target_mode="AWAY"):
         """Check if sensors are open before arming."""
         open_sensors = []
+        # Check opening sensors
         for sensor in self._opening_sensors:
             state = self.hass.states.get(sensor)
-            if state and state.state in ("on", "open", "true"):
+            if state and str(state.state).lower() in ("on", "open", "true", "detected", "unlocked", "1"):
                 open_sensors.append(state.name or sensor)
+
+        # Also for NIGHT mode, check night sensors
+        if target_mode == "NIGHT":
+            for sensor in self._night_sensors:
+                state = self.hass.states.get(sensor)
+                if state and str(state.state).lower() in ("on", "open", "true", "detected", "unlocked", "1"):
+                    if (state.name or sensor) not in open_sensors:
+                        open_sensors.append(state.name or sensor)
 
         if open_sensors:
             if not self._bypass_allowed:
                 _LOGGER.warning("Cannot arm, sensors open: %s", open_sensors)
-                # Fix #16: Notify user which sensors are preventing arming
-                await self._async_send_notification(
-                    "⛔ Impossible d'armer l'alarme. Capteurs ouverts :\n"
-                    + "\n".join(f"• {s}" for s in open_sensors)
+                sensor_list = "\n".join(f"• {s}" for s in open_sensors)
+                message = (
+                    f"⛔ Impossible d'armer l'alarme.\n\n"
+                    f"Capteur(s) ouvert(s) :\n{sensor_list}\n\n"
+                    f"Voulez-vous forcer la mise en marche (Bypass) ?"
                 )
+                self._log_event(f"Échec armement : {len(open_sensors)} capteur(s) ouvert(s)")
+                
+                # Send actionable notification to mobile app (Prompt for bypass & PIN)
+                action_data = {
+                    "actions": [
+                        {
+                            "action": f"DOMOLINK_FORCE_ARM_{target_mode}",
+                            "title": "⚡ Forcer la mise en marche",
+                            "behavior": "textInput",
+                            "textInputButtonTitle": "Valider",
+                            "textInputPlaceholder": "Code PIN (optionnel)",
+                        },
+                        {
+                            "action": "DOMOLINK_CANCEL_ARM",
+                            "title": "❌ Annuler",
+                            "destructive": True,
+                        },
+                    ]
+                }
+                await self._async_send_notification(message, custom_data=action_data)
                 return False
             else:
-                # Fix #16: Notify user which sensors are being bypassed
+                # Bypass is globally enabled in config
+                sensor_list = "\n".join(f"• {s}" for s in open_sensors)
                 await self._async_send_notification(
-                    "⚠️ Alarme armée avec bypass. Capteurs ignorés :\n"
-                    + "\n".join(f"• {s}" for s in open_sensors)
+                    f"⚠️ Alarme armée avec bypass automatique.\nCapteurs ignorés :\n{sensor_list}"
                 )
         return True
 
     async def async_alarm_arm_home(self, code=None):
         """Send arm home command."""
-        if not await self._check_bypass():
+        if not await self._check_bypass(target_mode="HOME"):
             return
         self._pre_trigger_state = AlarmControlPanelState.ARMED_HOME  # Fix #11
         self._state = AlarmControlPanelState.ARMED_HOME
@@ -850,7 +936,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
     async def async_alarm_arm_away(self, code=None):
         """Send arm away command."""
-        if not await self._check_bypass():
+        if not await self._check_bypass(target_mode="AWAY"):
             return
 
         if self._exit_delay > 0:
@@ -875,7 +961,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
     async def async_alarm_arm_night(self, code=None):
         """Send arm night command."""
-        if not await self._check_bypass():
+        if not await self._check_bypass(target_mode="NIGHT"):
             return
         self._pre_trigger_state = AlarmControlPanelState.ARMED_NIGHT  # Fix #11
         self._state = AlarmControlPanelState.ARMED_NIGHT
