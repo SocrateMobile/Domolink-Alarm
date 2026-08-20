@@ -284,7 +284,13 @@ card_mod:
 
 ## 📜 Changelog
 
-### 🚀 v0.6.12-beta (Current)
+### 🚀 v0.6.14-beta (Current)
+- 💳 **Support Natif des Badges RFID/NFC** : L'alarme écoute désormais nativement les événements `tag_scanned` de Home Assistant. Vous pouvez configurer des tags depuis l'interface (ex: `04-7A-5B:Jean`). Le scan agit comme un bouton bascule : si l'alarme est désarmée, elle s'arme en mode "Absent" (avec bypass autorisé) ; si elle est armée ou déclenchée, elle se désarme immédiatement avec message TTS de bienvenue.
+
+### 🚀 v0.6.13-beta
+- 🔓 **Bypass direct depuis le tableau de bord** : Si un capteur est ouvert, au lieu d'être bloqué avec une erreur, vous pouvez désormais taper votre code PIN valide directement sur le pavé numérique du tableau de bord HA puis cliquer sur "Activer". L'alarme considérera ce code comme une autorisation de bypass forcé.
+
+### 🚀 v0.6.12-beta
 - 🐛 **Retour visuel sur le tableau de bord (Erreur d'armement)** : Lorsqu'un armement échoue à cause de capteurs ouverts, l'intégration génère désormais une `HomeAssistantError`. Cela affiche instantanément une pop-up d'erreur rouge directement sur le tableau de bord Home Assistant ("Échec armement : X capteur(s) ouvert(s)"), au lieu d'échouer silencieusement tout en envoyant la notification mobile.
 
 ### 🚀 v0.6.11-beta

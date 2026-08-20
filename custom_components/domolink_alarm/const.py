@@ -20,6 +20,7 @@ CONF_NOTIFY_SERVICES = "notify_services"
 
 CONF_USERS_CODES = "users_codes"
 CONF_DURESS_CODE = "duress_code"
+CONF_RFID_TAGS = "rfid_tags"
 CONF_BYPASS_ALLOWED = "bypass_allowed"
 CONF_HEALTH_CHECK = "health_check"
 CONF_GEOFENCE_AUTO_ARM = "geofence_auto_arm"
