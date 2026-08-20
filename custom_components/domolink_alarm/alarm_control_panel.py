@@ -10,6 +10,7 @@ from homeassistant.components.alarm_control_panel import (
     CodeFormat,
 )
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.event import (
     async_track_state_change_event,
@@ -91,7 +92,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.6.11",
+            sw_version="0.6.12",
         )
 
         self._siren_task = None
@@ -916,7 +917,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                     ]
                 }
                 await self._async_send_notification(message, custom_data=action_data)
-                return False
+                raise HomeAssistantError(f"Échec armement : {len(open_sensors)} capteur(s) ouvert(s). Consultez vos notifications.")
             else:
                 # Bypass is globally enabled in config
                 sensor_list = "\n".join(f"• {s}" for s in open_sensors)
