@@ -92,7 +92,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.6.12",
+            sw_version="0.6.13-beta",
         )
 
         self._siren_task = None
@@ -871,7 +871,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 self._async_play_tts(f"Alarme désarmée. Bienvenue {user}.")
             )
 
-    async def _check_bypass(self, target_mode="AWAY"):
+    async def _check_bypass(self, target_mode="AWAY", force=False):
         """Check if sensors are open before arming."""
         open_sensors = []
         # Check opening sensors
@@ -889,7 +889,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                         open_sensors.append(state.name or sensor)
 
         if open_sensors:
-            if not self._bypass_allowed:
+            if not self._bypass_allowed and not force:
                 _LOGGER.warning("Cannot arm, sensors open: %s", open_sensors)
                 sensor_list = "\n".join(f"• {s}" for s in open_sensors)
                 message = (
@@ -928,18 +928,32 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
     async def async_alarm_arm_home(self, code=None):
         """Send arm home command."""
-        if not await self._check_bypass(target_mode="HOME"):
+        user = None
+        if code:
+            user = self._validate_code(code)
+            if not user:
+                raise HomeAssistantError("Code invalide.")
+
+        if not await self._check_bypass(target_mode="HOME", force=(user is not None)):
             return
         self._pre_trigger_state = AlarmControlPanelState.ARMED_HOME  # Fix #11
         self._state = AlarmControlPanelState.ARMED_HOME
-        self._log_event("Alarme Armée (Mode: Présent)")
+        self._last_user = user or "Dashboard"
+        self._log_event(f"Alarme Armée (Mode: Présent) par {self._last_user}")
         self.async_write_ha_state()
 
     async def async_alarm_arm_away(self, code=None):
         """Send arm away command."""
-        if not await self._check_bypass(target_mode="AWAY"):
+        user = None
+        if code:
+            user = self._validate_code(code)
+            if not user:
+                raise HomeAssistantError("Code invalide.")
+
+        if not await self._check_bypass(target_mode="AWAY", force=(user is not None)):
             return
 
+        self._last_user = user or "Dashboard"
         if self._exit_delay > 0:
             self._state = AlarmControlPanelState.ARMING
             self.async_write_ha_state()
@@ -956,15 +970,22 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         """Sync @callback: finalize arm away (Fix #2)."""
         self._state = AlarmControlPanelState.ARMED_AWAY
         self._pre_trigger_state = AlarmControlPanelState.ARMED_AWAY
-        self._log_event("Alarme Armée (Mode: Absent)")
+        self._log_event(f"Alarme Armée (Mode: Absent) par {self._last_user}")
         self.async_write_ha_state()
         self._arming_task = None
 
     async def async_alarm_arm_night(self, code=None):
         """Send arm night command."""
-        if not await self._check_bypass(target_mode="NIGHT"):
+        user = None
+        if code:
+            user = self._validate_code(code)
+            if not user:
+                raise HomeAssistantError("Code invalide.")
+
+        if not await self._check_bypass(target_mode="NIGHT", force=(user is not None)):
             return
         self._pre_trigger_state = AlarmControlPanelState.ARMED_NIGHT  # Fix #11
         self._state = AlarmControlPanelState.ARMED_NIGHT
-        self._log_event("Alarme Armée (Mode: Nuit)")
+        self._last_user = user or "Dashboard"
+        self._log_event(f"Alarme Armée (Mode: Nuit) par {self._last_user}")
         self.async_write_ha_state()
