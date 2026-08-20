@@ -36,6 +36,7 @@ from .const import (
     CONF_NOTIFY_SERVICES,
     CONF_USERS_CODES,
     CONF_DURESS_CODE,
+    CONF_RFID_TAGS,
     CONF_BYPASS_ALLOWED,
     CONF_HEALTH_CHECK,
     CONF_GEOFENCE_AUTO_ARM,
@@ -92,7 +93,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.6.13-beta",
+            sw_version="0.6.14-beta",
         )
 
         self._siren_task = None
@@ -133,6 +134,18 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._duress_code = str(
             options.get(CONF_DURESS_CODE, data.get(CONF_DURESS_CODE, ""))
         ).strip()
+
+        # RFID Tags parsing — format: "04-7A-5B:Jean, 8F-B2:Marie"
+        rfid_str = options.get(CONF_RFID_TAGS, data.get(CONF_RFID_TAGS, ""))
+        self._rfid_tags = {}
+        if rfid_str:
+            for pair in rfid_str.split(","):
+                pair = pair.strip()
+                if ":" in pair:
+                    tag_id, name = pair.split(":", 1)
+                    tag_id, name = tag_id.strip(), name.strip()
+                    if tag_id and name:
+                        self._rfid_tags[tag_id] = name
 
         self._exit_delay = int(options.get(CONF_EXIT_DELAY, data.get(CONF_EXIT_DELAY, 30)))
         self._entry_delay = int(options.get(CONF_ENTRY_DELAY, data.get(CONF_ENTRY_DELAY, 30)))
@@ -250,6 +263,14 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             )
         )
 
+        # RFID Tags listener
+        if self._rfid_tags:
+            self.async_on_remove(
+                self.hass.bus.async_listen(
+                    "tag_scanned", self._async_handle_tag_scanned
+                )
+            )
+
     # ─── Geofencing ───────────────────────────────────────────────
 
     async def _async_zone_changed(self, event):
@@ -342,6 +363,57 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         elif action == "DOMOLINK_CANCEL_ARM":
             self._log_event("Armement annulé par l'utilisateur")
             await self._async_send_notification("❌ Armement annulé.")
+
+    # ─── RFID Tag Handling ────────────────────────────────────────
+
+    async def _async_handle_tag_scanned(self, event):
+        """Handle RFID/NFC tag scans to toggle alarm state."""
+        tag_id = event.data.get("tag_id")
+        if not tag_id or tag_id not in self._rfid_tags:
+            return
+
+        user_name = self._rfid_tags[tag_id]
+        _LOGGER.info("RFID Tag scanned by %s", user_name)
+
+        if self._state == AlarmControlPanelState.DISARMED:
+            # Arm the alarm (Away mode by default)
+            _LOGGER.info("Arming via RFID (User: %s)", user_name)
+            if not await self._check_bypass(target_mode="AWAY", force=True):
+                # Should not happen since force=True
+                pass
+            
+            self._last_user = f"{user_name} (RFID)"
+            if self._exit_delay > 0:
+                self._state = AlarmControlPanelState.ARMING
+                self.async_write_ha_state()
+                self._arming_task = async_call_later(
+                    self.hass,
+                    self._exit_delay,
+                    self._cb_arm_away_complete,
+                )
+            else:
+                self._cb_arm_away_complete()
+                
+            await self._async_send_notification(
+                f"🔒 Alarme activée par {user_name} (Badge)."
+            )
+        else:
+            # Disarm the alarm
+            _LOGGER.info("Disarming via RFID (User: %s)", user_name)
+            self._cancel_all_tasks()
+            self._state = AlarmControlPanelState.DISARMED
+            self._last_user = f"{user_name} (RFID)"
+            self._faults.clear()
+            self._triggered_by = None
+            self.async_write_ha_state()
+            await self._async_turn_off_siren()
+            self._log_event(f"Alarme Désarmée ({user_name} - Badge)")
+            await self._async_send_notification(
+                f"✅ Alarme désarmée par {user_name} (Badge)."
+            )
+            self.hass.async_create_task(
+                self._async_play_tts(f"Alarme désarmée. Bienvenue {user_name}.")
+            )
 
     # ─── Health Check ─────────────────────────────────────────────
 

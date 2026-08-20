@@ -22,6 +22,7 @@ from .const import (
     CONF_NOTIFY_SERVICES,
     CONF_USERS_CODES,
     CONF_DURESS_CODE,
+    CONF_RFID_TAGS,
     CONF_BYPASS_ALLOWED,
     CONF_HEALTH_CHECK,
     CONF_GEOFENCE_AUTO_ARM,
@@ -138,8 +139,9 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Optional(CONF_PERSONS, default=[]): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain="person", multiple=True)
                     ),
-                    vol.Required(CONF_USERS_CODES): str,
+                    vol.Optional(CONF_USERS_CODES, default=""): str,
                     vol.Optional(CONF_DURESS_CODE, default=""): str,
+                    vol.Optional(CONF_RFID_TAGS, default=""): str,
                     vol.Optional(CONF_BYPASS_ALLOWED, default=DEFAULT_BYPASS_ALLOWED): bool,
                     vol.Optional(CONF_HEALTH_CHECK, default=DEFAULT_HEALTH_CHECK): bool,
                     vol.Optional(CONF_GEOFENCE_AUTO_ARM, default=DEFAULT_GEOFENCE_AUTO_ARM): bool,
@@ -254,6 +256,7 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Required(CONF_USERS_CODES, default=self.options.get(CONF_USERS_CODES, "")): str,
                     vol.Optional(CONF_DURESS_CODE, default=self.options.get(CONF_DURESS_CODE, "")): str,
+                    vol.Optional(CONF_RFID_TAGS, default=self.options.get(CONF_RFID_TAGS, "")): str,
                     vol.Optional(CONF_BYPASS_ALLOWED, default=self.options.get(CONF_BYPASS_ALLOWED, DEFAULT_BYPASS_ALLOWED)): bool,
                     vol.Optional(CONF_HEALTH_CHECK, default=self.options.get(CONF_HEALTH_CHECK, DEFAULT_HEALTH_CHECK)): bool,
                     vol.Optional(CONF_GEOFENCE_AUTO_ARM, default=self.options.get(CONF_GEOFENCE_AUTO_ARM, DEFAULT_GEOFENCE_AUTO_ARM)): bool,
