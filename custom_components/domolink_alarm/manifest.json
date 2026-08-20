@@ -1,7 +1,7 @@
 {
   "domain": "domolink_alarm",
   "name": "Domolink Alarm",
-  "version": "0.6.12",
+  "version": "0.6.13-beta",
   "codeowners": ["@SocrateMobile"],
   "config_flow": true,
   "dependencies": [],
