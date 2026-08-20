@@ -284,7 +284,10 @@ card_mod:
 
 ## 📜 Changelog
 
-### 🚀 v0.6.11-beta (Current)
+### 🚀 v0.6.12-beta (Current)
+- 🐛 **Retour visuel sur le tableau de bord (Erreur d'armement)** : Lorsqu'un armement échoue à cause de capteurs ouverts, l'intégration génère désormais une `HomeAssistantError`. Cela affiche instantanément une pop-up d'erreur rouge directement sur le tableau de bord Home Assistant ("Échec armement : X capteur(s) ouvert(s)"), au lieu d'échouer silencieusement tout en envoyant la notification mobile.
+
+### 🚀 v0.6.11-beta
 - 🔄 **Rechargement automatique à chaud** : Dès validation du menu de configuration (Options Flow), l'intégration se recharge automatiquement pour appliquer immédiatement tous les ajouts/retraits de capteurs sans action manuelle.
 - 📱 **Notification interactive de Bypass (Mise en marche forcée)** : Si un ou plusieurs capteurs sont ouverts lors de l'armement, l'application mobile envoie une notification avec la liste des capteurs ouverts, un bouton "Forcer la mise en marche" (avec saisie du code PIN) et un bouton "Annuler".
 - 🔁 **Réarmement automatique & Réactivation des alertes** : Après la fin de la durée de sirène (ex: 3 min), le système se ré-arme automatiquement. Tout nouveau mouvement ou ouverture ultérieure (même 10+ min après, sur le même capteur ou un autre) déclenche un nouveau cycle d'alerte complet (Sirène, Flash, TTS, Caméras, Push).
