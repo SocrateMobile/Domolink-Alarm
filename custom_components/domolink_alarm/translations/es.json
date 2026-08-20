@@ -11,7 +11,10 @@
           "motion_sensors": "Sensores de Movimiento",
           "tamper_sensors": "Sensores de Sabotaje (24/7)",
           "night_sensors": "Sensores Modo Noche",
-          "keypads": "Teclados"
+          "keypads": "Teclados",
+          "cameras": {
+            "cameras": "Cámaras"
+          }
         }
       },
       "actuators": {
@@ -57,7 +60,10 @@
           "motion_sensors": "Sensores de Movimiento",
           "tamper_sensors": "Sensores de Sabotaje (24/7)",
           "night_sensors": "Sensores Modo Noche",
-          "keypads": "Teclados"
+          "keypads": "Teclados",
+          "cameras": {
+            "cameras": "Cámaras"
+          }
         }
       },
       "actuators": {

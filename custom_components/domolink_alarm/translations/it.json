@@ -11,7 +11,10 @@
           "motion_sensors": "Sensori di Movimento",
           "tamper_sensors": "Sensori di Manomissione (24/7)",
           "night_sensors": "Sensori Modalità Notte",
-          "keypads": "Tastiere"
+          "keypads": "Tastiere",
+          "cameras": {
+            "cameras": "Telecamere"
+          }
         }
       },
       "actuators": {
@@ -57,7 +60,10 @@
           "motion_sensors": "Sensori di Movimento",
           "tamper_sensors": "Sensori di Manomissione (24/7)",
           "night_sensors": "Sensori Modalità Notte",
-          "keypads": "Tastiere"
+          "keypads": "Tastiere",
+          "cameras": {
+            "cameras": "Telecamere"
+          }
         }
       },
       "actuators": {
