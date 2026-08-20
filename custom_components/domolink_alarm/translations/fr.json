@@ -11,7 +11,10 @@
           "motion_sensors": "Capteurs de mouvement",
           "tamper_sensors": "Capteurs de sabotage (24/7)",
           "night_sensors": "Capteurs Mode Nuit",
-          "keypads": "Claviers"
+          "keypads": "Claviers",
+          "cameras": {
+            "cameras": "Caméras"
+          }
         }
       },
       "actuators": {
@@ -57,7 +60,10 @@
           "motion_sensors": "Capteurs de mouvement",
           "tamper_sensors": "Capteurs de sabotage (24/7)",
           "night_sensors": "Capteurs Mode Nuit",
-          "keypads": "Claviers"
+          "keypads": "Claviers",
+          "cameras": {
+            "cameras": "Caméras"
+          }
         }
       },
       "actuators": {
