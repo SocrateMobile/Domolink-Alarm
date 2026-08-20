@@ -154,19 +154,15 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry):
         """Get the options flow for this handler."""
-        return DomolinkAlarmOptionsFlow(config_entry)
+        return DomolinkAlarmOptionsFlow()
 
 
 class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
     """Handle options."""
 
-    def __init__(self, config_entry):
-        """Initialize options flow."""
-        self.config_entry = config_entry
-        self.options = dict(config_entry.options) if config_entry.options else dict(config_entry.data)
-
     async def async_step_init(self, user_input=None):
         """Manage the options."""
+        self.options = dict(self.config_entry.options) if self.config_entry.options else dict(self.config_entry.data)
         return await self.async_step_sensors()
 
     async def async_step_sensors(self, user_input=None):
