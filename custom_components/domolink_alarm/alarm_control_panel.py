@@ -103,7 +103,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.6.15-beta",
+            sw_version="0.6.16-beta",
         )
 
         self._siren_task = None
@@ -205,9 +205,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._sirens = get_merged(CONF_SIRENS, CONF_SIRENS_LABELS, ["switch", "siren"])
         self._lights = get_merged(CONF_LIGHTS, CONF_LIGHTS_LABELS, ["light"])
         self._media_players = get_merged(CONF_MEDIA_PLAYERS, CONF_MEDIA_PLAYERS_LABELS, ["media_player"])
-        
-        self._persons = options.get(CONF_PERSONS, data.get(CONF_PERSONS)) or []
-        self._notify_services = options.get(CONF_NOTIFY_SERVICES, data.get(CONF_NOTIFY_SERVICES)) or []
+        self._persons = get_merged(CONF_PERSONS, CONF_PERSONS_LABELS, ["person"])
+        self._notify_services = get_merged(CONF_NOTIFY_SERVICES, CONF_NOTIFY_SERVICES_LABELS, ["notify"])
 
     @callback
     def async_update_options(self):

@@ -14,6 +14,7 @@ from .const import (
     CONF_NIGHT_SENSORS,
     CONF_NIGHT_SENSORS_LABELS,
     CONF_PERSONS,
+    CONF_PERSONS_LABELS,
     CONF_MOTION_SENSORS,
     CONF_MOTION_SENSORS_LABELS,
     CONF_CAMERAS,
@@ -21,6 +22,7 @@ from .const import (
     CONF_TAMPER_SENSORS,
     CONF_TAMPER_SENSORS_LABELS,
     CONF_KEYPADS,
+    CONF_KEYPADS_LABELS,
     CONF_SIRENS,
     CONF_SIRENS_LABELS,
     CONF_LIGHTS,
@@ -28,6 +30,7 @@ from .const import (
     CONF_MEDIA_PLAYERS,
     CONF_MEDIA_PLAYERS_LABELS,
     CONF_NOTIFY_SERVICES,
+    CONF_NOTIFY_SERVICES_LABELS,
     CONF_USERS_CODES,
     CONF_DURESS_CODE,
     CONF_RFID_TAGS,
@@ -108,6 +111,7 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Optional(CONF_KEYPADS, default=[]): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain=["alarm_control_panel", "sensor"], multiple=True)
                     ),
+                    vol.Optional(CONF_KEYPADS_LABELS, default=[]): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                 }
             ),
         )
@@ -137,6 +141,7 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Optional(CONF_NOTIFY_SERVICES, default=[]): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain="notify", multiple=True)
                     ),
+                    vol.Optional(CONF_NOTIFY_SERVICES_LABELS, default=[]): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                 }
             ),
         )
@@ -155,6 +160,7 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Optional(CONF_PERSONS, default=[]): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain="person", multiple=True)
                     ),
+                    vol.Optional(CONF_PERSONS_LABELS, default=[]): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                     vol.Optional(CONF_USERS_CODES, default=""): str,
                     vol.Optional(CONF_DURESS_CODE, default=""): str,
                     vol.Optional(CONF_RFID_TAGS, default=""): str,
@@ -232,6 +238,7 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
                     vol.Optional(CONF_KEYPADS, default=self.options.get(CONF_KEYPADS, [])): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain=["alarm_control_panel", "sensor"], multiple=True)
                     ),
+                    vol.Optional(CONF_KEYPADS_LABELS, default=self.options.get(CONF_KEYPADS_LABELS, [])): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                 }
             ),
         )
@@ -261,6 +268,7 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
                     vol.Optional(CONF_NOTIFY_SERVICES, default=self.options.get(CONF_NOTIFY_SERVICES, [])): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain="notify", multiple=True)
                     ),
+                    vol.Optional(CONF_NOTIFY_SERVICES_LABELS, default=self.options.get(CONF_NOTIFY_SERVICES_LABELS, [])): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                 }
             ),
         )
@@ -278,6 +286,7 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
                     vol.Optional(CONF_PERSONS, default=self.options.get(CONF_PERSONS, [])): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain="person", multiple=True)
                     ),
+                    vol.Optional(CONF_PERSONS_LABELS, default=self.options.get(CONF_PERSONS_LABELS, [])): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                     vol.Required(CONF_USERS_CODES, default=self.options.get(CONF_USERS_CODES, "")): str,
                     vol.Optional(CONF_DURESS_CODE, default=self.options.get(CONF_DURESS_CODE, "")): str,
                     vol.Optional(CONF_RFID_TAGS, default=self.options.get(CONF_RFID_TAGS, "")): str,

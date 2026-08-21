@@ -284,7 +284,10 @@ card_mod:
 
 ## 📜 Changelog
 
-### 🚀 v0.6.15-beta (Current)
+### 🚀 v0.6.16-beta (Current)
+- 🏷️ **Support COMPLET des Étiquettes (Labels)** : Ajout des étiquettes manquantes pour les catégories "Claviers", "Appareils pour Notifications" et "Personnes". Toutes les catégories de l'alarme possèdent désormais leur champ d'étiquette dédié.
+
+### 🚀 v0.6.15-beta
 - 🏷️ **Support des Étiquettes (Labels)** : Il est désormais possible de sélectionner des étiquettes entières au lieu de sélectionner les capteurs un par un. Le système filtre automatiquement les entités correspondantes (par exemple, si vous étiquetez un capteur multiple, seule l'entité "ouverture" sera gardée pour la section capteurs d'ouverture).
 
 ### 🚀 v0.6.14-beta

@@ -16,6 +16,7 @@
           "night_sensors": "Capteurs Mode Nuit",
           "night_sensors_labels": "Étiquettes (Capteurs Mode Nuit)",
           "keypads": "Claviers",
+          "keypads_labels": "Étiquettes (Claviers)",
           "cameras": {
             "cameras": "Caméras"
           },
@@ -31,13 +32,15 @@
           "lights_labels": "Étiquettes (Lumières d'urgence)",
           "media_players": "Lecteurs multimédia (TTS)",
           "media_players_labels": "Étiquettes (Lecteurs multimédia)",
-          "notify_services": "Appareils pour Notifications (Optionnel)"
+          "notify_services": "Appareils pour Notifications (Optionnel)",
+          "notify_services_labels": "Étiquettes (Notifications)"
         }
       },
       "logic": {
         "title": "Configuration de Domolink Alarm (3/3)",
         "data": {
           "persons": "Personnes (Géolocalisation)",
+          "persons_labels": "Étiquettes (Personnes)",
           "users_codes": "Codes Utilisateurs",
           "duress_code": "Code Sous Contrainte",
           "rfid_tags": "Tags RFID (tag_id:Nom, ...)",
@@ -74,6 +77,7 @@
           "night_sensors": "Capteurs Mode Nuit",
           "night_sensors_labels": "Étiquettes (Capteurs Mode Nuit)",
           "keypads": "Claviers",
+          "keypads_labels": "Étiquettes (Claviers)",
           "cameras": {
             "cameras": "Caméras"
           },
@@ -89,13 +93,15 @@
           "lights_labels": "Étiquettes (Lumières d'urgence)",
           "media_players": "Lecteurs multimédia (TTS)",
           "media_players_labels": "Étiquettes (Lecteurs multimédia)",
-          "notify_services": "Appareils pour Notifications (Optionnel)"
+          "notify_services": "Appareils pour Notifications (Optionnel)",
+          "notify_services_labels": "Étiquettes (Notifications)"
         }
       },
       "logic": {
         "title": "Configuration de Domolink Alarm (3/3)",
         "data": {
           "persons": "Personnes (Géolocalisation)",
+          "persons_labels": "Étiquettes (Personnes)",
           "users_codes": "Codes Utilisateurs",
           "duress_code": "Code Sous Contrainte",
           "rfid_tags": "Tags RFID (tag_id:Nom, ...)",
