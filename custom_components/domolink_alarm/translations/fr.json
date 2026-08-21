@@ -17,9 +17,7 @@
           "night_sensors_labels": "Étiquettes (Capteurs Mode Nuit)",
           "keypads": "Claviers",
           "keypads_labels": "Étiquettes (Claviers)",
-          "cameras": {
-            "cameras": "Caméras"
-          },
+          "cameras": "Caméras",
           "cameras_labels": "Étiquettes (Caméras)"
         }
       },
@@ -78,9 +76,7 @@
           "night_sensors_labels": "Étiquettes (Capteurs Mode Nuit)",
           "keypads": "Claviers",
           "keypads_labels": "Étiquettes (Claviers)",
-          "cameras": {
-            "cameras": "Caméras"
-          },
+          "cameras": "Caméras",
           "cameras_labels": "Étiquettes (Caméras)"
         }
       },
