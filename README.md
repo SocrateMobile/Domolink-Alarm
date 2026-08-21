@@ -284,7 +284,10 @@ card_mod:
 
 ## 📜 Changelog
 
-### 🚀 v0.6.16-beta (Current)
+### 🚀 v0.6.17-beta (Current)
+- 🐛 **Correctif Critique** : Correction d'un bug d'import (NameError) lié aux étiquettes des Personnes et Notifications qui empêchait l'intégration de démarrer correctement. L'entité principale charge maintenant sans erreur.
+
+### 🚀 v0.6.16-beta
 - 🏷️ **Support COMPLET des Étiquettes (Labels)** : Ajout des étiquettes manquantes pour les catégories "Claviers", "Appareils pour Notifications" et "Personnes". Toutes les catégories de l'alarme possèdent désormais leur champ d'étiquette dédié.
 
 ### 🚀 v0.6.15-beta
