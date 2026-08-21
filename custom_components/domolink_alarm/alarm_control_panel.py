@@ -31,6 +31,7 @@ from .const import (
     CONF_NIGHT_SENSORS,
     CONF_NIGHT_SENSORS_LABELS,
     CONF_PERSONS,
+    CONF_PERSONS_LABELS,
     CONF_MOTION_SENSORS,
     CONF_MOTION_SENSORS_LABELS,
     CONF_CAMERAS,
@@ -44,6 +45,7 @@ from .const import (
     CONF_MEDIA_PLAYERS,
     CONF_MEDIA_PLAYERS_LABELS,
     CONF_NOTIFY_SERVICES,
+    CONF_NOTIFY_SERVICES_LABELS,
     CONF_USERS_CODES,
     CONF_DURESS_CODE,
     CONF_RFID_TAGS,
@@ -103,7 +105,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.6.16-beta",
+            sw_version="0.6.17-beta",
         )
 
         self._siren_task = None
