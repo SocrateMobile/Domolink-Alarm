@@ -8,21 +8,29 @@
         "data": {
           "name": "Nom de l'alarme",
           "opening_sensors": "Capteurs d'ouverture",
+          "opening_sensors_labels": "Étiquettes (Capteurs d'ouverture)",
           "motion_sensors": "Capteurs de mouvement",
+          "motion_sensors_labels": "Étiquettes (Capteurs de mouvement)",
           "tamper_sensors": "Capteurs de sabotage (24/7)",
+          "tamper_sensors_labels": "Étiquettes (Capteurs de sabotage)",
           "night_sensors": "Capteurs Mode Nuit",
+          "night_sensors_labels": "Étiquettes (Capteurs Mode Nuit)",
           "keypads": "Claviers",
           "cameras": {
             "cameras": "Caméras"
-          }
+          },
+          "cameras_labels": "Étiquettes (Caméras)"
         }
       },
       "actuators": {
         "title": "Configuration de Domolink Alarm (2/3)",
         "data": {
           "sirens": "Sirènes",
+          "sirens_labels": "Étiquettes (Sirènes)",
           "lights": "Lumières d'urgence",
+          "lights_labels": "Étiquettes (Lumières d'urgence)",
           "media_players": "Lecteurs multimédia (TTS)",
+          "media_players_labels": "Étiquettes (Lecteurs multimédia)",
           "notify_services": "Appareils pour Notifications (Optionnel)"
         }
       },
@@ -58,21 +66,29 @@
         "data": {
           "name": "Nom de l'alarme",
           "opening_sensors": "Capteurs d'ouverture",
+          "opening_sensors_labels": "Étiquettes (Capteurs d'ouverture)",
           "motion_sensors": "Capteurs de mouvement",
+          "motion_sensors_labels": "Étiquettes (Capteurs de mouvement)",
           "tamper_sensors": "Capteurs de sabotage (24/7)",
+          "tamper_sensors_labels": "Étiquettes (Capteurs de sabotage)",
           "night_sensors": "Capteurs Mode Nuit",
+          "night_sensors_labels": "Étiquettes (Capteurs Mode Nuit)",
           "keypads": "Claviers",
           "cameras": {
             "cameras": "Caméras"
-          }
+          },
+          "cameras_labels": "Étiquettes (Caméras)"
         }
       },
       "actuators": {
         "title": "Configuration de Domolink Alarm (2/3)",
         "data": {
           "sirens": "Sirènes",
+          "sirens_labels": "Étiquettes (Sirènes)",
           "lights": "Lumières d'urgence",
+          "lights_labels": "Étiquettes (Lumières d'urgence)",
           "media_players": "Lecteurs multimédia (TTS)",
+          "media_players_labels": "Étiquettes (Lecteurs multimédia)",
           "notify_services": "Appareils pour Notifications (Optionnel)"
         }
       },
