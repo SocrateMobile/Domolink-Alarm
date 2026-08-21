@@ -10,15 +10,23 @@ from .const import (
     CONF_NAME,
     DEFAULT_NAME,
     CONF_OPENING_SENSORS,
+    CONF_OPENING_SENSORS_LABELS,
     CONF_NIGHT_SENSORS,
-    CONF_MOTION_SENSORS,
-    CONF_CAMERAS,
-    CONF_TAMPER_SENSORS,
-    CONF_KEYPADS,
+    CONF_NIGHT_SENSORS_LABELS,
     CONF_PERSONS,
+    CONF_MOTION_SENSORS,
+    CONF_MOTION_SENSORS_LABELS,
+    CONF_CAMERAS,
+    CONF_CAMERAS_LABELS,
+    CONF_TAMPER_SENSORS,
+    CONF_TAMPER_SENSORS_LABELS,
+    CONF_KEYPADS,
     CONF_SIRENS,
+    CONF_SIRENS_LABELS,
     CONF_LIGHTS,
+    CONF_LIGHTS_LABELS,
     CONF_MEDIA_PLAYERS,
+    CONF_MEDIA_PLAYERS_LABELS,
     CONF_NOTIFY_SERVICES,
     CONF_USERS_CODES,
     CONF_DURESS_CODE,
@@ -68,6 +76,7 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             multiple=True
                         )
                     ),
+                    vol.Optional(CONF_NIGHT_SENSORS_LABELS, default=[]): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                     vol.Optional(CONF_OPENING_SENSORS, default=[]): selector.EntitySelector(
                         selector.EntitySelectorConfig(
                             domain=["binary_sensor", "sensor"], 
@@ -75,6 +84,7 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             multiple=True
                         )
                     ),
+                    vol.Optional(CONF_OPENING_SENSORS_LABELS, default=[]): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                     vol.Optional(CONF_MOTION_SENSORS, default=[]): selector.EntitySelector(
                         selector.EntitySelectorConfig(
                             domain=["binary_sensor", "sensor"],
@@ -82,9 +92,11 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             multiple=True
                         )
                     ),
+                    vol.Optional(CONF_MOTION_SENSORS_LABELS, default=[]): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                     vol.Optional(CONF_CAMERAS, default=[]): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain="camera", multiple=True)
                     ),
+                    vol.Optional(CONF_CAMERAS_LABELS, default=[]): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                     vol.Optional(CONF_TAMPER_SENSORS, default=[]): selector.EntitySelector(
                         selector.EntitySelectorConfig(
                             domain=["binary_sensor", "sensor"],
@@ -92,6 +104,7 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             multiple=True
                         )
                     ),
+                    vol.Optional(CONF_TAMPER_SENSORS_LABELS, default=[]): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                     vol.Optional(CONF_KEYPADS, default=[]): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain=["alarm_control_panel", "sensor"], multiple=True)
                     ),
@@ -112,12 +125,15 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Optional(CONF_SIRENS, default=[]): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain=["switch", "siren"], multiple=True)
                     ),
+                    vol.Optional(CONF_SIRENS_LABELS, default=[]): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                     vol.Optional(CONF_LIGHTS, default=[]): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain="light", multiple=True)
                     ),
+                    vol.Optional(CONF_LIGHTS_LABELS, default=[]): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                     vol.Optional(CONF_MEDIA_PLAYERS, default=[]): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain="media_player", multiple=True)
                     ),
+                    vol.Optional(CONF_MEDIA_PLAYERS_LABELS, default=[]): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                     vol.Optional(CONF_NOTIFY_SERVICES, default=[]): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain="notify", multiple=True)
                     ),
@@ -184,6 +200,7 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
                             multiple=True
                         )
                     ),
+                    vol.Optional(CONF_NIGHT_SENSORS_LABELS, default=self.options.get(CONF_NIGHT_SENSORS_LABELS, [])): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                     vol.Optional(CONF_OPENING_SENSORS, default=self.options.get(CONF_OPENING_SENSORS, [])): selector.EntitySelector(
                         selector.EntitySelectorConfig(
                             domain=["binary_sensor", "sensor"], 
@@ -191,6 +208,7 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
                             multiple=True
                         )
                     ),
+                    vol.Optional(CONF_OPENING_SENSORS_LABELS, default=self.options.get(CONF_OPENING_SENSORS_LABELS, [])): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                     vol.Optional(CONF_MOTION_SENSORS, default=self.options.get(CONF_MOTION_SENSORS, [])): selector.EntitySelector(
                         selector.EntitySelectorConfig(
                             domain=["binary_sensor", "sensor"],
@@ -198,9 +216,11 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
                             multiple=True
                         )
                     ),
+                    vol.Optional(CONF_MOTION_SENSORS_LABELS, default=self.options.get(CONF_MOTION_SENSORS_LABELS, [])): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                     vol.Optional(CONF_CAMERAS, default=self.options.get(CONF_CAMERAS, [])): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain="camera", multiple=True)
                     ),
+                    vol.Optional(CONF_CAMERAS_LABELS, default=self.options.get(CONF_CAMERAS_LABELS, [])): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                     vol.Optional(CONF_TAMPER_SENSORS, default=self.options.get(CONF_TAMPER_SENSORS, [])): selector.EntitySelector(
                         selector.EntitySelectorConfig(
                             domain=["binary_sensor", "sensor"],
@@ -208,6 +228,7 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
                             multiple=True
                         )
                     ),
+                    vol.Optional(CONF_TAMPER_SENSORS_LABELS, default=self.options.get(CONF_TAMPER_SENSORS_LABELS, [])): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                     vol.Optional(CONF_KEYPADS, default=self.options.get(CONF_KEYPADS, [])): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain=["alarm_control_panel", "sensor"], multiple=True)
                     ),
@@ -228,12 +249,15 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
                     vol.Optional(CONF_SIRENS, default=self.options.get(CONF_SIRENS, [])): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain=["switch", "siren"], multiple=True)
                     ),
+                    vol.Optional(CONF_SIRENS_LABELS, default=self.options.get(CONF_SIRENS_LABELS, [])): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                     vol.Optional(CONF_LIGHTS, default=self.options.get(CONF_LIGHTS, [])): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain="light", multiple=True)
                     ),
+                    vol.Optional(CONF_LIGHTS_LABELS, default=self.options.get(CONF_LIGHTS_LABELS, [])): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                     vol.Optional(CONF_MEDIA_PLAYERS, default=self.options.get(CONF_MEDIA_PLAYERS, [])): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain="media_player", multiple=True)
                     ),
+                    vol.Optional(CONF_MEDIA_PLAYERS_LABELS, default=self.options.get(CONF_MEDIA_PLAYERS_LABELS, [])): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                     vol.Optional(CONF_NOTIFY_SERVICES, default=self.options.get(CONF_NOTIFY_SERVICES, [])): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain="notify", multiple=True)
                     ),

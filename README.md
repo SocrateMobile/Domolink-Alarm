@@ -284,7 +284,10 @@ card_mod:
 
 ## 📜 Changelog
 
-### 🚀 v0.6.14-beta (Current)
+### 🚀 v0.6.15-beta (Current)
+- 🏷️ **Support des Étiquettes (Labels)** : Il est désormais possible de sélectionner des étiquettes entières au lieu de sélectionner les capteurs un par un. Le système filtre automatiquement les entités correspondantes (par exemple, si vous étiquetez un capteur multiple, seule l'entité "ouverture" sera gardée pour la section capteurs d'ouverture).
+
+### 🚀 v0.6.14-beta
 - 💳 **Support Natif des Badges RFID/NFC** : L'alarme écoute désormais nativement les événements `tag_scanned` de Home Assistant. Vous pouvez configurer des tags depuis l'interface (ex: `04-7A-5B:Jean`). Le scan agit comme un bouton bascule : si l'alarme est désarmée, elle s'arme en mode "Absent" (avec bypass autorisé) ; si elle est armée ou déclenchée, elle se désarme immédiatement avec message TTS de bienvenue.
 
 ### 🚀 v0.6.13-beta

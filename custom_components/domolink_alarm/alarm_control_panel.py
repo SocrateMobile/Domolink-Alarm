@@ -11,6 +11,8 @@ from homeassistant.components.alarm_control_panel import (
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.event import (
     async_track_state_change_event,
@@ -25,14 +27,22 @@ from .const import (
     CONF_NAME,
     DEFAULT_NAME,
     CONF_OPENING_SENSORS,
+    CONF_OPENING_SENSORS_LABELS,
     CONF_NIGHT_SENSORS,
+    CONF_NIGHT_SENSORS_LABELS,
     CONF_PERSONS,
     CONF_MOTION_SENSORS,
+    CONF_MOTION_SENSORS_LABELS,
     CONF_CAMERAS,
+    CONF_CAMERAS_LABELS,
     CONF_TAMPER_SENSORS,
+    CONF_TAMPER_SENSORS_LABELS,
     CONF_SIRENS,
+    CONF_SIRENS_LABELS,
     CONF_LIGHTS,
+    CONF_LIGHTS_LABELS,
     CONF_MEDIA_PLAYERS,
+    CONF_MEDIA_PLAYERS_LABELS,
     CONF_NOTIFY_SERVICES,
     CONF_USERS_CODES,
     CONF_DURESS_CODE,
@@ -93,7 +103,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.6.14-beta",
+            sw_version="0.6.15-beta",
         )
 
         self._siren_task = None
@@ -113,6 +123,32 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._duress_code = ""
 
         self._load_config()
+
+    def _resolve_labels(self, label_ids: list, allowed_domains: list = None) -> list:
+        """Find all entities matching the given labels and domains."""
+        if not label_ids:
+            return []
+            
+        entity_reg = er.async_get(self.hass)
+        device_reg = dr.async_get(self.hass)
+        
+        matched_entities = set()
+        
+        # 1. Find entities directly having the labels
+        for entity in entity_reg.entities.values():
+            if entity.labels and any(label in entity.labels for label in label_ids):
+                if not allowed_domains or entity.domain in allowed_domains:
+                    matched_entities.add(entity.entity_id)
+                    
+        # 2. Find devices having the labels, and add their entities
+        for device in device_reg.devices.values():
+            if device.labels and any(label in device.labels for label in label_ids):
+                # Find all entities for this device
+                for entity in er.async_entries_for_device(entity_reg, device.id):
+                    if not allowed_domains or entity.domain in allowed_domains:
+                        matched_entities.add(entity.entity_id)
+                        
+        return list(matched_entities)
 
     def _load_config(self):
         """Load configuration from entry data and options."""
@@ -154,16 +190,23 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._health_check = bool(options.get(CONF_HEALTH_CHECK, data.get(CONF_HEALTH_CHECK, True)))
         self._geofence_auto_arm = bool(options.get(CONF_GEOFENCE_AUTO_ARM, data.get(CONF_GEOFENCE_AUTO_ARM, False)))
 
-        self._opening_sensors = options.get(CONF_OPENING_SENSORS, data.get(CONF_OPENING_SENSORS)) or []
-        self._night_sensors = options.get(CONF_NIGHT_SENSORS, data.get(CONF_NIGHT_SENSORS)) or []
-        self._persons = options.get(CONF_PERSONS, data.get(CONF_PERSONS)) or []
-        self._motion_sensors = options.get(CONF_MOTION_SENSORS, data.get(CONF_MOTION_SENSORS)) or []
-        self._cameras = options.get(CONF_CAMERAS, data.get(CONF_CAMERAS)) or []
-        self._tamper_sensors = options.get(CONF_TAMPER_SENSORS, data.get(CONF_TAMPER_SENSORS)) or []
+        def get_merged(key, labels_key, allowed_domains=None):
+            entities = set(options.get(key, data.get(key)) or [])
+            labels = options.get(labels_key, data.get(labels_key)) or []
+            if labels:
+                entities.update(self._resolve_labels(labels, allowed_domains))
+            return list(entities)
 
-        self._sirens = options.get(CONF_SIRENS, data.get(CONF_SIRENS)) or []
-        self._lights = options.get(CONF_LIGHTS, data.get(CONF_LIGHTS)) or []
-        self._media_players = options.get(CONF_MEDIA_PLAYERS, data.get(CONF_MEDIA_PLAYERS)) or []
+        self._opening_sensors = get_merged(CONF_OPENING_SENSORS, CONF_OPENING_SENSORS_LABELS, ["binary_sensor", "sensor"])
+        self._night_sensors = get_merged(CONF_NIGHT_SENSORS, CONF_NIGHT_SENSORS_LABELS, ["binary_sensor", "sensor"])
+        self._motion_sensors = get_merged(CONF_MOTION_SENSORS, CONF_MOTION_SENSORS_LABELS, ["binary_sensor", "sensor"])
+        self._tamper_sensors = get_merged(CONF_TAMPER_SENSORS, CONF_TAMPER_SENSORS_LABELS, ["binary_sensor", "sensor"])
+        self._cameras = get_merged(CONF_CAMERAS, CONF_CAMERAS_LABELS, ["camera"])
+        self._sirens = get_merged(CONF_SIRENS, CONF_SIRENS_LABELS, ["switch", "siren"])
+        self._lights = get_merged(CONF_LIGHTS, CONF_LIGHTS_LABELS, ["light"])
+        self._media_players = get_merged(CONF_MEDIA_PLAYERS, CONF_MEDIA_PLAYERS_LABELS, ["media_player"])
+        
+        self._persons = options.get(CONF_PERSONS, data.get(CONF_PERSONS)) or []
         self._notify_services = options.get(CONF_NOTIFY_SERVICES, data.get(CONF_NOTIFY_SERVICES)) or []
 
     @callback
