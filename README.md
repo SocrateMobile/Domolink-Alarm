@@ -284,7 +284,10 @@ card_mod:
 
 ## 📜 Changelog
 
-### 🚀 v0.7.6-beta (Current)
+### 🚀 v0.7.7-beta (Current)
+- 📋 **Journal d'Événements dans le Panneau Latéral** : Ajout d'une section "Journal des événements récents" directement intégrée en bas du panneau latéral. Vous pouvez suivre en direct l'historique chronologique des 20 derniers événements (qui a armé/désarmé, quel badge a été scanné, capteurs ignorés, déclenchements, carillons, etc.).
+
+### 🚀 v0.7.6-beta
 - 🔔 **Mode Carillon (Chime)** : Option configurable dans les paramètres. Lorsque l'alarme est désarmée, l'ouverture de n'importe quelle porte ou fenêtre annonce vocalement en direct sur vos enceintes (ex: *« Porte d'entrée ouverte »*), idéal pour savoir en temps réel qui entre ou sort de la maison.
 
 ### 🚀 v0.7.5-beta

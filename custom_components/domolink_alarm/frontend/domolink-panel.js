@@ -197,6 +197,43 @@ class DomolinkPanel extends HTMLElement {
           .btn-restore:hover {
             background-color: #455a64;
           }
+          
+          /* Event Log Section */
+          .history-title {
+            font-size: 18px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            margin-bottom: 16px;
+            color: var(--primary-text-color);
+          }
+          .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 320px;
+            overflow-y: auto;
+          }
+          .history-item {
+            display: flex;
+            align-items: baseline;
+            padding: 8px 12px;
+            background: var(--card-background-color);
+            border-left: 3px solid var(--primary-color, #03a9f4);
+            border-radius: 4px;
+            font-size: 13px;
+          }
+          .history-time {
+            font-size: 11px;
+            color: var(--secondary-text-color);
+            min-width: 140px;
+            flex-shrink: 0;
+            font-weight: 600;
+          }
+          .history-msg {
+            color: var(--primary-text-color);
+            word-break: break-word;
+          }
         </style>
         <ha-card>
           <div class="card-content">
@@ -264,6 +301,11 @@ class DomolinkPanel extends HTMLElement {
       day: '2-digit', month: '2-digit',
       hour: '2-digit', minute: '2-digit', second: '2-digit'
     });
+  }
+
+  escapeHtml(text) {
+    if (!text) return "";
+    return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
   render() {
@@ -392,6 +434,34 @@ class DomolinkPanel extends HTMLElement {
     
     if (html === "") {
        html = "<ha-card><div class='card-content'>Aucun équipement configuré dans les entités. (Rechargez l'intégration si nécessaire).</div></ha-card>";
+    }
+
+    // Event Log Section
+    const logEntity = Object.values(this._hass.states).find(s => 
+      s.entity_id.includes('domolink_event_log') || 
+      (s.attributes && Array.isArray(s.attributes.events) && s.entity_id.startsWith('sensor.'))
+    );
+    const events = (logEntity && logEntity.attributes && Array.isArray(logEntity.attributes.events)) ? logEntity.attributes.events : [];
+    
+    if (events.length > 0) {
+      html += `
+        <ha-card style="margin-top: 28px; margin-bottom: 24px;">
+          <div class="card-content">
+            <div class="history-title">
+              <ha-icon icon="mdi:history" style="margin-right: 10px; color: var(--primary-color, #03a9f4); --mdc-icon-size: 24px;"></ha-icon>
+              Journal des événements récents
+            </div>
+            <div class="history-list">
+              ${events.map(ev => `
+                <div class="history-item">
+                  <div class="history-time">${this.formatDate(ev.time)}</div>
+                  <div class="history-msg">${this.escapeHtml(ev.message)}</div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </ha-card>
+      `;
     }
     
     if (this._lastHtml !== html) {
