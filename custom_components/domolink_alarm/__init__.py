@@ -19,7 +19,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if os.path.exists(frontend_dir):
         if hasattr(hass.http, "async_register_static_paths"):
             from homeassistant.components.http import StaticPathConfig
-            hass.http.async_register_static_paths([
+            await hass.http.async_register_static_paths([
                 StaticPathConfig("/domolink_alarm_panel", frontend_dir, False)
             ])
         else:
@@ -30,15 +30,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
             
         try:
-            frontend.async_register_panel(
+            frontend.async_register_built_in_panel(
                 hass,
-                "domolink_alarm",
-                "domolink-panel",
+                component_name="custom",
                 sidebar_title="Domolink Alarm",
                 sidebar_icon="mdi:shield-home",
-                module_url="/domolink_alarm_panel/domolink-panel.js",
+                frontend_url_path="domolink_alarm",
+                config={
+                    "_panel_custom": {
+                        "name": "domolink-panel",
+                        "module_url": "/domolink_alarm_panel/domolink-panel.js",
+                    }
+                },
                 require_admin=False,
-                config={},
             )
         except ValueError:
             # Panel already registered
