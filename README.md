@@ -284,7 +284,10 @@ card_mod:
 
 ## 📜 Changelog
 
-### 🚀 v0.7.4-beta (Current)
+### 🚀 v0.7.5-beta (Current)
+- 🔋 **Diagnostic Piles & Santé Pro (Health Check Pro)** : Détection intelligente des niveaux de batterie sur tous les capteurs (lecture directe ou via le `device_registry`). L'alarme vous avertit proactivement si un capteur passe sous les 15% lors de l'armement ou lors du diagnostic périodique, vous évitant toute panne inattendue.
+
+### 🚀 v0.7.4-beta
 - 👁️ **Bouton « Ignorer » (Bypass dynamique)** : Apparition d'un bouton "Ignorer" sur la tuile des capteurs lorsqu'ils sont **non joignables** (`unavailable`, déconnectés) ou **ouverts**. En un clic, le capteur est exclu temporairement de la surveillance, permettant d'armer l'alarme sans blocage. Un bouton "Rétablir" permet de le réintégrer à tout moment, et les exclusions sont automatiquement réinitialisées lors du désarmement.
 
 ### 🚀 v0.7.3-beta

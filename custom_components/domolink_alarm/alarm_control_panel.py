@@ -124,7 +124,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.7.4-beta",
+            sw_version="0.7.5-beta",
         )
 
         self._siren_task = None
@@ -498,39 +498,71 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 self._async_play_tts(f"Alarme désarmée. Bienvenue {user_name}.")
             )
 
-    # ─── Health Check ─────────────────────────────────────────────
+    # ─── Health Check & Battery Diagnostics ───────────────────────
+
+    def _get_device_battery_level(self, entity_id: str) -> float | None:
+        """Find battery level from entity attributes or associated device entities."""
+        state = self.hass.states.get(entity_id)
+        if not state:
+            return None
+
+        # 1. Check direct entity attributes
+        battery = state.attributes.get("battery_level") or state.attributes.get("battery")
+        if battery is not None:
+            try:
+                return float(battery)
+            except (ValueError, TypeError):
+                pass
+
+        # 2. Check device registry for associated battery sensor
+        try:
+            entity_reg = er.async_get(self.hass)
+            entry = entity_reg.async_get(entity_id)
+            if entry and entry.device_id:
+                for e in er.async_entries_for_device(entity_reg, entry.device_id):
+                    if e.domain == "sensor":
+                        s_state = self.hass.states.get(e.entity_id)
+                        if s_state and s_state.attributes.get("device_class") == "battery":
+                            try:
+                                return float(s_state.state)
+                            except (ValueError, TypeError):
+                                pass
+        except Exception as e:
+            _LOGGER.debug("Domolink: Erreur lecture batterie périphérique pour %s: %s", entity_id, e)
+
+        return None
 
     async def _async_perform_health_check(self, now=None):
-        """Check battery and availability of all linked devices (Fix #13)."""
-        all_devices = (
+        """Check battery and availability of all linked devices."""
+        all_devices = list(set(
             self._opening_sensors
             + self._motion_sensors
             + self._tamper_sensors
+            + self._night_sensors
             + self._sirens
             + self._cameras
             + self._lights
-        )
+        ))
         if not all_devices:
             return
 
         warnings = []
         for device_id in all_devices:
-            state = self.hass.states.get(device_id)
-            if not state or state.state in ("unavailable", "unknown"):
-                friendly = state.name if state else device_id
-                warnings.append(f"⚠️ {friendly} est indisponible.")
+            if device_id in self._bypassed_sensors:
                 continue
-            # Check battery (try both common attribute names)
-            battery = state.attributes.get("battery_level") or state.attributes.get("battery")
-            if battery is not None:
-                try:
-                    if float(battery) < 10:
-                        warnings.append(f"🪫 {state.name} batterie faible ({battery}%).")
-                except (ValueError, TypeError):
-                    pass
+            state = self.hass.states.get(device_id)
+            friendly = state.name if state and state.name else device_id
+            if not state or state.state in ("unavailable", "unknown"):
+                warnings.append(f"⚠️ {friendly} est hors ligne / indisponible.")
+                continue
+
+            battery = self._get_device_battery_level(device_id)
+            if battery is not None and battery <= 15:
+                warnings.append(f"🪫 {friendly} : pile faible ({int(battery)}%).")
 
         if warnings:
-            notify_msg = "🔋 Health Check Domolink:\n" + "\n".join(warnings)
+            self._log_event(f"Diagnostic : {len(warnings)} alerte(s) équipement(s)")
+            notify_msg = "🔋 Diagnostic Domolink :\n" + "\n".join(warnings)
             await self._async_send_notification(notify_msg)
 
     # ─── Notifications ────────────────────────────────────────────
@@ -1091,6 +1123,25 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 await self._async_send_notification(
                     f"⚠️ Alarme armée avec bypass automatique.\nCapteurs ignorés :\n{sensor_list}"
                 )
+
+        # Proactive low battery check on armed sensors (Health Check Pro)
+        battery_warnings = []
+        for sensor in (self._opening_sensors + self._motion_sensors + self._night_sensors):
+            if sensor in self._bypassed_sensors:
+                continue
+            batt = self._get_device_battery_level(sensor)
+            if batt is not None and batt <= 15:
+                s_state = self.hass.states.get(sensor)
+                s_name = s_state.name if s_state and s_state.name else sensor
+                battery_warnings.append(f"{s_name} ({int(batt)}%)")
+
+        if battery_warnings:
+            batt_str = ", ".join(battery_warnings)
+            self._log_event(f"Pile(s) faible(s) détectée(s) : {batt_str}")
+            self.hass.async_create_task(
+                self._async_send_notification(f"🪫 Attention : Pile faible sur {batt_str}")
+            )
+
         return True
 
     async def async_alarm_arm_home(self, code=None):
