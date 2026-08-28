@@ -1,2 +1,26 @@
 # Services for Domolink Alarm
 # Standard alarm services (arm, disarm) are handled by the native alarm_control_panel domain.
+
+bypass_sensor:
+  name: Ignorer un capteur (Bypass)
+  description: Ignore temporairement un capteur de l'alarme (s'il est ouvert ou non joignable).
+  fields:
+    entity_id:
+      name: Entité du capteur
+      description: ID de l'entité du capteur à ignorer.
+      required: true
+      example: binary_sensor.porte_entree
+      selector:
+        entity:
+
+unbypass_sensor:
+  name: Rétablir un capteur
+  description: Réintègre un capteur précédemment ignoré dans la surveillance de l'alarme.
+  fields:
+    entity_id:
+      name: Entité du capteur
+      description: ID de l'entité du capteur à réintégrer.
+      required: true
+      example: binary_sensor.porte_entree
+      selector:
+        entity:

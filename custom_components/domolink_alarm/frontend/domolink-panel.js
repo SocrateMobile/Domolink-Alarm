@@ -85,7 +85,7 @@ class DomolinkPanel extends HTMLElement {
           }
           .sensor-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
             gap: 12px;
           }
           .sensor-item {
@@ -95,9 +95,20 @@ class DomolinkPanel extends HTMLElement {
             border-radius: 8px;
             background: var(--card-background-color);
             box-shadow: 0px 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.2s ease-in-out;
+            position: relative;
+          }
+          .sensor-item.bypassed {
+            border: 1px dashed #ff9800;
+            background: rgba(255, 152, 0, 0.05);
+            opacity: 0.85;
+          }
+          .sensor-item.unavailable {
+            border: 1px solid rgba(244, 67, 54, 0.4);
+            background: rgba(244, 67, 54, 0.04);
           }
           .sensor-icon {
-            margin-right: 16px;
+            margin-right: 14px;
             color: var(--state-icon-color, #44739e);
             --mdc-icon-size: 28px;
           }
@@ -107,19 +118,39 @@ class DomolinkPanel extends HTMLElement {
           .sensor-icon.active-success {
             color: var(--success-color, #4caf50);
           }
+          .sensor-icon.bypassed {
+            color: #ff9800;
+          }
           .sensor-info {
             flex-grow: 1;
             overflow: hidden;
+            margin-right: 8px;
+          }
+          .sensor-name-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
           }
           .sensor-name {
-            font-size: 15px;
+            font-size: 14px;
+            font-weight: 500;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
             color: var(--primary-text-color);
           }
+          .badge-bypassed {
+            background-color: #ff9800;
+            color: white;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
           .sensor-state {
-            font-size: 13px;
+            font-size: 12px;
             color: var(--secondary-text-color);
             text-transform: capitalize;
             display: flex;
@@ -138,6 +169,33 @@ class DomolinkPanel extends HTMLElement {
             font-size: 11px;
             color: var(--secondary-text-color);
             opacity: 0.8;
+          }
+          .btn-action-bypass {
+            padding: 5px 10px;
+            border-radius: 4px;
+            border: none;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: background-color 0.2s;
+          }
+          .btn-ignore {
+            background-color: #ff9800;
+            color: white;
+          }
+          .btn-ignore:hover {
+            background-color: #f57c00;
+          }
+          .btn-restore {
+            background-color: var(--secondary-background-color, #546e7a);
+            color: white;
+          }
+          .btn-restore:hover {
+            background-color: #455a64;
           }
         </style>
         <ha-card>
@@ -165,6 +223,21 @@ class DomolinkPanel extends HTMLElement {
       this.querySelector('#btn-arm-away').addEventListener('click', () => this.callAlarmService('alarm_arm_away'));
       this.querySelector('#btn-arm-home').addEventListener('click', () => this.callAlarmService('alarm_arm_home'));
       this.querySelector('#btn-arm-night').addEventListener('click', () => this.callAlarmService('alarm_arm_night'));
+
+      // Event delegation for Bypass / Restore buttons
+      this.content.addEventListener('click', (e) => {
+        const target = e.target.closest('.btn-action-bypass');
+        if (!target) return;
+        const entityId = target.getAttribute('data-entity');
+        const action = target.getAttribute('data-action');
+        if (!entityId || !action) return;
+
+        if (action === 'bypass') {
+          this._hass.callService('domolink_alarm', 'bypass_sensor', { entity_id: entityId });
+        } else if (action === 'unbypass') {
+          this._hass.callService('domolink_alarm', 'unbypass_sensor', { entity_id: entityId });
+        }
+      });
     }
     
     this.render();
@@ -215,6 +288,8 @@ class DomolinkPanel extends HTMLElement {
 
     // Categories mapping
     const attrs = alarmEntity.attributes;
+    const bypassedSensors = attrs.bypassed_sensors || [];
+    
     const categories = [
       { key: "opening_sensors", icon: "mdi:door-open", name: "Capteurs d'ouverture" },
       { key: "motion_sensors", icon: "mdi:motion-sensor", name: "Capteurs de mouvement" },
@@ -242,28 +317,72 @@ class DomolinkPanel extends HTMLElement {
           let stateStr = "Inconnu";
           let activeClass = "";
           let timeStr = "";
+          let isUnavailable = false;
+          let isOpenOrFaulty = false;
           
-          if (entityState) {
+          const isBypassed = bypassedSensors.includes(entityId);
+          
+          if (!entityState || entityState.state === 'unavailable' || entityState.state === 'unknown') {
+             isUnavailable = true;
+             friendlyName = entityState ? (entityState.attributes.friendly_name || entityId) : entityId;
+             stateStr = entityState && entityState.state === 'unknown' ? "Inconnu" : "Non joignable";
+             activeClass = "active";
+             if (entityState && entityState.last_changed) {
+                timeStr = this.formatDate(entityState.last_changed);
+             }
+          } else {
              friendlyName = entityState.attributes.friendly_name || entityId;
              stateStr = this._hass.formatEntityState ? this._hass.formatEntityState(entityState) : entityState.state;
              activeClass = this.getActiveClass(entityState);
-             // Use last_changed for contact time
              timeStr = this.formatDate(entityState.last_changed);
-          } else {
-             stateStr = "Introuvable";
-             activeClass = "active";
+             if (activeClass === "active") {
+                isOpenOrFaulty = true;
+             }
+          }
+          
+          // Action button (Ignorer / Rétablir)
+          let actionButtonHtml = "";
+          if (isBypassed) {
+             actionButtonHtml = `
+               <button class="btn-action-bypass btn-restore" data-action="unbypass" data-entity="${entityId}">
+                 <ha-icon icon="mdi:undo" style="--mdc-icon-size: 14px;"></ha-icon> Rétablir
+               </button>
+             `;
+          } else if (isUnavailable || isOpenOrFaulty) {
+             actionButtonHtml = `
+               <button class="btn-action-bypass btn-ignore" data-action="bypass" data-entity="${entityId}">
+                 <ha-icon icon="mdi:eye-off" style="--mdc-icon-size: 14px;"></ha-icon> Ignorer
+               </button>
+             `;
+          }
+          
+          // Additional card classes
+          let cardClasses = "sensor-item";
+          if (isBypassed) {
+             cardClasses += " bypassed";
+          } else if (isUnavailable) {
+             cardClasses += " unavailable";
+          }
+          
+          let iconClass = activeClass;
+          if (isBypassed) {
+             iconClass = "bypassed";
           }
           
           html += `
-            <div class="sensor-item">
-              <ha-icon class="sensor-icon ${activeClass}" icon="${cat.icon}"></ha-icon>
+            <div class="${cardClasses}">
+              <ha-icon class="sensor-icon ${iconClass}" icon="${isBypassed ? 'mdi:shield-off' : cat.icon}"></ha-icon>
               <div class="sensor-info">
-                <div class="sensor-name">${friendlyName}</div>
-                <div class="sensor-state ${activeClass}">
-                  <span class="state-text">${stateStr}</span>
+                <div class="sensor-name-row">
+                  <span class="sensor-name" title="${friendlyName}">${friendlyName}</span>
+                  ${isBypassed ? '<span class="badge-bypassed">Ignoré</span>' : ''}
+                </div>
+                <div class="sensor-state ${isBypassed ? '' : activeClass}">
+                  <span class="state-text">${isBypassed ? 'Exclu de surveillance' : stateStr}</span>
                   <span class="sensor-time">${timeStr}</span>
                 </div>
               </div>
+              ${actionButtonHtml}
             </div>
           `;
        }
