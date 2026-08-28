@@ -284,7 +284,10 @@ card_mod:
 
 ## 📜 Changelog
 
-### 🚀 v0.7.5-beta (Current)
+### 🚀 v0.7.6-beta (Current)
+- 🔔 **Mode Carillon (Chime)** : Option configurable dans les paramètres. Lorsque l'alarme est désarmée, l'ouverture de n'importe quelle porte ou fenêtre annonce vocalement en direct sur vos enceintes (ex: *« Porte d'entrée ouverte »*), idéal pour savoir en temps réel qui entre ou sort de la maison.
+
+### 🚀 v0.7.5-beta
 - 🔋 **Diagnostic Piles & Santé Pro (Health Check Pro)** : Détection intelligente des niveaux de batterie sur tous les capteurs (lecture directe ou via le `device_registry`). L'alarme vous avertit proactivement si un capteur passe sous les 15% lors de l'armement ou lors du diagnostic périodique, vous évitant toute panne inattendue.
 
 ### 🚀 v0.7.4-beta

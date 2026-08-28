@@ -47,7 +47,8 @@
           "geofence_auto_arm": "Auto-armement Géolocalisation",
           "exit_delay": "Délai de sortie (secondes)",
           "entry_delay": "Délai d'entrée (secondes)",
-          "siren_duration": "Durée Sirène"
+          "siren_duration": "Durée Sirène",
+          "chime_mode": "Mode Carillon (Annonce d'ouverture quand désarmée)"
         }
       }
     },
@@ -106,7 +107,8 @@
           "geofence_auto_arm": "Auto-armement Géolocalisation",
           "exit_delay": "Délai de sortie (secondes)",
           "entry_delay": "Délai d'entrée (secondes)",
-          "siren_duration": "Durée Sirène"
+          "siren_duration": "Durée Sirène",
+          "chime_mode": "Mode Carillon (Annonce d'ouverture quand désarmée)"
         }
       }
     }

@@ -40,12 +40,14 @@ from .const import (
     CONF_EXIT_DELAY,
     CONF_ENTRY_DELAY,
     CONF_SIREN_DURATION,
+    CONF_CHIME_MODE,
     DEFAULT_EXIT_DELAY,
     DEFAULT_ENTRY_DELAY,
     DEFAULT_SIREN_DURATION,
     DEFAULT_BYPASS_ALLOWED,
     DEFAULT_HEALTH_CHECK,
     DEFAULT_GEOFENCE_AUTO_ARM,
+    DEFAULT_CHIME_MODE,
 )
 
 
@@ -170,6 +172,7 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Optional(CONF_EXIT_DELAY, default=DEFAULT_EXIT_DELAY): int,
                     vol.Optional(CONF_ENTRY_DELAY, default=DEFAULT_ENTRY_DELAY): int,
                     vol.Optional(CONF_SIREN_DURATION, default=DEFAULT_SIREN_DURATION): int,
+                    vol.Optional(CONF_CHIME_MODE, default=DEFAULT_CHIME_MODE): bool,
                 }
             ),
         )
@@ -296,6 +299,7 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
                     vol.Optional(CONF_EXIT_DELAY, default=self.options.get(CONF_EXIT_DELAY, DEFAULT_EXIT_DELAY)): int,
                     vol.Optional(CONF_ENTRY_DELAY, default=self.options.get(CONF_ENTRY_DELAY, DEFAULT_ENTRY_DELAY)): int,
                     vol.Optional(CONF_SIREN_DURATION, default=self.options.get(CONF_SIREN_DURATION, DEFAULT_SIREN_DURATION)): int,
+                    vol.Optional(CONF_CHIME_MODE, default=self.options.get(CONF_CHIME_MODE, DEFAULT_CHIME_MODE)): bool,
                 }
             ),
         )

@@ -55,6 +55,8 @@ from .const import (
     CONF_EXIT_DELAY,
     CONF_ENTRY_DELAY,
     CONF_SIREN_DURATION,
+    CONF_CHIME_MODE,
+    DEFAULT_CHIME_MODE,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -124,7 +126,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.7.5-beta",
+            sw_version="0.7.6-beta",
         )
 
         self._siren_task = None
@@ -211,6 +213,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._bypass_allowed = bool(options.get(CONF_BYPASS_ALLOWED, data.get(CONF_BYPASS_ALLOWED, False)))
         self._health_check = bool(options.get(CONF_HEALTH_CHECK, data.get(CONF_HEALTH_CHECK, True)))
         self._geofence_auto_arm = bool(options.get(CONF_GEOFENCE_AUTO_ARM, data.get(CONF_GEOFENCE_AUTO_ARM, False)))
+        self._chime_mode = bool(options.get(CONF_CHIME_MODE, data.get(CONF_CHIME_MODE, DEFAULT_CHIME_MODE)))
 
         def get_merged(key, labels_key, allowed_domains=None):
             entities = set(options.get(key, data.get(key)) or [])
@@ -274,6 +277,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             "media_players": self._media_players,
             "persons": self._persons,
             "bypassed_sensors": list(self._bypassed_sensors),
+            "chime_active": self._chime_mode,
         }
 
     async def async_bypass_sensor(self, entity_id: str):
@@ -704,14 +708,21 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             await self._async_trigger_alarm(entity_id)
             return
 
-        # Ignore sensors when disarmed or during exit delay
-        if self._state in (
-            AlarmControlPanelState.DISARMED,
-            AlarmControlPanelState.ARMING,
-        ):
+        # Chime Mode when disarmed
+        if self._state == AlarmControlPanelState.DISARMED:
+            if self._chime_mode and entity_id in self._opening_sensors:
+                friendly = new_state.name or entity_id
+                _LOGGER.info("Domolink Chime: %s ouverte", friendly)
+                self._log_event(f"Carillon : {friendly} ouverte")
+                self.hass.async_create_task(
+                    self._async_play_tts(f"{friendly} ouverte.")
+                )
+            return
+
+        # Ignore sensors during exit delay
+        if self._state == AlarmControlPanelState.ARMING:
             _LOGGER.debug(
-                "Capteur ignoré car l'alarme est en état %s (délai de sortie ou désarmée)",
-                self._state,
+                "Capteur ignoré car l'alarme est en cours d'armement (délai de sortie)",
             )
             return
 
