@@ -14,16 +14,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Domolink Alarm from a config entry."""
     hass.data.setdefault(DOMAIN, {})
 
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    
     # Register frontend panel
     frontend_dir = hass.config.path("custom_components/domolink_alarm/frontend")
     if os.path.exists(frontend_dir):
-        hass.http.register_static_path(
-            "/domolink_alarm_panel",
-            frontend_dir,
-            cache_headers=False,
-        )
+        if hasattr(hass.http, "async_register_static_paths"):
+            from homeassistant.components.http import StaticPathConfig
+            hass.http.async_register_static_paths([
+                StaticPathConfig("/domolink_alarm_panel", frontend_dir, False)
+            ])
+        else:
+            hass.http.register_static_path(
+                "/domolink_alarm_panel",
+                frontend_dir,
+                cache_headers=False,
+            )
+            
         try:
             frontend.async_register_panel(
                 hass,
@@ -38,6 +43,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         except ValueError:
             # Panel already registered
             pass
+
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     # Listen for options updates so changes take effect without restarting HA (Fix #5)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
