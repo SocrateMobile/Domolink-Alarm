@@ -336,10 +336,12 @@ class DomolinkPanel extends HTMLElement {
       { key: "opening_sensors", icon: "mdi:door-open", name: "Capteurs d'ouverture" },
       { key: "motion_sensors", icon: "mdi:motion-sensor", name: "Capteurs de mouvement" },
       { key: "tamper_sensors", icon: "mdi:shield-alert", name: "Capteurs de sabotage (24/7)" },
+      { key: "safety_sensors", icon: "mdi:fire-alert", name: "Capteurs Techniques 24/7 (Fumée, Eau, Gaz)" },
       { key: "night_sensors", icon: "mdi:weather-night", name: "Capteurs Mode Nuit" },
       { key: "sirens", icon: "mdi:bullhorn", name: "Sirènes" },
       { key: "lights", icon: "mdi:alarm-light", name: "Lumières d'urgence" },
       { key: "cameras", icon: "mdi:cctv", name: "Caméras" },
+      { key: "presence_simulation_entities", icon: "mdi:home-clock", name: "Simulation de Présence (Vacances)" },
       { key: "media_players", icon: "mdi:speaker", name: "Lecteurs multimédia (TTS)" },
       { key: "persons", icon: "mdi:account", name: "Personnes (Géoloc)" }
     ];

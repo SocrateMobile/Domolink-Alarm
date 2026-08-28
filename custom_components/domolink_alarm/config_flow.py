@@ -41,6 +41,15 @@ from .const import (
     CONF_ENTRY_DELAY,
     CONF_SIREN_DURATION,
     CONF_CHIME_MODE,
+    CONF_SAFETY_SENSORS,
+    CONF_SAFETY_SENSORS_LABELS,
+    CONF_PRESENCE_SIMULATION_ENTITIES,
+    CONF_PRESENCE_SIMULATION_LABELS,
+    CONF_PRESENCE_SIMULATION_HISTORY_DAYS,
+    CONF_CROSS_ZONING,
+    CONF_CROSS_ZONING_WINDOW,
+    CONF_GEOFENCE_REMINDER,
+    CONF_GEOFENCE_REMINDER_DELAY,
     DEFAULT_EXIT_DELAY,
     DEFAULT_ENTRY_DELAY,
     DEFAULT_SIREN_DURATION,
@@ -48,6 +57,11 @@ from .const import (
     DEFAULT_HEALTH_CHECK,
     DEFAULT_GEOFENCE_AUTO_ARM,
     DEFAULT_CHIME_MODE,
+    DEFAULT_CROSS_ZONING,
+    DEFAULT_CROSS_ZONING_WINDOW,
+    DEFAULT_GEOFENCE_REMINDER,
+    DEFAULT_GEOFENCE_REMINDER_DELAY,
+    DEFAULT_PRESENCE_SIMULATION_HISTORY_DAYS,
 )
 
 
@@ -114,6 +128,14 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         selector.EntitySelectorConfig(domain=["alarm_control_panel", "sensor"], multiple=True)
                     ),
                     vol.Optional(CONF_KEYPADS_LABELS, default=[]): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
+                    vol.Optional(CONF_SAFETY_SENSORS, default=[]): selector.EntitySelector(
+                        selector.EntitySelectorConfig(
+                            domain=["binary_sensor", "sensor"],
+                            device_class=["smoke", "gas", "moisture", "carbon_monoxide", "safety", "problem"],
+                            multiple=True
+                        )
+                    ),
+                    vol.Optional(CONF_SAFETY_SENSORS_LABELS, default=[]): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                 }
             ),
         )
@@ -144,6 +166,10 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         selector.EntitySelectorConfig(domain="notify", multiple=True)
                     ),
                     vol.Optional(CONF_NOTIFY_SERVICES_LABELS, default=[]): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
+                    vol.Optional(CONF_PRESENCE_SIMULATION_ENTITIES, default=[]): selector.EntitySelector(
+                        selector.EntitySelectorConfig(domain=["light", "switch", "cover"], multiple=True)
+                    ),
+                    vol.Optional(CONF_PRESENCE_SIMULATION_LABELS, default=[]): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                 }
             ),
         )
@@ -169,6 +195,11 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Optional(CONF_BYPASS_ALLOWED, default=DEFAULT_BYPASS_ALLOWED): bool,
                     vol.Optional(CONF_HEALTH_CHECK, default=DEFAULT_HEALTH_CHECK): bool,
                     vol.Optional(CONF_GEOFENCE_AUTO_ARM, default=DEFAULT_GEOFENCE_AUTO_ARM): bool,
+                    vol.Optional(CONF_GEOFENCE_REMINDER, default=DEFAULT_GEOFENCE_REMINDER): bool,
+                    vol.Optional(CONF_GEOFENCE_REMINDER_DELAY, default=DEFAULT_GEOFENCE_REMINDER_DELAY): int,
+                    vol.Optional(CONF_CROSS_ZONING, default=DEFAULT_CROSS_ZONING): bool,
+                    vol.Optional(CONF_CROSS_ZONING_WINDOW, default=DEFAULT_CROSS_ZONING_WINDOW): int,
+                    vol.Optional(CONF_PRESENCE_SIMULATION_HISTORY_DAYS, default=DEFAULT_PRESENCE_SIMULATION_HISTORY_DAYS): int,
                     vol.Optional(CONF_EXIT_DELAY, default=DEFAULT_EXIT_DELAY): int,
                     vol.Optional(CONF_ENTRY_DELAY, default=DEFAULT_ENTRY_DELAY): int,
                     vol.Optional(CONF_SIREN_DURATION, default=DEFAULT_SIREN_DURATION): int,
@@ -242,6 +273,14 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
                         selector.EntitySelectorConfig(domain=["alarm_control_panel", "sensor"], multiple=True)
                     ),
                     vol.Optional(CONF_KEYPADS_LABELS, default=self.options.get(CONF_KEYPADS_LABELS, [])): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
+                    vol.Optional(CONF_SAFETY_SENSORS, default=self.options.get(CONF_SAFETY_SENSORS, [])): selector.EntitySelector(
+                        selector.EntitySelectorConfig(
+                            domain=["binary_sensor", "sensor"],
+                            device_class=["smoke", "gas", "moisture", "carbon_monoxide", "safety", "problem"],
+                            multiple=True
+                        )
+                    ),
+                    vol.Optional(CONF_SAFETY_SENSORS_LABELS, default=self.options.get(CONF_SAFETY_SENSORS_LABELS, [])): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                 }
             ),
         )
@@ -272,6 +311,10 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
                         selector.EntitySelectorConfig(domain="notify", multiple=True)
                     ),
                     vol.Optional(CONF_NOTIFY_SERVICES_LABELS, default=self.options.get(CONF_NOTIFY_SERVICES_LABELS, [])): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
+                    vol.Optional(CONF_PRESENCE_SIMULATION_ENTITIES, default=self.options.get(CONF_PRESENCE_SIMULATION_ENTITIES, [])): selector.EntitySelector(
+                        selector.EntitySelectorConfig(domain=["light", "switch", "cover"], multiple=True)
+                    ),
+                    vol.Optional(CONF_PRESENCE_SIMULATION_LABELS, default=self.options.get(CONF_PRESENCE_SIMULATION_LABELS, [])): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                 }
             ),
         )
@@ -296,6 +339,11 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
                     vol.Optional(CONF_BYPASS_ALLOWED, default=self.options.get(CONF_BYPASS_ALLOWED, DEFAULT_BYPASS_ALLOWED)): bool,
                     vol.Optional(CONF_HEALTH_CHECK, default=self.options.get(CONF_HEALTH_CHECK, DEFAULT_HEALTH_CHECK)): bool,
                     vol.Optional(CONF_GEOFENCE_AUTO_ARM, default=self.options.get(CONF_GEOFENCE_AUTO_ARM, DEFAULT_GEOFENCE_AUTO_ARM)): bool,
+                    vol.Optional(CONF_GEOFENCE_REMINDER, default=self.options.get(CONF_GEOFENCE_REMINDER, DEFAULT_GEOFENCE_REMINDER)): bool,
+                    vol.Optional(CONF_GEOFENCE_REMINDER_DELAY, default=self.options.get(CONF_GEOFENCE_REMINDER_DELAY, DEFAULT_GEOFENCE_REMINDER_DELAY)): int,
+                    vol.Optional(CONF_CROSS_ZONING, default=self.options.get(CONF_CROSS_ZONING, DEFAULT_CROSS_ZONING)): bool,
+                    vol.Optional(CONF_CROSS_ZONING_WINDOW, default=self.options.get(CONF_CROSS_ZONING_WINDOW, DEFAULT_CROSS_ZONING_WINDOW)): int,
+                    vol.Optional(CONF_PRESENCE_SIMULATION_HISTORY_DAYS, default=self.options.get(CONF_PRESENCE_SIMULATION_HISTORY_DAYS, DEFAULT_PRESENCE_SIMULATION_HISTORY_DAYS)): int,
                     vol.Optional(CONF_EXIT_DELAY, default=self.options.get(CONF_EXIT_DELAY, DEFAULT_EXIT_DELAY)): int,
                     vol.Optional(CONF_ENTRY_DELAY, default=self.options.get(CONF_ENTRY_DELAY, DEFAULT_ENTRY_DELAY)): int,
                     vol.Optional(CONF_SIREN_DURATION, default=self.options.get(CONF_SIREN_DURATION, DEFAULT_SIREN_DURATION)): int,

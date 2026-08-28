@@ -284,7 +284,13 @@ card_mod:
 
 ## 📜 Changelog
 
-### 🚀 v0.7.8-beta (Current)
+### 🚀 v0.8.0-beta (Current)
+- 🛡️ **Double Détection / Cross-Zoning Anti-Fausses Alertes** : Option permettant d'exiger une confirmation (deux détections de mouvement dans un intervalle configurable de 60s) avant d'activer le cycle d'intrusion complet.
+- 🚨 **Capteurs Techniques 24/7 (Fumée, Eau, Gaz, CO)** : Nouvelle catégorie de capteurs surveillés en permanence (même alarme désarmée), avec annonces vocales TTS dédiées et alertes critiques spécifiques.
+- 📍 **Rappel d'Oubli d'Armement (Geofencing Pro)** : Si le domicile est déserté depuis 15 minutes sans être armé, une notification push actionnable est envoyée pour armer d'un simple geste à distance (`⚡ Armer en Absence`).
+- 💡 **Simulation de Présence Basée sur l'Historique (Mode Vacances)** : Rejoue fidèlement l'historique réel des allumages/extinctions (lumières, prises, volets) enregistré 7 jours plus tôt dès que l'alarme est en mode `ARMED_AWAY`.
+
+### 🚀 v0.7.8-beta
 - 📸 **Levée de doute Caméra & Snapshot Automatique** : En cas de détection d'intrusion ou déclenchement de l'alarme, le système capture automatiquement un instantané photo sur la caméra principale et l'attache directement dans la notification push critique (compatible iOS et Android), vous permettant de voir instantanément ce qui se passe avant de désarmer.
 
 ### 🚀 v0.7.7-beta
