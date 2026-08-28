@@ -24,6 +24,8 @@ class DomolinkPanel extends HTMLElement {
             display: flex;
             align-items: center;
             justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 16px;
           }
           .title {
             font-size: 24px;
@@ -40,6 +42,36 @@ class DomolinkPanel extends HTMLElement {
           .state-armed { background-color: var(--error-color, #f44336); }
           .state-pending { background-color: var(--warning-color, #ff9800); }
           
+          .controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid var(--divider-color);
+            flex-wrap: wrap;
+          }
+          .controls input {
+            padding: 8px 12px;
+            border: 1px solid var(--divider-color);
+            border-radius: 4px;
+            background: var(--card-background-color);
+            color: var(--primary-text-color);
+            outline: none;
+          }
+          .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            font-weight: 500;
+            cursor: pointer;
+            color: white;
+            text-transform: uppercase;
+          }
+          .btn-disarm { background-color: var(--success-color, #4caf50); }
+          .btn-arm { background-color: var(--error-color, #f44336); }
+          .btn:active { opacity: 0.8; }
+          
           .main-content {
             max-width: 1000px;
             margin: 0 auto;
@@ -53,7 +85,7 @@ class DomolinkPanel extends HTMLElement {
           }
           .sensor-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
             gap: 12px;
           }
           .sensor-item {
@@ -90,14 +122,22 @@ class DomolinkPanel extends HTMLElement {
             font-size: 13px;
             color: var(--secondary-text-color);
             text-transform: capitalize;
+            display: flex;
+            justify-content: space-between;
+            margin-top: 4px;
           }
-          .sensor-state.active {
+          .sensor-state.active .state-text {
             color: var(--error-color, #f44336);
             font-weight: bold;
           }
-          .sensor-state.active-success {
+          .sensor-state.active-success .state-text {
             color: var(--success-color, #4caf50);
             font-weight: bold;
+          }
+          .sensor-time {
+            font-size: 11px;
+            color: var(--secondary-text-color);
+            opacity: 0.8;
           }
         </style>
         <ha-card>
@@ -106,15 +146,51 @@ class DomolinkPanel extends HTMLElement {
               <div class="title">DomoLink Alarm</div>
               <div id="alarm-state" class="state-badge">Chargement...</div>
             </div>
+            <div class="controls">
+              <input type="password" id="alarm-code" placeholder="Code (si requis)">
+              <button class="btn btn-disarm" id="btn-disarm">Désactiver</button>
+              <button class="btn btn-arm" id="btn-arm-away">Absence</button>
+              <button class="btn btn-arm" id="btn-arm-home">Présence</button>
+              <button class="btn btn-arm" id="btn-arm-night">Nuit</button>
+            </div>
           </div>
         </ha-card>
         <div class="main-content" id="categories"></div>
       `;
       this.content = this.querySelector('#categories');
       this.alarmStateBadge = this.querySelector('#alarm-state');
+      
+      // Event listeners for controls
+      this.querySelector('#btn-disarm').addEventListener('click', () => this.callAlarmService('alarm_disarm'));
+      this.querySelector('#btn-arm-away').addEventListener('click', () => this.callAlarmService('alarm_arm_away'));
+      this.querySelector('#btn-arm-home').addEventListener('click', () => this.callAlarmService('alarm_arm_home'));
+      this.querySelector('#btn-arm-night').addEventListener('click', () => this.callAlarmService('alarm_arm_night'));
     }
     
     this.render();
+  }
+  
+  callAlarmService(service) {
+    const alarmEntity = Object.values(this._hass.states).find(s => s.entity_id.startsWith('alarm_control_panel.domolink'));
+    if (!alarmEntity) return;
+    
+    const codeInput = this.querySelector('#alarm-code');
+    const data = { entity_id: alarmEntity.entity_id };
+    if (codeInput.value) {
+      data.code = codeInput.value;
+    }
+    
+    this._hass.callService('alarm_control_panel', service, data);
+    codeInput.value = ''; // Clear code after sending
+  }
+  
+  formatDate(dateStr) {
+    if (!dateStr) return "";
+    const date = new Date(dateStr);
+    return date.toLocaleString('fr-FR', {
+      day: '2-digit', month: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
   }
 
   render() {
@@ -165,11 +241,14 @@ class DomolinkPanel extends HTMLElement {
           let friendlyName = entityId;
           let stateStr = "Inconnu";
           let activeClass = "";
+          let timeStr = "";
           
           if (entityState) {
              friendlyName = entityState.attributes.friendly_name || entityId;
              stateStr = this._hass.formatEntityState ? this._hass.formatEntityState(entityState) : entityState.state;
              activeClass = this.getActiveClass(entityState);
+             // Use last_changed for contact time
+             timeStr = this.formatDate(entityState.last_changed);
           } else {
              stateStr = "Introuvable";
              activeClass = "active";
@@ -180,7 +259,10 @@ class DomolinkPanel extends HTMLElement {
               <ha-icon class="sensor-icon ${activeClass}" icon="${cat.icon}"></ha-icon>
               <div class="sensor-info">
                 <div class="sensor-name">${friendlyName}</div>
-                <div class="sensor-state ${activeClass}">${stateStr}</div>
+                <div class="sensor-state ${activeClass}">
+                  <span class="state-text">${stateStr}</span>
+                  <span class="sensor-time">${timeStr}</span>
+                </div>
               </div>
             </div>
           `;
