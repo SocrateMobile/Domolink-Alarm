@@ -284,7 +284,10 @@ card_mod:
 
 ## 📜 Changelog
 
-### 🚀 v0.7.7-beta (Current)
+### 🚀 v0.7.8-beta (Current)
+- 📸 **Levée de doute Caméra & Snapshot Automatique** : En cas de détection d'intrusion ou déclenchement de l'alarme, le système capture automatiquement un instantané photo sur la caméra principale et l'attache directement dans la notification push critique (compatible iOS et Android), vous permettant de voir instantanément ce qui se passe avant de désarmer.
+
+### 🚀 v0.7.7-beta
 - 📋 **Journal d'Événements dans le Panneau Latéral** : Ajout d'une section "Journal des événements récents" directement intégrée en bas du panneau latéral. Vous pouvez suivre en direct l'historique chronologique des 20 derniers événements (qui a armé/désarmé, quel badge a été scanné, capteurs ignorés, déclenchements, carillons, etc.).
 
 ### 🚀 v0.7.6-beta
