@@ -1,4 +1,5 @@
 """Interfaces with Domolink Alarm."""
+import os
 import logging
 from datetime import timedelta
 
@@ -126,7 +127,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.7.7-beta",
+            sw_version="0.7.8-beta",
         )
 
         self._siren_task = None
@@ -602,6 +603,12 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             }
             if self._cameras:
                 alert_data["entity_id"] = self._cameras[0]
+                alert_data["image"] = "/local/domolink_alarm_alert.jpg"
+                alert_data["attachment"] = {
+                    "url": "/local/domolink_alarm_alert.jpg",
+                    "content-type": "jpeg",
+                    "hide-thumbnail": False,
+                }
             data.update(alert_data)
 
         if custom_data:
@@ -875,23 +882,39 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._log_event(f"Alarme DÉCLENCHÉE par {self._triggered_by}")
         name = state.name if state else triggering_entity
 
-        # 1. Critical notification with disarm button
+        # 1. Camera Snapshot & Recording
+        if self._cameras:
+            try:
+                www_dir = self.hass.config.path("www")
+                if not os.path.exists(www_dir):
+                    os.makedirs(www_dir, exist_ok=True)
+
+                snapshot_path = self.hass.config.path("www/domolink_alarm_alert.jpg")
+                first_cam = self._cameras[0]
+                await self.hass.services.async_call(
+                    "camera", "snapshot",
+                    {"entity_id": first_cam, "filename": snapshot_path},
+                    blocking=True,
+                )
+                self._log_event(f"Photo capturée ({first_cam})")
+            except Exception as e:
+                _LOGGER.debug("Domolink: Erreur capture photo caméra: %s", e)
+
+            self._log_event(f"Lancement de l'enregistrement sur {len(self._cameras)} caméra(s)")
+            for camera in self._cameras:
+                try:
+                    await self.hass.services.async_call(
+                        "camera", "record",
+                        {"entity_id": camera, "duration": 30},
+                    )
+                except Exception as e:
+                    _LOGGER.error("Failed to record camera %s: %s", camera, e)
+
+        # 2. Critical notification with disarm button and camera photo
         await self._async_send_notification(
             f"🚨 INTRUSION DÉTECTÉE 🚨\nCapteur : {name}",
             is_alert=True,
         )
-
-        # 2. Camera Recording
-        if self._cameras:
-            self._log_event(f"Lancement de l'enregistrement sur {len(self._cameras)} caméra(s)")
-        for camera in self._cameras:
-            try:
-                await self.hass.services.async_call(
-                    "camera", "record",
-                    {"entity_id": camera, "duration": 30},
-                )
-            except Exception as e:
-                _LOGGER.error("Failed to record camera %s: %s", camera, e)
 
         # 3. TTS dissuasion (Away, Night, or Tamper)
         should_tts = (
