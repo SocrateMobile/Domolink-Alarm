@@ -105,7 +105,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.6.17-beta",
+            sw_version="0.7.0-beta",
         )
 
         self._siren_task = None
@@ -224,14 +224,6 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         return self._unique_id
 
     @property
-    def extra_state_attributes(self):
-        """Return the state attributes."""
-        return {
-            "faults": self._faults,
-            "triggered_by": self._triggered_by,
-        }
-
-    @property
     def alarm_state(self):
         """Return the state of the device (modern HA property)."""
         return self._state
@@ -245,11 +237,22 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
     def extra_state_attributes(self):
         """Expose extra attributes for Lovelace and automations."""
         return {
+            "faults": self._faults,
+            "triggered_by": self._triggered_by,
             "last_triggered_by": self._last_triggered_by,
             "last_user": self._last_user,
             "failed_attempts": self._failed_attempts,
             "geofence_active": self._geofence_auto_arm,
             "health_check_active": self._health_check,
+            "opening_sensors": self._opening_sensors,
+            "motion_sensors": self._motion_sensors,
+            "tamper_sensors": self._tamper_sensors,
+            "night_sensors": self._night_sensors,
+            "sirens": self._sirens,
+            "lights": self._lights,
+            "cameras": self._cameras,
+            "media_players": self._media_players,
+            "persons": self._persons,
         }
 
     def set_log_sensor(self, sensor):

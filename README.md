@@ -284,7 +284,10 @@ card_mod:
 
 ## 📜 Changelog
 
-### 🚀 v0.6.17-beta (Current)
+### 🚀 v0.7.0-beta (Current)
+- 🖥️ **Nouveau Panneau de Contrôle Latéral** : Ajout d'un panneau "Domolink Alarm" dans la barre de gauche de Home Assistant. Vous pouvez désormais voir en un coup d'œil l'état de l'alarme et l'état en temps réel de tous les capteurs classés par catégories (portes ouvertes, mouvements, etc.).
+
+### 🚀 v0.6.17-beta
 - 🐛 **Correctif Critique** : Correction d'un bug d'import (NameError) lié aux étiquettes des Personnes et Notifications qui empêchait l'intégration de démarrer correctement. L'entité principale charge maintenant sans erreur.
 
 ### 🚀 v0.6.16-beta
