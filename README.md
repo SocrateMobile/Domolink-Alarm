@@ -284,7 +284,11 @@ card_mod:
 
 ## 📜 Changelog
 
-### 🚀 v0.7.0-beta (Current)
+### 🚀 v0.7.3-beta (Current)
+- 🎛️ **Contrôles dans le Panneau Latéral** : Ajout des boutons pour armer (Absence, Présence, Nuit) et désarmer l'alarme directement depuis le panneau latéral de Domolink (avec champ de code PIN si requis).
+- 🕒 **Dernier contact** : Ajout de la date et l'heure du dernier changement d'état sur la tuile de chaque capteur.
+
+### 🚀 v0.7.2-beta
 - 🖥️ **Nouveau Panneau de Contrôle Latéral** : Ajout d'un panneau "Domolink Alarm" dans la barre de gauche de Home Assistant. Vous pouvez désormais voir en un coup d'œil l'état de l'alarme et l'état en temps réel de tous les capteurs classés par catégories (portes ouvertes, mouvements, etc.).
 
 ### 🚀 v0.6.17-beta
