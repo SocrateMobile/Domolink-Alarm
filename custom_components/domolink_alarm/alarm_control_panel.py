@@ -79,6 +79,25 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = {"entity": entity}
 
+    async def async_handle_bypass_sensor(call):
+        """Handle bypass sensor service call."""
+        sensor_id = call.data.get("entity_id")
+        if sensor_id:
+            await entity.async_bypass_sensor(sensor_id)
+
+    async def async_handle_unbypass_sensor(call):
+        """Handle unbypass sensor service call."""
+        sensor_id = call.data.get("entity_id")
+        if sensor_id:
+            await entity.async_unbypass_sensor(sensor_id)
+
+    hass.services.async_register(
+        DOMAIN, "bypass_sensor", async_handle_bypass_sensor
+    )
+    hass.services.async_register(
+        DOMAIN, "unbypass_sensor", async_handle_unbypass_sensor
+    )
+
 
 class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
     """Representation of a Domolink Alarm."""
@@ -105,13 +124,14 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.7.3-beta",
+            sw_version="0.7.4-beta",
         )
 
         self._siren_task = None
         self._arming_task = None
         self._pending_task = None
         self._faults = []
+        self._bypassed_sensors = set()
         self._triggered_by = None
         self._event_sensor = None
 
@@ -253,7 +273,23 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             "cameras": self._cameras,
             "media_players": self._media_players,
             "persons": self._persons,
+            "bypassed_sensors": list(self._bypassed_sensors),
         }
+
+    async def async_bypass_sensor(self, entity_id: str):
+        """Bypass / ignore a sensor temporarily."""
+        self._bypassed_sensors.add(entity_id)
+        # Also remove from current faults if present
+        if entity_id in self._faults:
+            self._faults.remove(entity_id)
+        self._log_event(f"Capteur ignoré (Bypass): {entity_id}")
+        self.async_write_ha_state()
+
+    async def async_unbypass_sensor(self, entity_id: str):
+        """Unbypass / restore a sensor to active monitoring."""
+        self._bypassed_sensors.discard(entity_id)
+        self._log_event(f"Capteur rétabli: {entity_id}")
+        self.async_write_ha_state()
 
     def set_log_sensor(self, sensor):
         """Register the event log sensor."""
@@ -618,6 +654,11 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         if state_val not in ("on", "open", "true", "detected", "unlocked", "1"):
             return
 
+        # Check if sensor is bypassed
+        if entity_id in self._bypassed_sensors:
+            _LOGGER.debug("Domolink: Capteur %s ignoré (bypassed)", entity_id)
+            return
+
         _LOGGER.info(
             "Domolink Alarm: Détection sur %s (état: %s, état alarme: %s)",
             entity_id,
@@ -978,6 +1019,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._state = AlarmControlPanelState.DISARMED
         self._last_user = user
         self._faults.clear()
+        self._bypassed_sensors.clear()
         self._triggered_by = None
         self._log_event(f"Alarme Désarmée (Utilisateur: {user})")
         self.async_write_ha_state()
@@ -991,21 +1033,27 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             )
 
     async def _check_bypass(self, target_mode="AWAY", force=False):
-        """Check if sensors are open before arming."""
+        """Check if sensors are open or unavailable before arming."""
         open_sensors = []
         # Check opening sensors
         for sensor in self._opening_sensors:
+            if sensor in self._bypassed_sensors:
+                continue
             state = self.hass.states.get(sensor)
-            if state and str(state.state).lower() in ("on", "open", "true", "detected", "unlocked", "1"):
-                open_sensors.append(state.name or sensor)
+            if not state or str(state.state).lower() in ("on", "open", "true", "detected", "unlocked", "1", "unavailable", "unknown"):
+                name = state.name if state and state.name else sensor
+                open_sensors.append(name)
 
         # Also for NIGHT mode, check night sensors
         if target_mode == "NIGHT":
             for sensor in self._night_sensors:
+                if sensor in self._bypassed_sensors:
+                    continue
                 state = self.hass.states.get(sensor)
-                if state and str(state.state).lower() in ("on", "open", "true", "detected", "unlocked", "1"):
-                    if (state.name or sensor) not in open_sensors:
-                        open_sensors.append(state.name or sensor)
+                if not state or str(state.state).lower() in ("on", "open", "true", "detected", "unlocked", "1", "unavailable", "unknown"):
+                    name = state.name if state and state.name else sensor
+                    if name not in open_sensors:
+                        open_sensors.append(name)
 
         if open_sensors:
             if not self._bypass_allowed and not force:

@@ -284,7 +284,10 @@ card_mod:
 
 ## 📜 Changelog
 
-### 🚀 v0.7.3-beta (Current)
+### 🚀 v0.7.4-beta (Current)
+- 👁️ **Bouton « Ignorer » (Bypass dynamique)** : Apparition d'un bouton "Ignorer" sur la tuile des capteurs lorsqu'ils sont **non joignables** (`unavailable`, déconnectés) ou **ouverts**. En un clic, le capteur est exclu temporairement de la surveillance, permettant d'armer l'alarme sans blocage. Un bouton "Rétablir" permet de le réintégrer à tout moment, et les exclusions sont automatiquement réinitialisées lors du désarmement.
+
+### 🚀 v0.7.3-beta
 - 🎛️ **Contrôles dans le Panneau Latéral** : Ajout des boutons pour armer (Absence, Présence, Nuit) et désarmer l'alarme directement depuis le panneau latéral de Domolink (avec champ de code PIN si requis).
 - 🕒 **Dernier contact** : Ajout de la date et l'heure du dernier changement d'état sur la tuile de chaque capteur.
 
