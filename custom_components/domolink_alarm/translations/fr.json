@@ -18,7 +18,9 @@
           "keypads": "Claviers",
           "keypads_labels": "Étiquettes (Claviers)",
           "cameras": "Caméras",
-          "cameras_labels": "Étiquettes (Caméras)"
+          "cameras_labels": "Étiquettes (Caméras)",
+          "safety_sensors": "Capteurs Techniques 24/7 (Fumée, Eau, Gaz, CO)",
+          "safety_sensors_labels": "Étiquettes (Capteurs Techniques 24/7)"
         }
       },
       "actuators": {
@@ -31,7 +33,9 @@
           "media_players": "Lecteurs multimédia (TTS)",
           "media_players_labels": "Étiquettes (Lecteurs multimédia)",
           "notify_services": "Appareils pour Notifications (Optionnel)",
-          "notify_services_labels": "Étiquettes (Notifications)"
+          "notify_services_labels": "Étiquettes (Notifications)",
+          "presence_simulation_entities": "Simulation de Présence (Lumières / Prises)",
+          "presence_simulation_labels": "Étiquettes (Simulation de Présence)"
         }
       },
       "logic": {
@@ -45,6 +49,11 @@
           "bypass_allowed": "Autoriser le contournement",
           "health_check": "Vérification de santé",
           "geofence_auto_arm": "Auto-armement Géolocalisation",
+          "geofence_reminder": "Rappel d'oubli d'armement par notification",
+          "geofence_reminder_delay": "Délai avant rappel d'oubli (minutes)",
+          "cross_zoning": "Double Détection (Anti-fausse alerte mouvements)",
+          "cross_zoning_window": "Fenêtre de confirmation double détection (secondes)",
+          "presence_simulation_history_days": "Historique à rejouer pour la simulation (jours en arrière)",
           "exit_delay": "Délai de sortie (secondes)",
           "entry_delay": "Délai d'entrée (secondes)",
           "siren_duration": "Durée Sirène",
@@ -78,7 +87,9 @@
           "keypads": "Claviers",
           "keypads_labels": "Étiquettes (Claviers)",
           "cameras": "Caméras",
-          "cameras_labels": "Étiquettes (Caméras)"
+          "cameras_labels": "Étiquettes (Caméras)",
+          "safety_sensors": "Capteurs Techniques 24/7 (Fumée, Eau, Gaz, CO)",
+          "safety_sensors_labels": "Étiquettes (Capteurs Techniques 24/7)"
         }
       },
       "actuators": {
@@ -91,7 +102,9 @@
           "media_players": "Lecteurs multimédia (TTS)",
           "media_players_labels": "Étiquettes (Lecteurs multimédia)",
           "notify_services": "Appareils pour Notifications (Optionnel)",
-          "notify_services_labels": "Étiquettes (Notifications)"
+          "notify_services_labels": "Étiquettes (Notifications)",
+          "presence_simulation_entities": "Simulation de Présence (Lumières / Prises)",
+          "presence_simulation_labels": "Étiquettes (Simulation de Présence)"
         }
       },
       "logic": {
@@ -105,6 +118,11 @@
           "bypass_allowed": "Autoriser le contournement",
           "health_check": "Vérification de santé",
           "geofence_auto_arm": "Auto-armement Géolocalisation",
+          "geofence_reminder": "Rappel d'oubli d'armement par notification",
+          "geofence_reminder_delay": "Délai avant rappel d'oubli (minutes)",
+          "cross_zoning": "Double Détection (Anti-fausse alerte mouvements)",
+          "cross_zoning_window": "Fenêtre de confirmation double détection (secondes)",
+          "presence_simulation_history_days": "Historique à rejouer pour la simulation (jours en arrière)",
           "exit_delay": "Délai de sortie (secondes)",
           "entry_delay": "Délai d'entrée (secondes)",
           "siren_duration": "Durée Sirène",

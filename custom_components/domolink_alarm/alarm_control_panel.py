@@ -57,7 +57,21 @@ from .const import (
     CONF_ENTRY_DELAY,
     CONF_SIREN_DURATION,
     CONF_CHIME_MODE,
+    CONF_SAFETY_SENSORS,
+    CONF_SAFETY_SENSORS_LABELS,
+    CONF_PRESENCE_SIMULATION_ENTITIES,
+    CONF_PRESENCE_SIMULATION_LABELS,
+    CONF_PRESENCE_SIMULATION_HISTORY_DAYS,
+    CONF_CROSS_ZONING,
+    CONF_CROSS_ZONING_WINDOW,
+    CONF_GEOFENCE_REMINDER,
+    CONF_GEOFENCE_REMINDER_DELAY,
     DEFAULT_CHIME_MODE,
+    DEFAULT_CROSS_ZONING,
+    DEFAULT_CROSS_ZONING_WINDOW,
+    DEFAULT_GEOFENCE_REMINDER,
+    DEFAULT_GEOFENCE_REMINDER_DELAY,
+    DEFAULT_PRESENCE_SIMULATION_HISTORY_DAYS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -127,16 +141,19 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.7.8-beta",
+            sw_version="0.8.0-beta",
         )
 
         self._siren_task = None
         self._arming_task = None
         self._pending_task = None
+        self._geofence_reminder_task = None
+        self._presence_simulation_task = None
         self._faults = []
         self._bypassed_sensors = set()
         self._triggered_by = None
         self._event_sensor = None
+        self._last_motion_detection = {}
 
         self._failed_attempts = 0
         self._blocked_until = 0.0
@@ -214,7 +231,12 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._bypass_allowed = bool(options.get(CONF_BYPASS_ALLOWED, data.get(CONF_BYPASS_ALLOWED, False)))
         self._health_check = bool(options.get(CONF_HEALTH_CHECK, data.get(CONF_HEALTH_CHECK, True)))
         self._geofence_auto_arm = bool(options.get(CONF_GEOFENCE_AUTO_ARM, data.get(CONF_GEOFENCE_AUTO_ARM, False)))
+        self._geofence_reminder = bool(options.get(CONF_GEOFENCE_REMINDER, data.get(CONF_GEOFENCE_REMINDER, DEFAULT_GEOFENCE_REMINDER)))
+        self._geofence_reminder_delay = int(options.get(CONF_GEOFENCE_REMINDER_DELAY, data.get(CONF_GEOFENCE_REMINDER_DELAY, DEFAULT_GEOFENCE_REMINDER_DELAY)))
         self._chime_mode = bool(options.get(CONF_CHIME_MODE, data.get(CONF_CHIME_MODE, DEFAULT_CHIME_MODE)))
+        self._cross_zoning = bool(options.get(CONF_CROSS_ZONING, data.get(CONF_CROSS_ZONING, DEFAULT_CROSS_ZONING)))
+        self._cross_zoning_window = int(options.get(CONF_CROSS_ZONING_WINDOW, data.get(CONF_CROSS_ZONING_WINDOW, DEFAULT_CROSS_ZONING_WINDOW)))
+        self._presence_simulation_history_days = int(options.get(CONF_PRESENCE_SIMULATION_HISTORY_DAYS, data.get(CONF_PRESENCE_SIMULATION_HISTORY_DAYS, DEFAULT_PRESENCE_SIMULATION_HISTORY_DAYS)))
 
         def get_merged(key, labels_key, allowed_domains=None):
             entities = set(options.get(key, data.get(key)) or [])
@@ -227,12 +249,14 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._night_sensors = get_merged(CONF_NIGHT_SENSORS, CONF_NIGHT_SENSORS_LABELS, ["binary_sensor", "sensor"])
         self._motion_sensors = get_merged(CONF_MOTION_SENSORS, CONF_MOTION_SENSORS_LABELS, ["binary_sensor", "sensor"])
         self._tamper_sensors = get_merged(CONF_TAMPER_SENSORS, CONF_TAMPER_SENSORS_LABELS, ["binary_sensor", "sensor"])
+        self._safety_sensors = get_merged(CONF_SAFETY_SENSORS, CONF_SAFETY_SENSORS_LABELS, ["binary_sensor", "sensor"])
         self._cameras = get_merged(CONF_CAMERAS, CONF_CAMERAS_LABELS, ["camera"])
         self._sirens = get_merged(CONF_SIRENS, CONF_SIRENS_LABELS, ["switch", "siren"])
         self._lights = get_merged(CONF_LIGHTS, CONF_LIGHTS_LABELS, ["light"])
         self._media_players = get_merged(CONF_MEDIA_PLAYERS, CONF_MEDIA_PLAYERS_LABELS, ["media_player"])
         self._persons = get_merged(CONF_PERSONS, CONF_PERSONS_LABELS, ["person"])
         self._notify_services = get_merged(CONF_NOTIFY_SERVICES, CONF_NOTIFY_SERVICES_LABELS, ["notify"])
+        self._presence_simulation_entities = get_merged(CONF_PRESENCE_SIMULATION_ENTITIES, CONF_PRESENCE_SIMULATION_LABELS, ["light", "switch", "cover"])
 
     @callback
     def async_update_options(self):
@@ -279,6 +303,11 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             "persons": self._persons,
             "bypassed_sensors": list(self._bypassed_sensors),
             "chime_active": self._chime_mode,
+            "safety_sensors": self._safety_sensors,
+            "presence_simulation_entities": self._presence_simulation_entities,
+            "presence_simulation_active": self._presence_simulation_task is not None,
+            "cross_zoning_active": self._cross_zoning,
+            "geofence_reminder_active": self._geofence_reminder,
         }
 
     async def async_bypass_sensor(self, entity_id: str):
@@ -320,7 +349,14 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 self._last_user = last_state.attributes.get("last_user")
 
         # Track sensor changes
-        all_sensors = list(set(self._opening_sensors + self._motion_sensors + self._tamper_sensors + self._night_sensors + self._persons))
+        all_sensors = list(set(
+            self._opening_sensors
+            + self._motion_sensors
+            + self._tamper_sensors
+            + self._night_sensors
+            + self._safety_sensors
+            + self._persons
+        ))
         if all_sensors:
             self.async_on_remove(
                 async_track_state_change_event(
@@ -336,8 +372,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 )
             )
 
-        # Geofencing
-        if self._geofence_auto_arm:
+        # Geofencing (Auto-Arm or Reminder)
+        if self._geofence_auto_arm or self._geofence_reminder:
             self.async_on_remove(
                 async_track_state_change_event(
                     self.hass, ["zone.home"], self._async_zone_changed
@@ -362,7 +398,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
     # ─── Geofencing ───────────────────────────────────────────────
 
     async def _async_zone_changed(self, event):
-        """Handle zone.home state changes for auto arm/disarm."""
+        """Handle zone.home state changes for auto arm/disarm and reminders."""
         new_state = event.data.get("new_state")
         old_state = event.data.get("old_state")
 
@@ -376,22 +412,38 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             return
 
         if old_count > 0 and new_count == 0:
-            # Everyone left → Auto Arm
+            # Everyone left
             if self._state == AlarmControlPanelState.DISARMED:
-                _LOGGER.info("Geofencing: No one at home, auto arming away")
-                await self._async_send_notification(
-                    "🏠 Domolink: Plus personne à la maison, armement automatique activé."
-                )
-                await self.async_alarm_arm_away()
+                if self._geofence_auto_arm:
+                    _LOGGER.info("Geofencing: Plus personne à la maison, auto armement en Absence")
+                    await self._async_send_notification(
+                        "🏠 Domolink: Plus personne à la maison, armement automatique activé."
+                    )
+                    await self.async_alarm_arm_away()
+                elif self._geofence_reminder:
+                    if not self._geofence_reminder_task:
+                        _LOGGER.info(
+                            "Geofencing: Plus personne à la maison, planification rappel dans %d min",
+                            self._geofence_reminder_delay,
+                        )
+                        self._geofence_reminder_task = async_call_later(
+                            self.hass,
+                            self._geofence_reminder_delay * 60,
+                            self._cb_geofence_reminder,
+                        )
 
         elif old_count == 0 and new_count > 0:
-            # Someone arrived → Auto Disarm
-            if self._state in (
+            # Someone arrived
+            if self._geofence_reminder_task:
+                self._geofence_reminder_task()
+                self._geofence_reminder_task = None
+
+            if self._geofence_auto_arm and self._state in (
                 AlarmControlPanelState.ARMED_AWAY,
                 AlarmControlPanelState.ARMED_NIGHT,
                 AlarmControlPanelState.ARMING,
             ):
-                _LOGGER.info("Geofencing: Someone arrived, auto disarming")
+                _LOGGER.info("Geofencing: Quelqu'un est arrivé, auto désarmement")
                 self._cancel_all_tasks()
                 self._state = AlarmControlPanelState.DISARMED
                 self._last_user = "Géolocalisation"
@@ -400,6 +452,38 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 await self._async_send_notification(
                     "🏠 Domolink: Retour détecté, désarmement automatique."
                 )
+
+    @callback
+    def _cb_geofence_reminder(self, _now):
+        """Send actionable reminder notification to arm the alarm."""
+        self._geofence_reminder_task = None
+        if self._state != AlarmControlPanelState.DISARMED:
+            return
+
+        states = [self.hass.states.get(p) for p in self._persons]
+        states = [s.state for s in states if s is not None]
+        if all(s != "home" for s in states):
+            _LOGGER.info("Geofencing: Envoi notification rappel d'oubli d'armement")
+            self._log_event("Rappel d'armement envoyé (Absence prolongée)")
+            action_data = {
+                "actions": [
+                    {
+                        "action": "DOMOLINK_REMINDER_ARM_AWAY",
+                        "title": "⚡ Armer en Absence",
+                    },
+                    {
+                        "action": "DOMOLINK_CANCEL_ARM",
+                        "title": "❌ Ignorer",
+                        "destructive": True,
+                    },
+                ]
+            }
+            self.hass.async_create_task(
+                self._async_send_notification(
+                    "📍 Vous semblez avoir quitté la maison sans activer l'alarme.\n\nVoulez-vous l'armer maintenant ?",
+                    custom_data=action_data,
+                )
+            )
 
     # ─── Mobile Actionable Notifications ──────────────────────────
 
@@ -421,6 +505,11 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             await self._async_send_notification(
                 "✅ Alarme désarmée via Apple Watch / Mobile."
             )
+
+        elif action == "DOMOLINK_REMINDER_ARM_AWAY":
+            _LOGGER.info("Arming Away via geofencing reminder notification")
+            self._log_event("Armement suite au rappel de géolocalisation")
+            await self.async_alarm_arm_away()
 
         elif action in ("DOMOLINK_FORCE_ARM_AWAY", "DOMOLINK_FORCE_ARM_HOME", "DOMOLINK_FORCE_ARM_NIGHT"):
             # Check user PIN code if provided
@@ -709,6 +798,30 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             self._state,
         )
 
+        # Safety Sensors 24/7 (Smoke, Water, Gas, CO)
+        if entity_id in self._safety_sensors:
+            device_class = new_state.attributes.get("device_class", "")
+            friendly = new_state.name or entity_id
+            
+            if device_class in ("smoke", "carbon_monoxide", "gas"):
+                type_label = "Fumée / Gaz"
+                tts_msg = f"Alerte d'urgence : détection de fumée ou de gaz sur {friendly} !"
+            elif device_class in ("moisture", "water"):
+                type_label = "Fuite d'eau"
+                tts_msg = f"Alerte inondation : détection d'eau sur {friendly} !"
+            else:
+                type_label = "Technique 24/7"
+                tts_msg = f"Alerte d'urgence technique sur {friendly} !"
+
+            _LOGGER.warning("Domolink: Alerte Capteur Technique 24/7 (%s) sur %s", type_label, entity_id)
+            self._log_event(f"ALERTE 24/7 ({type_label}): {friendly}")
+            await self._async_send_notification(
+                f"🚨 ALERTE D'URGENCE 24/7 🚨\nType : {type_label}\nCapteur : {friendly}",
+                is_alert=True,
+            )
+            self.hass.async_create_task(self._async_play_tts(tts_msg))
+            return
+
         # Tamper triggers immediately regardless of state (24/7)
         if entity_id in self._tamper_sensors:
             _LOGGER.warning("Tamper / Sabotage détecté sur %s !", entity_id)
@@ -732,6 +845,30 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 "Capteur ignoré car l'alarme est en cours d'armement (délai de sortie)",
             )
             return
+
+        # Cross-zoning check for motion sensors in Away / Night
+        if self._cross_zoning and entity_id in self._motion_sensors and self._state in (AlarmControlPanelState.ARMED_AWAY, AlarmControlPanelState.ARMED_NIGHT):
+            now_loop = self.hass.loop.time()
+            confirmed = False
+            for prev_id, prev_time in list(self._last_motion_detection.items()):
+                diff = now_loop - prev_time
+                if (diff <= self._cross_zoning_window) and (prev_id != entity_id or diff >= 2.0):
+                    confirmed = True
+                    break
+
+            self._last_motion_detection[entity_id] = now_loop
+
+            if not confirmed:
+                _LOGGER.info(
+                    "Domolink Cross-Zoning: 1ère détection sur %s, en attente de confirmation dans les %ds",
+                    entity_id,
+                    self._cross_zoning_window,
+                )
+                self._log_event(f"Pré-détection mouvement (Cross-Zoning): {new_state.name}")
+                return
+            else:
+                _LOGGER.info("Domolink Cross-Zoning: Double détection confirmée sur %s !", entity_id)
+                self._log_event(f"Double détection confirmée sur {new_state.name}")
 
         # Already triggered: if sirens stopped, re-trigger full sequence; otherwise notify additional detection
         if self._state == AlarmControlPanelState.TRIGGERED:
@@ -1026,6 +1163,91 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         if self._siren_task:
             self._siren_task()
             self._siren_task = None
+        if self._geofence_reminder_task:
+            self._geofence_reminder_task()
+            self._geofence_reminder_task = None
+        if self._presence_simulation_task:
+            self._presence_simulation_task()
+            self._presence_simulation_task = None
+
+    # ─── Presence Simulation Engine ───────────────────────────────
+
+    def _start_presence_simulation(self):
+        """Start presence simulation based on historic recorder data."""
+        if not self._presence_simulation_entities:
+            return
+        if self._presence_simulation_task is None:
+            _LOGGER.info(
+                "Domolink: Démarrage de la simulation de présence (Replay J-%d sur %d appareils)",
+                self._presence_simulation_history_days,
+                len(self._presence_simulation_entities),
+            )
+            self._log_event(f"Démarrage Simulation Présence ({len(self._presence_simulation_entities)} appareils)")
+            self._presence_simulation_task = async_track_time_interval(
+                self.hass,
+                self._async_presence_simulation_tick,
+                timedelta(minutes=1),
+            )
+            # Run one tick immediately
+            self.hass.async_create_task(self._async_presence_simulation_tick())
+
+    def _stop_presence_simulation(self):
+        """Stop running presence simulation."""
+        if self._presence_simulation_task:
+            self._presence_simulation_task()
+            self._presence_simulation_task = None
+            _LOGGER.info("Domolink: Arrêt de la simulation de présence")
+            self._log_event("Arrêt Simulation Présence")
+
+    async def _async_presence_simulation_tick(self, _now=None):
+        """Replay historic states of presence simulation entities."""
+        if self._state != AlarmControlPanelState.ARMED_AWAY or not self._presence_simulation_entities:
+            return
+
+        try:
+            from homeassistant.components.recorder import get_instance, history
+
+            now = utcnow()
+            past_now = now - timedelta(days=self._presence_simulation_history_days)
+            past_start = past_now - timedelta(minutes=2)
+
+            instance = get_instance(self.hass)
+            states = await instance.async_add_executor_job(
+                history.get_significant_states,
+                self.hass,
+                past_start,
+                past_now,
+                self._presence_simulation_entities,
+            )
+
+            for entity_id, entity_states in (states or {}).items():
+                if not entity_states:
+                    continue
+                target_state = entity_states[-1].state
+                if target_state not in ("on", "off"):
+                    continue
+
+                current = self.hass.states.get(entity_id)
+                if current and current.state != target_state:
+                    domain = entity_id.split(".")[0]
+                    if domain in ("light", "switch", "cover"):
+                        if domain == "cover":
+                            service = "open_cover" if target_state in ("open", "on") else "close_cover"
+                        else:
+                            service = "turn_on" if target_state == "on" else "turn_off"
+
+                        _LOGGER.info(
+                            "Domolink Simulation Présence: %s -> %s (rejoué depuis J-%d)",
+                            entity_id,
+                            target_state,
+                            self._presence_simulation_history_days,
+                        )
+                        self._log_event(f"Simulation Présence: {current.name} -> {target_state}")
+                        await self.hass.services.async_call(
+                            domain, service, {"entity_id": entity_id}
+                        )
+        except Exception as e:
+            _LOGGER.debug("Domolink: Simulation Présence tick error: %s", e)
 
     # ─── Code Validation ──────────────────────────────────────────
 
@@ -1223,6 +1445,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._state = AlarmControlPanelState.ARMED_AWAY
         self._pre_trigger_state = AlarmControlPanelState.ARMED_AWAY
         self._log_event(f"Alarme Armée (Mode: Absent) par {self._last_user}")
+        self._start_presence_simulation()
         self.async_write_ha_state()
         self._arming_task = None
 
