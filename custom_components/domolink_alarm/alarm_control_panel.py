@@ -149,7 +149,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.9.1",
+            sw_version="0.9.2",
         )
 
         self._siren_task = None
