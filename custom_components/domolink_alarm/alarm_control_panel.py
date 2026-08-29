@@ -113,6 +113,18 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
         activate_sirens = call.data.get("activate_sirens", False)
         await entity.async_panic(activate_sirens)
 
+    async def async_handle_start_sim(call):
+        """Handle start presence simulation service call."""
+        await entity.async_start_presence_simulation()
+
+    async def async_handle_stop_sim(call):
+        """Handle stop presence simulation service call."""
+        await entity.async_stop_presence_simulation()
+
+    async def async_handle_toggle_sim(call):
+        """Handle toggle presence simulation service call."""
+        await entity.async_toggle_presence_simulation()
+
     hass.services.async_register(
         DOMAIN, "bypass_sensor", async_handle_bypass_sensor
     )
@@ -121,6 +133,15 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
     )
     hass.services.async_register(
         DOMAIN, "panic", async_handle_panic
+    )
+    hass.services.async_register(
+        DOMAIN, "start_presence_simulation", async_handle_start_sim
+    )
+    hass.services.async_register(
+        DOMAIN, "stop_presence_simulation", async_handle_stop_sim
+    )
+    hass.services.async_register(
+        DOMAIN, "toggle_presence_simulation", async_handle_toggle_sim
     )
 
 
@@ -149,7 +170,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.9.3",
+            sw_version="0.9.4",
         )
 
         self._siren_task = None
@@ -174,6 +195,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         
         self._arm_history = []
         self._sensor_health = {}
+        self._presence_simulation_events = []
+        self._presence_simulation_forced = False
 
         self._load_config()
 
@@ -329,6 +352,9 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             "safety_sensors": self._safety_sensors,
             "presence_simulation_entities": self._presence_simulation_entities,
             "presence_simulation_active": self._presence_simulation_task is not None,
+            "presence_simulation_history_days": self._presence_simulation_history_days,
+            "presence_simulation_forced": self._presence_simulation_forced,
+            "presence_simulation_events": self._presence_simulation_events,
             "cross_zoning_active": self._cross_zoning,
             "geofence_reminder_active": self._geofence_reminder,
             "arm_history": self._arm_history,
@@ -1270,6 +1296,25 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
     # ─── Presence Simulation Engine ───────────────────────────────
 
+    async def async_start_presence_simulation(self):
+        """Service handler to start presence simulation manually."""
+        self._presence_simulation_forced = True
+        self._start_presence_simulation()
+        self.async_write_ha_state()
+
+    async def async_stop_presence_simulation(self):
+        """Service handler to stop presence simulation manually."""
+        self._presence_simulation_forced = False
+        self._stop_presence_simulation()
+        self.async_write_ha_state()
+
+    async def async_toggle_presence_simulation(self):
+        """Service handler to toggle presence simulation."""
+        if self._presence_simulation_task is not None:
+            await self.async_stop_presence_simulation()
+        else:
+            await self.async_start_presence_simulation()
+
     def _start_presence_simulation(self):
         """Start presence simulation based on historic recorder data."""
         if not self._presence_simulation_entities:
@@ -1299,7 +1344,9 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
     async def _async_presence_simulation_tick(self, _now=None):
         """Replay historic states of presence simulation entities."""
-        if self._state != AlarmControlPanelState.ARMED_AWAY or not self._presence_simulation_entities:
+        # Active if either forced manually OR alarm is armed away
+        is_active = self._presence_simulation_forced or (self._state == AlarmControlPanelState.ARMED_AWAY)
+        if not is_active or not self._presence_simulation_entities:
             return
 
         try:
@@ -1340,7 +1387,23 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                             target_state,
                             self._presence_simulation_history_days,
                         )
-                        self._log_event(f"Simulation Présence: {current.name} -> {target_state}")
+                        friendly_name = current.name or entity_id
+                        self._log_event(f"Simulation Présence: {friendly_name} -> {target_state}")
+                        
+                        # Record in presence simulation event history
+                        sim_event = {
+                            "time": utcnow().isoformat(),
+                            "entity_id": entity_id,
+                            "name": friendly_name,
+                            "state": target_state,
+                            "domain": domain,
+                            "history_days": self._presence_simulation_history_days
+                        }
+                        self._presence_simulation_events.insert(0, sim_event)
+                        if len(self._presence_simulation_events) > 50:
+                            self._presence_simulation_events = self._presence_simulation_events[:50]
+                        self.async_write_ha_state()
+
                         await self.hass.services.async_call(
                             domain, service, {"entity_id": entity_id}
                         )
