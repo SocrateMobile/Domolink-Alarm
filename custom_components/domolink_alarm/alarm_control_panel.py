@@ -108,11 +108,19 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
         if sensor_id:
             await entity.async_unbypass_sensor(sensor_id)
 
+    async def async_handle_panic(call):
+        """Handle panic button service call."""
+        activate_sirens = call.data.get("activate_sirens", False)
+        await entity.async_panic(activate_sirens)
+
     hass.services.async_register(
         DOMAIN, "bypass_sensor", async_handle_bypass_sensor
     )
     hass.services.async_register(
         DOMAIN, "unbypass_sensor", async_handle_unbypass_sensor
+    )
+    hass.services.async_register(
+        DOMAIN, "panic", async_handle_panic
     )
 
 
@@ -141,7 +149,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.8.0-beta",
+            sw_version="0.9.0",
         )
 
         self._siren_task = None
@@ -163,6 +171,9 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
         self._users = {}
         self._duress_code = ""
+        
+        self._arm_history = []
+        self._sensor_health = {}
 
         self._load_config()
 
@@ -238,6 +249,17 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._cross_zoning_window = int(options.get(CONF_CROSS_ZONING_WINDOW, data.get(CONF_CROSS_ZONING_WINDOW, DEFAULT_CROSS_ZONING_WINDOW)))
         self._presence_simulation_history_days = int(options.get(CONF_PRESENCE_SIMULATION_HISTORY_DAYS, data.get(CONF_PRESENCE_SIMULATION_HISTORY_DAYS, DEFAULT_PRESENCE_SIMULATION_HISTORY_DAYS)))
 
+        # Siren Test
+        self._siren_test = bool(options.get("siren_test", data.get("siren_test", False)))
+        self._siren_test_day = int(options.get("siren_test_day", data.get("siren_test_day", 5)))
+        self._siren_test_hour = int(options.get("siren_test_hour", data.get("siren_test_hour", 12)))
+
+        # Scheduling
+        self._schedule_enabled = bool(options.get("schedule_enabled", data.get("schedule_enabled", False)))
+        self._schedule_arm_time = options.get("schedule_arm_time", data.get("schedule_arm_time", "23:00"))
+        self._schedule_disarm_time = options.get("schedule_disarm_time", data.get("schedule_disarm_time", "06:00"))
+        self._schedule_mode = options.get("schedule_mode", data.get("schedule_mode", "night"))
+
         def get_merged(key, labels_key, allowed_domains=None):
             entities = set(options.get(key, data.get(key)) or [])
             labels = options.get(labels_key, data.get(labels_key)) or []
@@ -256,6 +278,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._media_players = get_merged(CONF_MEDIA_PLAYERS, CONF_MEDIA_PLAYERS_LABELS, ["media_player"])
         self._persons = get_merged(CONF_PERSONS, CONF_PERSONS_LABELS, ["person"])
         self._notify_services = get_merged(CONF_NOTIFY_SERVICES, CONF_NOTIFY_SERVICES_LABELS, ["notify"])
+        self._emergency_contact = get_merged("emergency_contact", "emergency_contact_labels", ["notify"])
         self._presence_simulation_entities = get_merged(CONF_PRESENCE_SIMULATION_ENTITIES, CONF_PRESENCE_SIMULATION_LABELS, ["light", "switch", "cover"])
 
     @callback
@@ -308,6 +331,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             "presence_simulation_active": self._presence_simulation_task is not None,
             "cross_zoning_active": self._cross_zoning,
             "geofence_reminder_active": self._geofence_reminder,
+            "arm_history": self._arm_history,
+            "sensor_health": self._sensor_health,
         }
 
     async def async_bypass_sensor(self, entity_id: str):
@@ -347,6 +372,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             if last_state.attributes:
                 self._last_triggered_by = last_state.attributes.get("last_triggered_by")
                 self._last_user = last_state.attributes.get("last_user")
+                self._arm_history = last_state.attributes.get("arm_history", [])
 
         # Track sensor changes
         all_sensors = list(set(
@@ -394,6 +420,44 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                     "tag_scanned", self._async_handle_tag_scanned
                 )
             )
+
+        # Siren Test Schedule
+        if getattr(self, "_siren_test", False):
+            from homeassistant.helpers.event import async_track_time_change
+            self.async_on_remove(
+                async_track_time_change(
+                    self.hass,
+                    self._cb_siren_test,
+                    hour=self._siren_test_hour,
+                    minute=0,
+                    second=0
+                )
+            )
+
+        # Time-based Auto-Arming
+        if getattr(self, "_schedule_enabled", False):
+            from homeassistant.helpers.event import async_track_time_change
+            arm_time = self._schedule_arm_time.split(":")
+            disarm_time = self._schedule_disarm_time.split(":")
+            if len(arm_time) == 2 and len(disarm_time) == 2:
+                self.async_on_remove(
+                    async_track_time_change(
+                        self.hass,
+                        self._cb_schedule_arm,
+                        hour=int(arm_time[0]),
+                        minute=int(arm_time[1]),
+                        second=0
+                    )
+                )
+                self.async_on_remove(
+                    async_track_time_change(
+                        self.hass,
+                        self._cb_schedule_disarm,
+                        hour=int(disarm_time[0]),
+                        minute=int(disarm_time[1]),
+                        second=0
+                    )
+                )
 
     # ─── Geofencing ───────────────────────────────────────────────
 
@@ -641,18 +705,32 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             return
 
         warnings = []
+        health_data = {}
         for device_id in all_devices:
             if device_id in self._bypassed_sensors:
                 continue
+                
             state = self.hass.states.get(device_id)
             friendly = state.name if state and state.name else device_id
-            if not state or state.state in ("unavailable", "unknown"):
-                warnings.append(f"⚠️ {friendly} est hors ligne / indisponible.")
-                continue
-
+            
+            is_offline = not state or state.state in ("unavailable", "unknown")
+            last_changed = state.last_changed.isoformat() if state and state.last_changed else None
             battery = self._get_device_battery_level(device_id)
-            if battery is not None and battery <= 15:
+            
+            health_data[device_id] = {
+                "name": friendly,
+                "offline": is_offline,
+                "battery": battery,
+                "last_changed": last_changed
+            }
+            
+            if is_offline:
+                warnings.append(f"⚠️ {friendly} est hors ligne / indisponible.")
+            elif battery is not None and battery <= 15:
                 warnings.append(f"🪫 {friendly} : pile faible ({int(battery)}%).")
+
+        self._sensor_health = health_data
+        self.async_write_ha_state()
 
         if warnings:
             self._log_event(f"Diagnostic : {len(warnings)} alerte(s) équipement(s)")
@@ -661,9 +739,17 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
     # ─── Notifications ────────────────────────────────────────────
 
-    async def _async_send_notification(self, message, is_alert=False, custom_data=None):
+    async def _async_send_notification(self, message, is_alert=False, custom_data=None, is_emergency=False):
         """Send notifications to configured services/entities with universal compatibility."""
-        if not self._notify_services:
+        targets = []
+        if self._notify_services:
+            targets.extend(self._notify_services)
+        if is_emergency and self._emergency_contact:
+            for ec in self._emergency_contact:
+                if ec not in targets:
+                    targets.append(ec)
+                    
+        if not targets:
             return
 
         # Action par défaut: ouvrir l'application sur le tableau de bord
@@ -702,8 +788,19 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
         if custom_data:
             data.update(custom_data)
+            
+        if is_emergency:
+            # Add GPS data if available (take first person location)
+            for person_id in self._persons:
+                state = self.hass.states.get(person_id)
+                if state and state.attributes.get("latitude") and state.attributes.get("longitude"):
+                    data["location"] = {
+                        "latitude": state.attributes.get("latitude"),
+                        "longitude": state.attributes.get("longitude")
+                    }
+                    break
 
-        for target in self._notify_services:
+        for target in targets:
             sent = False
 
             # Strategy 1: Modern HA Notify Entity (`notify.send_message` with entity_id)
@@ -1288,7 +1385,19 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
         return None
 
-    # ─── Arm / Disarm Commands ────────────────────────────────────
+    def _record_arm_event(self, action, user, mode=None):
+        """Record arm/disarm events into history."""
+        event = {
+            "time": utcnow().isoformat(),
+            "action": action,
+            "user": user or "Système",
+        }
+        if mode:
+            event["mode"] = mode
+            
+        self._arm_history.insert(0, event)
+        if len(self._arm_history) > 50:
+            self._arm_history = self._arm_history[:50]
 
     async def async_alarm_disarm(self, code=None):
         """Send disarm command."""
@@ -1299,9 +1408,14 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
         if user == "DURESS":
             await self._async_send_notification(
-                "🆘 ALERTE SOS SILENCIEUSE (Code de détresse utilisé) 🆘"
+                "🆘 ALERTE SOS SILENCIEUSE (Code de détresse utilisé) 🆘",
+                is_alert=True,
+                is_emergency=True
             )
             # Continue to disarm silently so intruder doesn't know
+
+        self._record_arm_event("disarm", user)
+
 
         self._cancel_all_tasks()
         self._state = AlarmControlPanelState.DISARMED
@@ -1413,6 +1527,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._pre_trigger_state = AlarmControlPanelState.ARMED_HOME  # Fix #11
         self._state = AlarmControlPanelState.ARMED_HOME
         self._last_user = user or "Dashboard"
+        self._record_arm_event("arm", self._last_user, "HOME")
         self._log_event(f"Alarme Armée (Mode: Présent) par {self._last_user}")
         self.async_write_ha_state()
 
@@ -1428,6 +1543,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             return
 
         self._last_user = user or "Dashboard"
+        self._record_arm_event("arm", self._last_user, "AWAY")
+        
         if self._exit_delay > 0:
             self._state = AlarmControlPanelState.ARMING
             self.async_write_ha_state()
@@ -1462,5 +1579,117 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._pre_trigger_state = AlarmControlPanelState.ARMED_NIGHT  # Fix #11
         self._state = AlarmControlPanelState.ARMED_NIGHT
         self._last_user = user or "Dashboard"
+        self._record_arm_event("arm", self._last_user, "NIGHT")
         self._log_event(f"Alarme Armée (Mode: Nuit) par {self._last_user}")
         self.async_write_ha_state()
+
+    # ─── New Services & Scheduled Actions ─────────────────────────
+
+    async def async_panic(self, activate_sirens=False):
+        """Trigger panic mode."""
+        self._log_event("🚨 BOUTON PANIQUE SOS ACTIVÉ")
+        
+        # Determine triggering user/location
+        message = "🚨 ALERTE PANIQUE SOS DÉCLENCHÉE MANUELLEMENT 🚨"
+        
+        # 1. Notify everyone including emergency contact (is_emergency=True includes GPS)
+        await self._async_send_notification(
+            message,
+            is_alert=True,
+            is_emergency=True
+        )
+        
+        # 2. Trigger Sirens if requested
+        if activate_sirens and self._sirens:
+            self._log_event("Activation manuelle des sirènes (Panique)")
+            try:
+                await self.hass.services.async_call(
+                    "homeassistant", "turn_on",
+                    {"entity_id": self._sirens},
+                )
+                self._siren_task = async_call_later(
+                    self.hass,
+                    self._siren_duration,
+                    self._cb_turn_off_siren,
+                )
+            except Exception as e:
+                _LOGGER.error("Failed to turn on sirens for panic: %s", e)
+                
+        # 3. Trigger Panic Lights
+        if self._lights:
+            try:
+                await self.hass.services.async_call(
+                    "light", "turn_on",
+                    {"entity_id": self._lights, "color_name": "red", "brightness": 255},
+                )
+            except Exception:
+                try:
+                    await self.hass.services.async_call(
+                        "homeassistant", "turn_on",
+                        {"entity_id": self._lights},
+                    )
+                except Exception as e:
+                    pass
+
+    @callback
+    def _cb_siren_test(self, now):
+        """Run weekly siren test."""
+        # Only run on the configured day
+        if now.weekday() != self._siren_test_day:
+            return
+            
+        self._log_event("Test automatique des sirènes en cours...")
+        self.hass.async_create_task(self._async_run_siren_test())
+        
+    async def _async_run_siren_test(self):
+        """Execute the siren test asynchronously."""
+        if not self._sirens:
+            return
+            
+        failed_sirens = []
+        for siren in self._sirens:
+            try:
+                # Turn on
+                await self.hass.services.async_call("homeassistant", "turn_on", {"entity_id": siren})
+                await asyncio.sleep(1.0) # wait 1 second
+                # Turn off
+                await self.hass.services.async_call("homeassistant", "turn_off", {"entity_id": siren})
+            except Exception as e:
+                failed_sirens.append(siren)
+                
+        if failed_sirens:
+            msg = f"⚠️ Le test automatique des sirènes a échoué sur : {', '.join(failed_sirens)}."
+            self._log_event("Échec du test sirène")
+            await self._async_send_notification(msg)
+        else:
+            self._log_event("Test sirène OK")
+            await self._async_send_notification("✅ Test automatique hebdomadaire des sirènes réussi.")
+
+    @callback
+    def _cb_schedule_arm(self, now):
+        """Arm alarm on schedule."""
+        if self._state == AlarmControlPanelState.DISARMED:
+            _LOGGER.info("Auto-armement horaire activé")
+            self._log_event("Auto-armement horaire déclenché")
+            
+            if self._schedule_mode == "night":
+                self.hass.async_create_task(self.async_alarm_arm_night("AUTO_SCHEDULE"))
+            else:
+                self.hass.async_create_task(self.async_alarm_arm_home("AUTO_SCHEDULE"))
+                
+            self.hass.async_create_task(
+                self._async_send_notification(f"⏰ Armement automatique horaire activé (Mode {self._schedule_mode}).")
+            )
+
+    @callback
+    def _cb_schedule_disarm(self, now):
+        """Disarm alarm on schedule."""
+        if self._state in (AlarmControlPanelState.ARMED_HOME, AlarmControlPanelState.ARMED_NIGHT):
+            _LOGGER.info("Auto-désarmement horaire activé")
+            self._log_event("Auto-désarmement horaire déclenché")
+            
+            self.hass.async_create_task(self.async_alarm_disarm("AUTO_SCHEDULE"))
+            
+            self.hass.async_create_task(
+                self._async_send_notification("⏰ Désarmement automatique horaire effectué.")
+            )
