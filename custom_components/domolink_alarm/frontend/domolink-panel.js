@@ -581,6 +581,7 @@ class DomolinkPanel extends HTMLElement {
 
         <!-- View 5: Santé -->
         <div id="tab-health" class="view-pane"></div>
+        <div id="tab-param" class="view-pane"></div>
       </div>
     `;
 
@@ -1182,6 +1183,89 @@ class DomolinkPanel extends HTMLElement {
     if (domain === "switch" || domain === "light") return state === "on" ? "active" : "";
     return "";
   }
-}
 
-customElements.define('domolink-panel', DomolinkPanel);
+  _renderParamTab(entity) {
+    const container = this.querySelector('#tab-param');
+    if (!container) return;
+    
+    if (!entity || !entity.attributes) {
+        container.innerHTML = '<div class="empty-state">Données indisponibles</div>';
+        return;
+    }
+
+    const chime = entity.attributes.chime_active || false;
+    const history_days = entity.attributes.presence_simulation_history_days || 7;
+
+    container.innerHTML = `
+      <div class="list-section">
+        <div class="list-header">Paramètres Rapides</div>
+        <div class="param-row">
+            <div class="param-label">
+                <div class="param-title">Mode Carillon (Chime)</div>
+                <div class="param-desc">Bip court à l'ouverture d'une porte (alarme désarmée)</div>
+            </div>
+            <div class="param-input">
+                <input type="checkbox" id="param-chime" ${chime ? 'checked' : ''} />
+            </div>
+        </div>
+        
+        <div class="param-row">
+            <div class="param-label">
+                <div class="param-title">Jours Historique Simulation</div>
+                <div class="param-desc">Base de données pour rejeu de la simulation de présence</div>
+            </div>
+            <div class="param-input">
+                <select id="param-history">
+                    <option value="7" ${history_days==7?"selected":""}>7 jours</option>
+                    <option value="14" ${history_days==14?"selected":""}>14 jours</option>
+                    <option value="21" ${history_days==21?"selected":""}>21 jours</option>
+                    <option value="28" ${history_days==28?"selected":""}>28 jours</option>
+                    <option value="35" ${history_days==35?"selected":""}>35 jours</option>
+                    <option value="42" ${history_days==42?"selected":""}>42 jours</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="param-row" style="justify-content: center; padding-top: 24px; padding-bottom: 24px;">
+            <button id="btn-save-params" class="btn-primary" style="padding: 12px 32px; border-radius: 20px;">
+              Sauvegarder les Paramètres
+            </button>
+        </div>
+      </div>
+      
+      <div class="list-section">
+          <div class="list-header">Caméras (Captures)</div>
+          <div style="padding: 16px; color: var(--d-subtext); font-size: 0.9em; line-height: 1.5;">
+             Les caméras configurées dans l'intégration sont automatiquement utilisées pour capturer une photo (snapshot) et enregistrer un clip (30s) lors du déclenchement de l'alarme. <br/><br/>
+             <strong>Dernière Capture:</strong> <code>/local/domolink_alarm_alert.jpg</code><br/><br/>
+             <em>Note: Assurez-vous d'avoir sélectionné des entités de domaine "camera" dans la configuration (et non uniquement les détecteurs de mouvement des caméras).</em>
+          </div>
+      </div>
+    `;
+
+    // Bind event
+    const btnSave = container.querySelector('#btn-save-params');
+    if (btnSave) {
+        btnSave.addEventListener('click', () => {
+            const chimeVal = container.querySelector('#param-chime').checked;
+            const historyVal = parseInt(container.querySelector('#param-history').value, 10);
+            
+            this._hass.callService('domolink_alarm', 'update_settings', {
+                chime_mode: chimeVal,
+                presence_simulation_history_days: historyVal
+            }).then(() => {
+                const btn = container.querySelector('#btn-save-params');
+                const orig = btn.innerText;
+                btn.innerText = "✓ Sauvegardé !";
+                btn.style.backgroundColor = "var(--d-success)";
+                setTimeout(() => {
+                    btn.innerText = orig;
+                    btn.style.backgroundColor = "";
+                }, 2000);
+            }).catch(e => {
+                alert("Erreur lors de la sauvegarde: " + e.message);
+            });
+        });
+    }
+  }
+}
