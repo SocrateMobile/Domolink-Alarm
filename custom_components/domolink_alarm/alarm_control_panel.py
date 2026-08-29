@@ -149,7 +149,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.9.2",
+            sw_version="0.9.3",
         )
 
         self._siren_task = None
@@ -559,13 +559,14 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         if action == "DOMOLINK_DISARM":
             _LOGGER.info("Disarm triggered via mobile actionable notification")
             self._cancel_all_tasks()
-            self._state = AlarmControlPanelState.DISARMED
-            self._last_user = "Mobile App"
-            self._faults.clear()
-            self._triggered_by = None
-            self.async_write_ha_state()
-            await self._async_turn_off_siren()
-            self._log_event("Alarme Désarmée (Mobile App)")
+            user_name = "App Mobile"
+            if event.context and event.context.user_id:
+                user_obj = await self.hass.auth.async_get_user(event.context.user_id)
+                if user_obj and user_obj.name:
+                    user_name = f"{user_obj.name} (Mobile)"
+            self._log_event(f"Alarme Désarmée par {user_name}")
+            self._record_arm_event("disarm", user_name)
+            await self.async_alarm_disarm("MOBILE_APP")
             await self._async_send_notification(
                 "✅ Alarme désarmée via Apple Watch / Mobile."
             )
@@ -1351,7 +1352,17 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
     def _validate_code(self, code):
         """Validate given code and return user name if valid."""
         if not code:
+            if not self._users:
+                return "Dashboard"
             return None
+
+        if code in ("MOBILE_APP", "AUTO_SCHEDULE", "GEOFENCE"):
+            special_names = {
+                "MOBILE_APP": "App Mobile",
+                "AUTO_SCHEDULE": "Planification horaire",
+                "GEOFENCE": "Géolocalisation"
+            }
+            return special_names.get(code, "Système")
 
         current_time = self.hass.loop.time()  # Fix #15: async-safe time
 
@@ -1404,7 +1415,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         user = self._validate_code(code)
         if not user:
             _LOGGER.warning("Invalid code provided for disarm")
-            return
+            raise HomeAssistantError("Code PIN invalide.")
 
         if user == "DURESS":
             await self._async_send_notification(
@@ -1416,14 +1427,13 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
         self._record_arm_event("disarm", user)
 
-
         self._cancel_all_tasks()
         self._state = AlarmControlPanelState.DISARMED
         self._last_user = user
         self._faults.clear()
         self._bypassed_sensors.clear()
         self._triggered_by = None
-        self._log_event(f"Alarme Désarmée (Utilisateur: {user})")
+        self._log_event(f"Alarme Désarmée par {user}")
         self.async_write_ha_state()
 
         await self._async_turn_off_siren()
