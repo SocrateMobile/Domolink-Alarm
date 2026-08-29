@@ -1,5 +1,6 @@
 """Interfaces with Domolink Alarm."""
 import os
+import random
 import logging
 from datetime import timedelta
 
@@ -1296,6 +1297,28 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
     # ─── Presence Simulation Engine ───────────────────────────────
 
+
+    async def async_update_settings(self, call):
+        """Update settings from frontend."""
+        new_options = dict(self.config_entry.options)
+        
+        # Allowed keys to update
+        allowed_keys = [
+            "exit_delay", "entry_delay", "siren_duration",
+            "presence_simulation_history_days", "chime_mode", "cross_zoning"
+        ]
+        
+        updated = False
+        for key, value in call.data.items():
+            if key in allowed_keys:
+                new_options[key] = value
+                updated = True
+                
+        if updated:
+            self.hass.config_entries.async_update_entry(self.config_entry, options=new_options)
+            _LOGGER.info(f"Domolink: Settings updated -> {call.data}")
+            self._log_event(f"Paramètres mis à jour")
+
     async def async_start_presence_simulation(self):
         """Service handler to start presence simulation manually."""
         self._presence_simulation_forced = True
@@ -1353,7 +1376,9 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             from homeassistant.components.recorder import get_instance, history
 
             now = utcnow()
-            past_now = now - timedelta(days=self._presence_simulation_history_days)
+            # Adding random jitter of +/- 15 minutes to make replay look natural
+            jitter_seconds = random.randint(-900, 900)
+            past_now = now - timedelta(days=self._presence_simulation_history_days) + timedelta(seconds=jitter_seconds)
             past_start = past_now - timedelta(minutes=2)
 
             instance = get_instance(self.hass)

@@ -24,3 +24,45 @@ unbypass_sensor:
       example: binary_sensor.porte_entree
       selector:
         entity:
+
+update_settings:
+  name: Mettre à jour les paramètres (Rapide)
+  description: Met à jour les options de la configuration de l'alarme à la volée.
+  fields:
+    presence_simulation_history_days:
+      name: Jours historique simulation
+      description: Nombre de jours en arrière pour la simulation de présence (7, 14, 21, 28, 35, 42).
+      required: false
+      selector:
+        number:
+          min: 7
+          max: 42
+          step: 7
+    chime_mode:
+      name: Mode Carillon (Chime)
+      description: Activer ou désactiver le carillon.
+      required: false
+      selector:
+        boolean:
+    cross_zoning:
+      name: Cross Zoning
+      description: Activer le cross-zoning pour éviter les fausses alarmes.
+      required: false
+      selector:
+        boolean:
+    entry_delay:
+      name: Délai d'entrée
+      description: Délai d'entrée en secondes.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 300
+    exit_delay:
+      name: Délai de sortie
+      description: Délai de sortie en secondes.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 300
