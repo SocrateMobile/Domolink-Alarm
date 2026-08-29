@@ -11,7 +11,11 @@ class DomolinkPanel extends HTMLElement {
       this._buildShell();
       this._initialized = true;
     }
-    this.render();
+    try {
+      this.render();
+    } catch (err) {
+      console.error("Domolink Alarm render error:", err);
+    }
   }
 
   _buildShell() {
@@ -300,6 +304,149 @@ class DomolinkPanel extends HTMLElement {
   escapeHtml(text) {
     if (!text) return "";
     return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  // ─── Tab 1: Armement ────────────────────────────
+
+  _renderArmTab(state, attrs) {
+    const container = this.querySelector('#tab-arm');
+    if (!container) return;
+    const dots = this._codeValue ? '\u25CF'.repeat(this._codeValue.length) : '';
+
+    const html = '<div class="keypad-wrap">'
+      + '<div class="code-display">' + (dots || '\u00A0') + '</div>'
+      + '<div class="keypad-grid">'
+      + [1,2,3,4,5,6,7,8,9].map(n => '<button class="key" data-key="' + n + '">' + n + '</button>').join('')
+      + '<button class="key clear" data-key="clear">C</button>'
+      + '<button class="key" data-key="0">0</button>'
+      + '<button class="key clear" data-key="back">\u232B</button>'
+      + '</div>'
+      + '<div class="arm-buttons">'
+      + '<button class="arm-btn disarm" data-service="alarm_disarm"><ha-icon icon="mdi:shield-off"></ha-icon> Désactiver</button>'
+      + '<button class="arm-btn away" data-service="alarm_arm_away"><ha-icon icon="mdi:shield-lock"></ha-icon> Absence</button>'
+      + '<button class="arm-btn home" data-service="alarm_arm_home"><ha-icon icon="mdi:shield-home"></ha-icon> Présence</button>'
+      + '<button class="arm-btn night" data-service="alarm_arm_night"><ha-icon icon="mdi:shield-moon"></ha-icon> Nuit</button>'
+      + '</div>'
+      + '<div class="arm-buttons" style="margin-top:12px;">'
+      + '<button class="arm-btn away" style="grid-column: 1 / -1; background:#f44336; font-size:14px; padding:18px;" id="btn-panic"><ha-icon icon="mdi:alert-decagram" style="--mdc-icon-size:32px;"></ha-icon> SOS PANIQUE</button>'
+      + '</div>'
+      + '</div>';
+
+    if (this._lastArmHtml !== html) {
+      container.innerHTML = html;
+      this._lastArmHtml = html;
+
+      // Keypad listeners
+      container.querySelectorAll('.key').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const k = btn.getAttribute('data-key');
+          if (k === 'clear') this._codeValue = '';
+          else if (k === 'back') this._codeValue = this._codeValue.slice(0, -1);
+          else if (this._codeValue.length < 8) this._codeValue += k;
+          container.querySelector('.code-display').textContent = this._codeValue ? '\u25CF'.repeat(this._codeValue.length) : '\u00A0';
+        });
+      });
+
+      // Arm buttons
+      container.querySelectorAll('.arm-btn[data-service]').forEach(btn => {
+        btn.addEventListener('click', () => this.callAlarmService(btn.getAttribute('data-service')));
+      });
+
+      // Panic button
+      const panicBtn = container.querySelector('#btn-panic');
+      if (panicBtn) {
+        panicBtn.addEventListener('click', () => {
+          if (confirm("Déclencher une alerte SOS immédiate ?")) {
+            this._hass.callService('domolink_alarm', 'panic', { activate_sirens: true });
+          }
+        });
+      }
+    }
+  }
+
+  // ─── Tab 2: Équipements ─────────────────────────
+
+  _renderEquipTab(attrs) {
+    const container = this.querySelector('#tab-equip');
+    if (!container) return;
+    const bypassedSensors = attrs.bypassed_sensors || [];
+
+    const categories = [
+      { key: "opening_sensors", icon: "mdi:door-open", name: "Capteurs d'ouverture" },
+      { key: "motion_sensors", icon: "mdi:motion-sensor", name: "Capteurs de mouvement" },
+      { key: "tamper_sensors", icon: "mdi:shield-alert", name: "Capteurs de sabotage (24/7)" },
+      { key: "safety_sensors", icon: "mdi:fire-alert", name: "Capteurs Techniques 24/7 (Fumée, Eau, Gaz)" },
+      { key: "night_sensors", icon: "mdi:weather-night", name: "Capteurs Mode Nuit" },
+      { key: "sirens", icon: "mdi:bullhorn", name: "Sirènes" },
+      { key: "lights", icon: "mdi:alarm-light", name: "Lumières d'urgence" },
+      { key: "cameras", icon: "mdi:cctv", name: "Caméras" },
+      { key: "presence_simulation_entities", icon: "mdi:home-clock", name: "Simulation de Présence" },
+      { key: "media_players", icon: "mdi:speaker", name: "Lecteurs multimédia (TTS)" },
+      { key: "persons", icon: "mdi:account", name: "Personnes (Géoloc)" }
+    ];
+
+    let html = "";
+    for (const cat of categories) {
+      const entityIds = attrs[cat.key];
+      if (!entityIds || entityIds.length === 0) continue;
+
+      html += '<div class="category-title">' + cat.name + '</div><div class="sensor-grid">';
+      for (const entityId of entityIds) {
+        const entityState = this._hass.states[entityId];
+        let friendlyName = entityId, stateStr = "Inconnu", activeClass = "", timeStr = "";
+        let isUnavailable = false, isOpenOrFaulty = false;
+        const isBypassed = bypassedSensors.includes(entityId);
+
+        if (!entityState || entityState.state === 'unavailable' || entityState.state === 'unknown') {
+          isUnavailable = true;
+          friendlyName = entityState ? (entityState.attributes.friendly_name || entityId) : entityId;
+          stateStr = entityState && entityState.state === 'unknown' ? "Inconnu" : "Non joignable";
+          activeClass = "active";
+          if (entityState && entityState.last_changed) timeStr = this.formatDate(entityState.last_changed);
+        } else {
+          friendlyName = entityState.attributes.friendly_name || entityId;
+          stateStr = this._hass.formatEntityState ? this._hass.formatEntityState(entityState) : entityState.state;
+          activeClass = this.getActiveClass(entityState);
+          timeStr = this.formatDate(entityState.last_changed);
+          if (activeClass === "active") isOpenOrFaulty = true;
+        }
+
+        let actionButtonHtml = "";
+        if (isBypassed) {
+          actionButtonHtml = '<button class="btn-action-bypass btn-restore" data-action="unbypass" data-entity="' + entityId + '"><ha-icon icon="mdi:undo" style="--mdc-icon-size:14px"></ha-icon> Rétablir</button>';
+        } else if (isUnavailable || isOpenOrFaulty) {
+          actionButtonHtml = '<button class="btn-action-bypass btn-ignore" data-action="bypass" data-entity="' + entityId + '"><ha-icon icon="mdi:eye-off" style="--mdc-icon-size:14px"></ha-icon> Ignorer</button>';
+        }
+
+        let cardClasses = "sensor-item";
+        if (isBypassed) cardClasses += " bypassed";
+        else if (isUnavailable) cardClasses += " unavailable";
+        let iconClass = isBypassed ? "bypassed" : activeClass;
+
+        html += '<div class="' + cardClasses + '">'
+          + '<ha-icon class="sensor-icon ' + iconClass + '" icon="' + (isBypassed ? 'mdi:shield-off' : cat.icon) + '"></ha-icon>'
+          + '<div class="sensor-info">'
+          + '<div class="sensor-name-row">'
+          + '<span class="sensor-name" title="' + this.escapeHtml(friendlyName) + '">' + this.escapeHtml(friendlyName) + '</span>'
+          + (isBypassed ? '<span class="badge-bypassed">Ignoré</span>' : '')
+          + '</div>'
+          + '<div class="sensor-state ' + (isBypassed ? '' : activeClass) + '">'
+          + '<span class="state-text">' + (isBypassed ? 'Exclu de surveillance' : this.escapeHtml(stateStr)) + '</span>'
+          + '<span class="sensor-time">' + timeStr + '</span>'
+          + '</div>'
+          + '</div>'
+          + actionButtonHtml
+          + '</div>';
+      }
+      html += '</div>';
+    }
+
+    if (!html) html = '<div class="history-empty"><ha-icon icon="mdi:information-outline" style="--mdc-icon-size:40px;margin-bottom:12px"></ha-icon><br>Aucun équipement configuré.</div>';
+
+    if (this._lastEquipHtml !== html) {
+      container.innerHTML = html;
+      this._lastEquipHtml = html;
+    }
   }
 
   // ─── Tab 3: Journal ─────────────────────────────
