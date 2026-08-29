@@ -50,6 +50,15 @@ from .const import (
     CONF_CROSS_ZONING_WINDOW,
     CONF_GEOFENCE_REMINDER,
     CONF_GEOFENCE_REMINDER_DELAY,
+    CONF_EMERGENCY_CONTACT,
+    CONF_EMERGENCY_CONTACT_LABELS,
+    CONF_SIREN_TEST,
+    CONF_SIREN_TEST_DAY,
+    CONF_SIREN_TEST_HOUR,
+    CONF_SCHEDULE_ENABLED,
+    CONF_SCHEDULE_ARM_TIME,
+    CONF_SCHEDULE_DISARM_TIME,
+    CONF_SCHEDULE_MODE,
     DEFAULT_EXIT_DELAY,
     DEFAULT_ENTRY_DELAY,
     DEFAULT_SIREN_DURATION,
@@ -62,6 +71,13 @@ from .const import (
     DEFAULT_GEOFENCE_REMINDER,
     DEFAULT_GEOFENCE_REMINDER_DELAY,
     DEFAULT_PRESENCE_SIMULATION_HISTORY_DAYS,
+    DEFAULT_SIREN_TEST,
+    DEFAULT_SIREN_TEST_DAY,
+    DEFAULT_SIREN_TEST_HOUR,
+    DEFAULT_SCHEDULE_ENABLED,
+    DEFAULT_SCHEDULE_ARM_TIME,
+    DEFAULT_SCHEDULE_DISARM_TIME,
+    DEFAULT_SCHEDULE_MODE,
 )
 
 
@@ -166,6 +182,10 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         selector.EntitySelectorConfig(domain="notify", multiple=True)
                     ),
                     vol.Optional(CONF_NOTIFY_SERVICES_LABELS, default=[]): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
+                    vol.Optional(CONF_EMERGENCY_CONTACT, default=[]): selector.EntitySelector(
+                        selector.EntitySelectorConfig(domain="notify", multiple=True)
+                    ),
+                    vol.Optional(CONF_EMERGENCY_CONTACT_LABELS, default=[]): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                     vol.Optional(CONF_PRESENCE_SIMULATION_ENTITIES, default=[]): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain=["light", "switch", "cover"], multiple=True)
                     ),
@@ -200,6 +220,13 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Optional(CONF_CROSS_ZONING, default=DEFAULT_CROSS_ZONING): bool,
                     vol.Optional(CONF_CROSS_ZONING_WINDOW, default=DEFAULT_CROSS_ZONING_WINDOW): int,
                     vol.Optional(CONF_PRESENCE_SIMULATION_HISTORY_DAYS, default=DEFAULT_PRESENCE_SIMULATION_HISTORY_DAYS): int,
+                    vol.Optional(CONF_SIREN_TEST, default=DEFAULT_SIREN_TEST): bool,
+                    vol.Optional(CONF_SIREN_TEST_DAY, default=DEFAULT_SIREN_TEST_DAY): int,
+                    vol.Optional(CONF_SIREN_TEST_HOUR, default=DEFAULT_SIREN_TEST_HOUR): int,
+                    vol.Optional(CONF_SCHEDULE_ENABLED, default=DEFAULT_SCHEDULE_ENABLED): bool,
+                    vol.Optional(CONF_SCHEDULE_ARM_TIME, default=DEFAULT_SCHEDULE_ARM_TIME): str,
+                    vol.Optional(CONF_SCHEDULE_DISARM_TIME, default=DEFAULT_SCHEDULE_DISARM_TIME): str,
+                    vol.Optional(CONF_SCHEDULE_MODE, default=DEFAULT_SCHEDULE_MODE): str,
                     vol.Optional(CONF_EXIT_DELAY, default=DEFAULT_EXIT_DELAY): int,
                     vol.Optional(CONF_ENTRY_DELAY, default=DEFAULT_ENTRY_DELAY): int,
                     vol.Optional(CONF_SIREN_DURATION, default=DEFAULT_SIREN_DURATION): int,
@@ -311,6 +338,10 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
                         selector.EntitySelectorConfig(domain="notify", multiple=True)
                     ),
                     vol.Optional(CONF_NOTIFY_SERVICES_LABELS, default=self.options.get(CONF_NOTIFY_SERVICES_LABELS, [])): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
+                    vol.Optional(CONF_EMERGENCY_CONTACT, default=self.options.get(CONF_EMERGENCY_CONTACT, [])): selector.EntitySelector(
+                        selector.EntitySelectorConfig(domain="notify", multiple=True)
+                    ),
+                    vol.Optional(CONF_EMERGENCY_CONTACT_LABELS, default=self.options.get(CONF_EMERGENCY_CONTACT_LABELS, [])): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                     vol.Optional(CONF_PRESENCE_SIMULATION_ENTITIES, default=self.options.get(CONF_PRESENCE_SIMULATION_ENTITIES, [])): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain=["light", "switch", "cover"], multiple=True)
                     ),
@@ -344,6 +375,13 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
                     vol.Optional(CONF_CROSS_ZONING, default=self.options.get(CONF_CROSS_ZONING, DEFAULT_CROSS_ZONING)): bool,
                     vol.Optional(CONF_CROSS_ZONING_WINDOW, default=self.options.get(CONF_CROSS_ZONING_WINDOW, DEFAULT_CROSS_ZONING_WINDOW)): int,
                     vol.Optional(CONF_PRESENCE_SIMULATION_HISTORY_DAYS, default=self.options.get(CONF_PRESENCE_SIMULATION_HISTORY_DAYS, DEFAULT_PRESENCE_SIMULATION_HISTORY_DAYS)): int,
+                    vol.Optional(CONF_SIREN_TEST, default=self.options.get(CONF_SIREN_TEST, DEFAULT_SIREN_TEST)): bool,
+                    vol.Optional(CONF_SIREN_TEST_DAY, default=self.options.get(CONF_SIREN_TEST_DAY, DEFAULT_SIREN_TEST_DAY)): int,
+                    vol.Optional(CONF_SIREN_TEST_HOUR, default=self.options.get(CONF_SIREN_TEST_HOUR, DEFAULT_SIREN_TEST_HOUR)): int,
+                    vol.Optional(CONF_SCHEDULE_ENABLED, default=self.options.get(CONF_SCHEDULE_ENABLED, DEFAULT_SCHEDULE_ENABLED)): bool,
+                    vol.Optional(CONF_SCHEDULE_ARM_TIME, default=self.options.get(CONF_SCHEDULE_ARM_TIME, DEFAULT_SCHEDULE_ARM_TIME)): str,
+                    vol.Optional(CONF_SCHEDULE_DISARM_TIME, default=self.options.get(CONF_SCHEDULE_DISARM_TIME, DEFAULT_SCHEDULE_DISARM_TIME)): str,
+                    vol.Optional(CONF_SCHEDULE_MODE, default=self.options.get(CONF_SCHEDULE_MODE, DEFAULT_SCHEDULE_MODE)): str,
                     vol.Optional(CONF_EXIT_DELAY, default=self.options.get(CONF_EXIT_DELAY, DEFAULT_EXIT_DELAY)): int,
                     vol.Optional(CONF_ENTRY_DELAY, default=self.options.get(CONF_ENTRY_DELAY, DEFAULT_ENTRY_DELAY)): int,
                     vol.Optional(CONF_SIREN_DURATION, default=self.options.get(CONF_SIREN_DURATION, DEFAULT_SIREN_DURATION)): int,
