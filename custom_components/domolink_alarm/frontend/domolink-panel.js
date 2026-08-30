@@ -1067,16 +1067,17 @@ class DomolinkPanel extends HTMLElement {
               ${currentCamEntity ? `
                 <img id="live-camera-img" class="camera-img-stream" data-cam-entity="${currentCamEntity}" src="${camImgSrc}" alt="Camera Feed" />
               ` : `
-                <div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:var(--d-subtext); font-size:12px;">
-                  Aucune caméra
+                <div style="width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--d-subtext); font-size:12px; gap:6px;">
+                  <ha-icon icon="mdi:camera-off" style="--mdc-icon-size:28px; opacity:0.6;"></ha-icon>
+                  <span>Aucune caméra liée</span>
                 </div>
               `}
             </div>
 
             <div class="camera-footer-status">
-              <span>${this.escapeHtml(camFriendlyName).toUpperCase()}</span>
-              <span style="color:#10b981; display:flex; align-items:center; gap:4px;">
-                En ligne <span style="font-size:8px;">🟢</span>
+              <span>${currentCamEntity ? this.escapeHtml(camFriendlyName).toUpperCase() : 'CAMÉRAS'}</span>
+              <span style="color:${currentCamEntity ? '#10b981' : 'var(--d-subtext)'}; display:flex; align-items:center; gap:4px;">
+                ${currentCamEntity ? 'En ligne <span style="font-size:8px;">🟢</span>' : 'Non configurée'}
               </span>
             </div>
           </div>
@@ -1087,7 +1088,7 @@ class DomolinkPanel extends HTMLElement {
               <span>Appareils</span>
               <ha-icon icon="mdi:chevron-right" style="--mdc-icon-size:18px;"></ha-icon>
             </div>
-            <div class="stat-big-value">${totalSensorsCount > 0 ? totalSensorsCount : 14} Capteurs</div>
+            <div class="stat-big-value">${totalSensorsCount} Capteur${totalSensorsCount > 1 ? 's' : ''}</div>
             <div class="stat-sub-label">${activeTriggers.length > 0 ? `<span style="color:#ef4444; font-weight:700;">${activeTriggers.length} Ouvert(s)</span>` : 'Tous sécurisés'}</div>
           </div>
 
@@ -1241,9 +1242,12 @@ class DomolinkPanel extends HTMLElement {
       container.innerHTML = html;
       this._lastArmHtml = html;
 
-      // Keypad Touch Listeners
+      // Keypad Touch Listeners with tactile feedback
       container.querySelectorAll('.keypad-circle-btn').forEach(btn => {
         btn.addEventListener('click', () => {
+          if (window.navigator && window.navigator.vibrate) {
+            try { window.navigator.vibrate(15); } catch(e) {}
+          }
           const k = btn.getAttribute('data-key');
           if (k === 'clear') this._codeValue = '';
           else if (k === 'back') this._codeValue = this._codeValue.slice(0, -1);

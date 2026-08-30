@@ -172,7 +172,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.9.20",
+            sw_version="0.9.21",
         )
 
         self._siren_task = None
@@ -1223,7 +1223,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
     # ─── Alarm Triggering ─────────────────────────────────────────
 
     async def _async_trigger_alarm(self, triggering_entity):
-        """Trigger the alarm — full alert sequence."""
+        """Trigger the alarm — full alert sequence, ultra-fast and non-blocking."""
         # Only ignore if already triggered AND siren is currently ringing
         if self._state == AlarmControlPanelState.TRIGGERED and self._siren_task is not None:
             return
@@ -1246,90 +1246,13 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._log_event(f"Alarme DÉCLENCHÉE par {self._triggered_by}")
         name = state.name if state else triggering_entity
 
-        # 1. Camera Snapshot & Recording
-        if self._cameras:
-            try:
-                www_dir = self.hass.config.path("www")
-                if not os.path.exists(www_dir):
-                    os.makedirs(www_dir, exist_ok=True)
-
-                self._log_event(f"Capture photo sur {len(self._cameras)} caméra(s)")
-                for idx, camera in enumerate(self._cameras):
-                    safe_cam = camera.replace(".", "_")
-                    snapshot_path = self.hass.config.path(f"www/domolink_snapshot_{safe_cam}.jpg")
-                    try:
-                        if camera.startswith("camera.aarlo"):
-                            # Specific to Aarlo integration for better reliability
-                            await self.hass.services.async_call(
-                                "aarlo", "camera_request_snapshot_to_file",
-                                {"entity_id": camera, "file_path": snapshot_path},
-                                blocking=True,
-                            )
-                        else:
-                            # Standard camera integration
-                            await self.hass.services.async_call(
-                                "camera", "snapshot",
-                                {"entity_id": camera, "filename": snapshot_path},
-                                blocking=True,
-                            )
-                        
-                        # Link the first camera to the notification attachment
-                        if idx == 0:
-                            alert_path = self.hass.config.path("www/domolink_alarm_alert.jpg")
-                            import shutil
-                            shutil.copy2(snapshot_path, alert_path)
-                    except Exception as e:
-                        _LOGGER.debug("Domolink: Erreur capture photo %s: %s", camera, e)
-            except Exception as e:
-                _LOGGER.debug("Domolink: Erreur globale capture photo: %s", e)
-
-            self._log_event(f"Lancement de l'enregistrement sur {len(self._cameras)} caméra(s)")
-            for camera in self._cameras:
-                try:
-                    safe_cam = camera.replace(".", "_")
-                    record_path = self.hass.config.path(f"www/domolink_record_{safe_cam}.mp4")
-                    await self.hass.services.async_call(
-                        "camera", "record",
-                        {"entity_id": camera, "duration": 30, "filename": record_path},
-                    )
-                except Exception as e:
-                    _LOGGER.error("Failed to record camera %s: %s", camera, e)
-
-        # 2. Critical notification with disarm button and camera photo
-        french_time = self._get_french_time()
-        alarm_name = self.name or "Domolink Alarm"
-        await self._async_send_notification(
-            f"🚨 INTRUSION DÉTECTÉE 🚨\n{name} a déclenché l'alarme {alarm_name} le {french_time}",
-            is_alert=True,
-        )
-
-        # 3. TTS dissuasion (Away, Night, or Tamper)
-        should_tts = (
-            self._pre_trigger_state in (
-                AlarmControlPanelState.ARMED_AWAY,
-                AlarmControlPanelState.ARMED_NIGHT,
-                AlarmControlPanelState.DISARMED,
-            )
-            or triggering_entity in self._tamper_sensors
-        )
-        if should_tts:
-            tts_message = (
-                "Alerte intrusion détectée, le propriétaire et la police ont été prévenus. "
-                "Les enregistrements photos et vidéo ont été réalisés à l'intérieur mais aussi "
-                "à l'extérieur dès que vous avez pénétré dans la propriété. "
-                "Tout est d'ores et déjà sauvegardé en ligne, sur des serveurs sécurisés."
-            )
-            self.hass.async_create_task(
-                self._async_play_tts(tts_message)
-            )
-
-        # 4. Siren & Panic Lights (Away mode or Tamper)
+        # ─── 1. INSTANT SIRENS & PANIC LIGHTS (Priority #1: Immediate deterrent) ───
         should_siren = (
             self._pre_trigger_state == AlarmControlPanelState.ARMED_AWAY
             or triggering_entity in self._tamper_sensors
         )
         
-        # ALWAYS schedule auto-rearm / siren turn off after siren_duration
+        # ALWAYS schedule auto-rearm / siren turn off after siren_duration (even if 0 sirens)
         if self._siren_task:
             self._siren_task()
         self._siren_task = async_call_later(
@@ -1339,8 +1262,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         )
         
         if should_siren:
-            self._log_event("Activation des sirènes et lumières d'urgence")
             if self._sirens:
+                self._log_event("Activation des sirènes")
                 try:
                     await self.hass.services.async_call(
                         "homeassistant", "turn_on",
@@ -1363,6 +1286,97 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                         )
                     except Exception as e:
                         _LOGGER.error("Failed to turn on panic lights: %s", e)
+
+        # ─── 2. INSTANT NOTIFICATIONS (Priority #2: Push, Free SMS, iCloud) ────
+        french_time = self._get_french_time()
+        alarm_name = self.name or "Domolink Alarm"
+        self.hass.async_create_task(
+            self._async_send_notification(
+                f"🚨 INTRUSION DÉTECTÉE 🚨\n{name} a déclenché l'alarme {alarm_name} le {french_time}",
+                is_alert=True,
+            )
+        )
+
+        # ─── 3. TTS VOICE DISSUASION (Priority #3: Non-blocking background) ──────
+        should_tts = (
+            self._pre_trigger_state in (
+                AlarmControlPanelState.ARMED_AWAY,
+                AlarmControlPanelState.ARMED_NIGHT,
+                AlarmControlPanelState.DISARMED,
+            )
+            or triggering_entity in self._tamper_sensors
+        )
+        if should_tts:
+            tts_message = (
+                "Alerte intrusion détectée, le propriétaire et la police ont été prévenus. "
+                "Les enregistrements photos et vidéo ont été réalisés à l'intérieur mais aussi "
+                "à l'extérieur dès que vous avez pénétré dans la propriété. "
+                "Tout est d'ores et déjà sauvegardé en ligne, sur des serveurs sécurisés."
+            )
+            self.hass.async_create_task(
+                self._async_play_tts(tts_message)
+            )
+
+        # ─── 4. NON-BLOCKING CAMERA SNAPSHOTS & RECORDINGS ────────────────────────
+        if self._cameras:
+            self.hass.async_create_task(self._async_capture_cameras())
+
+    async def _async_capture_cameras(self):
+        """Asynchronously capture photos and trigger recordings with timeout protection."""
+        if not self._cameras:
+            return
+
+        try:
+            www_dir = self.hass.config.path("www")
+            if not os.path.exists(www_dir):
+                os.makedirs(www_dir, exist_ok=True)
+
+            self._log_event(f"Capture photo sur {len(self._cameras)} caméra(s)")
+            for idx, camera in enumerate(self._cameras):
+                safe_cam = camera.replace(".", "_")
+                snapshot_path = self.hass.config.path(f"www/domolink_snapshot_{safe_cam}.jpg")
+                try:
+                    if camera.startswith("camera.aarlo"):
+                        await asyncio.wait_for(
+                            self.hass.services.async_call(
+                                "aarlo", "camera_request_snapshot_to_file",
+                                {"entity_id": camera, "file_path": snapshot_path},
+                                blocking=True,
+                            ),
+                            timeout=4.0,
+                        )
+                    else:
+                        await asyncio.wait_for(
+                            self.hass.services.async_call(
+                                "camera", "snapshot",
+                                {"entity_id": camera, "filename": snapshot_path},
+                                blocking=True,
+                            ),
+                            timeout=4.0,
+                        )
+                    
+                    if idx == 0:
+                        alert_path = self.hass.config.path("www/domolink_alarm_alert.jpg")
+                        import shutil
+                        shutil.copy2(snapshot_path, alert_path)
+                except asyncio.TimeoutError:
+                    _LOGGER.warning("Domolink: Timeout capture photo sur %s", camera)
+                except Exception as e:
+                    _LOGGER.debug("Domolink: Erreur capture photo %s: %s", camera, e)
+        except Exception as e:
+            _LOGGER.debug("Domolink: Erreur globale capture photo: %s", e)
+
+        self._log_event(f"Lancement de l'enregistrement sur {len(self._cameras)} caméra(s)")
+        for camera in self._cameras:
+            try:
+                safe_cam = camera.replace(".", "_")
+                record_path = self.hass.config.path(f"www/domolink_record_{safe_cam}.mp4")
+                await self.hass.services.async_call(
+                    "camera", "record",
+                    {"entity_id": camera, "duration": 30, "filename": record_path},
+                )
+            except Exception as e:
+                _LOGGER.debug("Failed to record camera %s: %s", camera, e)
 
     # ─── Siren / Lights Off ───────────────────────────────────────
 
@@ -1677,7 +1691,9 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             if sensor in self._bypassed_sensors:
                 continue
             state = self.hass.states.get(sensor)
-            if not state or str(state.state).lower() in ("on", "open", "true", "detected", "unlocked", "1", "unavailable", "unknown"):
+            if state is None:
+                continue  # Entity no longer exists in HA, do not block arming
+            if str(state.state).lower() in ("on", "open", "true", "detected", "unlocked", "1", "unavailable"):
                 name = state.name if state and state.name else sensor
                 open_sensors.append(name)
 
@@ -1687,7 +1703,9 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 if sensor in self._bypassed_sensors:
                     continue
                 state = self.hass.states.get(sensor)
-                if not state or str(state.state).lower() in ("on", "open", "true", "detected", "unlocked", "1", "unavailable", "unknown"):
+                if state is None:
+                    continue
+                if str(state.state).lower() in ("on", "open", "true", "detected", "unlocked", "1", "unavailable"):
                     name = state.name if state and state.name else sensor
                     if name not in open_sensors:
                         open_sensors.append(name)
