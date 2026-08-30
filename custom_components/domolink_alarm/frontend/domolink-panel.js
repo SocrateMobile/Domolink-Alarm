@@ -75,9 +75,9 @@ class DomolinkPanel extends HTMLElement {
     if (!this._hass || !this._hass.states) return null;
     const states = Object.values(this._hass.states);
     return states.find(s => 
+      (s.attributes && (s.attributes.domolink_alarm === true || s.attributes.opening_sensors !== undefined)) ||
       s.entity_id.startsWith('alarm_control_panel.domolink') ||
-      (s.attributes && s.attributes.attribution && String(s.attributes.attribution).toLowerCase().includes('domolink')) ||
-      (s.attributes && s.attributes.panel_tabs !== undefined)
+      (s.attributes && s.attributes.attribution && String(s.attributes.attribution).toLowerCase().includes('domolink'))
     ) || states.find(s => s.entity_id.startsWith('alarm_control_panel.')) || null;
   }
 
@@ -914,6 +914,7 @@ class DomolinkPanel extends HTMLElement {
         this.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
         const targetPane = this.querySelector('#pane-' + this._activeTab);
         if (targetPane) targetPane.classList.add('active');
+        this.render();
       });
     });
 
@@ -928,12 +929,28 @@ class DomolinkPanel extends HTMLElement {
 
   callAlarmService(service) {
     const alarmEntity = this._getAlarmEntity();
-    if (!alarmEntity) return;
+    if (!alarmEntity) {
+      alert("Entité DomoLink Alarm introuvable dans Home Assistant.");
+      return;
+    }
     const data = { entity_id: alarmEntity.entity_id };
-    if (this._codeValue) data.code = this._codeValue;
-    this._hass.callService('alarm_control_panel', service, data);
-    this._codeValue = '';
-    this._updatePinDisplay();
+    if (this._codeValue) {
+      data.code = this._codeValue;
+    }
+    
+    this._hass.callService('alarm_control_panel', service, data).then(() => {
+      this._codeValue = '';
+      this._updatePinDisplay();
+    }).catch(err => {
+      this._codeValue = '';
+      this._updatePinDisplay();
+      const msg = err && err.message ? err.message : String(err);
+      if (msg.includes("PIN") || msg.includes("code")) {
+        alert("🔒 Code PIN requis ou incorrect pour cette action.");
+      } else {
+        alert("⚠️ Action impossible: " + msg);
+      }
+    });
   }
 
   _updatePinDisplay() {
@@ -1242,9 +1259,10 @@ class DomolinkPanel extends HTMLElement {
       </div>
     `;
 
-    if (this._lastArmHtml !== html) {
+    const armCacheKey = `${state}_${attrs.last_user}_${attrs.triggered_by}_${this._selectedCameraIndex}_${totalSensorsCount}_${activeTriggers.length}_${isArmed}`;
+    if (this._lastArmKey !== armCacheKey) {
+      this._lastArmKey = armCacheKey;
       container.innerHTML = html;
-      this._lastArmHtml = html;
 
       // Keypad Touch Listeners with tactile feedback
       container.querySelectorAll('.keypad-circle-btn').forEach(btn => {
@@ -1272,20 +1290,24 @@ class DomolinkPanel extends HTMLElement {
         const liveBtn = container.querySelector('#btn-open-live-stream');
         if (liveBtn) {
           const origHtml = liveBtn.innerHTML;
-          liveBtn.innerHTML = '<span class="live-red-dot"></span> CONNEXION...';
-          setTimeout(() => { if (liveBtn) liveBtn.innerHTML = origHtml; }, 3000);
+          liveBtn.innerHTML = '<span class="live-red-dot"></span> LIVE...';
+          setTimeout(() => { if (liveBtn) liveBtn.innerHTML = origHtml; }, 2500);
         }
 
-        // Fire hass-more-info event to open HA native WebRTC/HLS live dialog
-        const event = new CustomEvent('hass-more-info', {
-          detail: { entityId: currentCamEntity },
-          bubbles: true,
-          cancelable: true,
-          composed: true,
-        });
-        
-        this.dispatchEvent(event);
-        window.dispatchEvent(event);
+        const fireMoreInfo = (target) => {
+          const ev = new Event('hass-more-info', {
+            bubbles: true,
+            cancelable: false,
+            composed: true,
+          });
+          ev.detail = { entityId: currentCamEntity };
+          target.dispatchEvent(ev);
+        };
+
+        fireMoreInfo(this);
+        const haRoot = document.querySelector('home-assistant');
+        if (haRoot) fireMoreInfo(haRoot);
+        window.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId: currentCamEntity }, bubbles: true, composed: true }));
       };
 
       const camBox = container.querySelector('#camera-preview-box');
