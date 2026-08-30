@@ -179,7 +179,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.9.30",
+            sw_version="0.9.31",
         )
 
         self._siren_task = None
@@ -811,6 +811,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
     async def _async_send_notification(self, message, is_alert=False, custom_data=None, is_emergency=False):
         """Send notifications to configured services/entities with universal compatibility."""
+        sent_targets = []
         
         # ─── NATIVE FREE MOBILE SMS BACKUP ─────────────────────────────────────
         if hasattr(self, "_free_mobile_user") and self._free_mobile_user and self._free_mobile_pass:
@@ -833,6 +834,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                             async with session.get(url) as response:
                                 if response.status == 200:
                                     _LOGGER.info("Domolink: SMS natif Free Mobile envoyé avec succès")
+                                    self._log_event("SMS d'alerte envoyé via Free Mobile")
                                 else:
                                     _LOGGER.error("Domolink: Erreur API Free Mobile (%s)", response.status)
                         except Exception as e:
@@ -882,6 +884,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                                 {"account": account, "device_name": device_name}
                             )
                         )
+                        sent_targets.append(f"iCloud ({device_name})")
                 except Exception as e:
                     _LOGGER.error("Domolink: Impossible de déclencher l'alerte iCloud: %s", e)
         # ───────────────────────────────────────────────────────────────────────
@@ -969,6 +972,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                         target={"entity_id": target}
                     )
                     sent = True
+                    sent_targets.append(target)
                     _LOGGER.debug("Domolink: Notification envoyée via notify.send_message à %s", target)
                 except Exception as e:
                     _LOGGER.debug("Domolink: notify.send_message échoué pour %s: %s", target, e)
@@ -987,6 +991,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                             payload["data"] = data
                         await self.hass.services.async_call(domain, service, payload)
                         sent = True
+                        sent_targets.append(f"{domain}.{service}")
                         _LOGGER.debug("Domolink: Notification envoyée directement à %s.%s", domain, service)
                     except Exception as e:
                         _LOGGER.error("Domolink: Échec d'envoi vers %s.%s: %s", domain, service, e)
@@ -999,12 +1004,18 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                             payload["data"] = data
                         await self.hass.services.async_call("notify", f"mobile_app_{service}", payload)
                         sent = True
+                        sent_targets.append(f"notify.mobile_app_{service}")
                         _LOGGER.debug("Domolink: Notification envoyée à notify.mobile_app_%s", service)
                     except Exception as e:
                         _LOGGER.error("Domolink: Échec d'envoi vers notify.mobile_app_%s: %s", service, e)
 
             if not sent:
                 _LOGGER.warning("Domolink: Impossible de trouver un service de notification valide pour %s", target)
+                
+        if sent_targets:
+            # Nettoyer un peu le message pour le log (enlever les sauts de ligne)
+            clean_msg = message.replace("\n", " - ")
+            self._log_event(f"Message envoyé à {', '.join(sent_targets)} : {clean_msg}")
 
     async def _async_handle_person_changed(self):
         """Handle geofencing auto-arm logic."""
@@ -1323,7 +1334,10 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         state = self.hass.states.get(triggering_entity)
         self._triggered_by = state.name if state else triggering_entity
         
-        self._log_event(f"Alarme DÉCLENCHÉE par {self._triggered_by}")
+        if triggering_entity in getattr(self, "_tamper_sensors", []):
+            self._log_event(f"🚨 Sabotage DÉCLENCHÉ par {self._triggered_by}")
+        else:
+            self._log_event(f"🚨 Alarme DÉCLENCHÉE par {self._triggered_by}")
         name = state.name if state else triggering_entity
 
         # ─── 1. INSTANT SIRENS & PANIC LIGHTS (Priority #1: Immediate deterrent) ───
