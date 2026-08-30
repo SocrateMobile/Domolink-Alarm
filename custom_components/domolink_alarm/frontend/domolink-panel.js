@@ -1059,7 +1059,7 @@ class DomolinkPanel extends HTMLElement {
               </div>
             </div>
 
-            <div class="camera-preview-container">
+            <div class="camera-preview-container" id="camera-preview-box" style="${currentCamEntity ? 'cursor:pointer;' : ''}" title="${currentCamEntity ? 'Cliquer pour ouvrir le flux direct plein écran' : ''}">
               <div class="camera-live-badge">
                 <div class="live-red-dot"></div>
                 <span>${this.escapeHtml(camFriendlyName)}</span>
@@ -1076,9 +1076,13 @@ class DomolinkPanel extends HTMLElement {
 
             <div class="camera-footer-status">
               <span>${currentCamEntity ? this.escapeHtml(camFriendlyName).toUpperCase() : 'CAMÉRAS'}</span>
-              <span style="color:${currentCamEntity ? '#10b981' : 'var(--d-subtext)'}; display:flex; align-items:center; gap:4px;">
-                ${currentCamEntity ? 'En ligne <span style="font-size:8px;">🟢</span>' : 'Non configurée'}
-              </span>
+              ${currentCamEntity ? `
+                <button class="btn-live-stream" id="btn-open-live-stream" style="background:rgba(239, 68, 68, 0.15); border:1px solid rgba(239,68,68,0.4); color:#ef4444; padding:3px 10px; border-radius:8px; font-size:10px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:5px; transition:all 0.2s ease;">
+                  <span class="live-red-dot" style="width:5px; height:5px;"></span> FORCER LE LIVE
+                </button>
+              ` : `
+                <span style="color:var(--d-subtext); font-size:11px;">Non configurée</span>
+              `}
             </div>
           </div>
 
@@ -1260,6 +1264,34 @@ class DomolinkPanel extends HTMLElement {
       container.querySelectorAll('[data-service]').forEach(btn => {
         btn.addEventListener('click', () => this.callAlarmService(btn.getAttribute('data-service')));
       });
+
+      // Camera Live Stream Trigger (Forces Arlo / Camera to wake up and stream)
+      const triggerLiveStream = () => {
+        if (currentCamEntity) {
+          // Wake up camera in HA
+          this._hass.callService('camera', 'turn_on', { entity_id: currentCamEntity }).catch(() => {});
+          // Dispatch more-info to open live WebRTC / HLS dialog
+          const event = new CustomEvent('hass-more-info', {
+            detail: { entityId: currentCamEntity },
+            bubbles: true,
+            composed: true,
+          });
+          this.dispatchEvent(event);
+        }
+      };
+
+      const camBox = container.querySelector('#camera-preview-box');
+      if (camBox && currentCamEntity) {
+        camBox.addEventListener('click', triggerLiveStream);
+      }
+
+      const liveBtn = container.querySelector('#btn-open-live-stream');
+      if (liveBtn && currentCamEntity) {
+        liveBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          triggerLiveStream();
+        });
+      }
 
       // Camera Switcher
       const camSwitchBtn = container.querySelector('#btn-switch-camera');
