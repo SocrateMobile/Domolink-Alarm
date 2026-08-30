@@ -31,6 +31,8 @@ from .const import (
     CONF_MEDIA_PLAYERS_LABELS,
     CONF_NOTIFY_SERVICES,
     CONF_NOTIFY_SERVICES_LABELS,
+    CONF_FREE_MOBILE_USER,
+    CONF_FREE_MOBILE_PASS,
     CONF_USERS_CODES,
     CONF_DURESS_CODE,
     CONF_RFID_TAGS,
@@ -182,6 +184,8 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         selector.EntitySelectorConfig(domain=["notify", "script"], multiple=True)
                     ),
                     vol.Optional(CONF_NOTIFY_SERVICES_LABELS, default=[]): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
+                    vol.Optional(CONF_FREE_MOBILE_USER, default=""): str,
+                    vol.Optional(CONF_FREE_MOBILE_PASS, default=""): str,
                     vol.Optional(CONF_EMERGENCY_CONTACT, default=[]): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain=["notify", "script"], multiple=True)
                     ),
@@ -338,6 +342,8 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
                         selector.EntitySelectorConfig(domain=["notify", "script"], multiple=True)
                     ),
                     vol.Optional(CONF_NOTIFY_SERVICES_LABELS, default=self.options.get(CONF_NOTIFY_SERVICES_LABELS, [])): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
+                    vol.Optional(CONF_FREE_MOBILE_USER, default=self.options.get(CONF_FREE_MOBILE_USER, "")): str,
+                    vol.Optional(CONF_FREE_MOBILE_PASS, default=self.options.get(CONF_FREE_MOBILE_PASS, "")): str,
                     vol.Optional(CONF_EMERGENCY_CONTACT, default=self.options.get(CONF_EMERGENCY_CONTACT, [])): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain=["notify", "script"], multiple=True)
                     ),
