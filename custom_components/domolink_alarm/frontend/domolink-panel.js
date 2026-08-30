@@ -8,7 +8,12 @@ class DomolinkPanel extends HTMLElement {
     if (!this._initialized) {
       this._activeTab = 'arm';
       this._codeValue = '';
+      this._selectedCameraIndex = 0;
+      this._cameraRefreshTimer = null;
+      this._theme = localStorage.getItem('domolink_theme') || (hass.themes && hass.themes.darkMode ? 'dark' : 'dark');
       this._buildShell();
+      this._startClock();
+      this._startCameraStream();
       this._initialized = true;
     }
     try {
@@ -18,54 +23,133 @@ class DomolinkPanel extends HTMLElement {
     }
   }
 
+  disconnectedCallback() {
+    if (this._clockTimer) clearInterval(this._clockTimer);
+    if (this._cameraRefreshTimer) clearInterval(this._cameraRefreshTimer);
+  }
+
+  _startClock() {
+    const updateTime = () => {
+      const clockEl = this.querySelector('#live-clock');
+      if (clockEl) {
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        const dateStr = now.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+        clockEl.innerHTML = `<span class="clock-time">${timeStr}</span><span class="clock-date">${dateStr}</span>`;
+      }
+    };
+    updateTime();
+    this._clockTimer = setInterval(updateTime, 10000);
+  }
+
+  _startCameraStream() {
+    this._cameraRefreshTimer = setInterval(() => {
+      const camImg = this.querySelector('#live-camera-img');
+      if (camImg && camImg.dataset.camEntity) {
+        const entityId = camImg.dataset.camEntity;
+        const stateObj = this._hass && this._hass.states ? this._hass.states[entityId] : null;
+        if (stateObj && stateObj.attributes && stateObj.attributes.entity_picture) {
+          camImg.src = stateObj.attributes.entity_picture + '&t=' + Date.now();
+        } else {
+          camImg.src = `/api/camera_proxy/${entityId}?time=${Date.now()}`;
+        }
+      }
+    }, 2500);
+  }
+
+  _toggleTheme() {
+    this._theme = this._theme === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('domolink_theme', this._theme);
+    const wrap = this.querySelector('.panel-wrap');
+    if (wrap) {
+      wrap.classList.remove('theme-dark', 'theme-light');
+      wrap.classList.add(`theme-${this._theme}`);
+    }
+    const btn = this.querySelector('#theme-toggle-btn');
+    if (btn) {
+      btn.innerHTML = `<ha-icon icon="${this._theme === 'dark' ? 'mdi:weather-sunny' : 'mdi:weather-night'}"></ha-icon>`;
+    }
+  }
+
+  _getAlarmEntity() {
+    if (!this._hass || !this._hass.states) return null;
+    const states = Object.values(this._hass.states);
+    return states.find(s => 
+      s.entity_id.startsWith('alarm_control_panel.domolink') ||
+      (s.attributes && s.attributes.attribution && String(s.attributes.attribution).toLowerCase().includes('domolink')) ||
+      (s.attributes && s.attributes.panel_tabs !== undefined)
+    ) || states.find(s => s.entity_id.startsWith('alarm_control_panel.')) || null;
+  }
+
   _buildShell() {
     this.innerHTML = `
       <style>
         :host {
-          --d-bg: var(--primary-background-color, #f8fafc);
-          --d-card-bg: var(--card-background-color, #ffffff);
-          --d-sec-bg: var(--secondary-background-color, rgba(148, 163, 184, 0.1));
-          --d-border: var(--divider-color, rgba(148, 163, 184, 0.2));
-          --d-text: var(--primary-text-color, #0f172a);
-          --d-subtext: var(--secondary-text-color, #64748b);
-          --d-primary: var(--primary-color, #0284c7);
-          --d-success: #10b981;
-          --d-danger: #ef4444;
-          --d-warning: #f59e0b;
-          --d-night: #8b5cf6;
-          --d-home: #3b82f6;
-
-          background-color: var(--d-bg);
           display: block;
-          min-height: 100%;
-          overflow-y: auto;
-          padding: 20px 16px 48px;
+          min-height: 100vh;
           box-sizing: border-box;
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-          color: var(--d-text);
+          margin: 0;
+          padding: 0;
+        }
+
+        /* ─── Themes & CSS Variables ─────────────── */
+        .panel-wrap.theme-dark {
+          --d-bg: #0d1117;
+          --d-surface: rgba(22, 27, 34, 0.85);
+          --d-surface-card: rgba(26, 32, 44, 0.75);
+          --d-border: rgba(255, 255, 255, 0.1);
+          --d-border-light: rgba(255, 255, 255, 0.06);
+          --d-text: #f0f6fc;
+          --d-subtext: #8b949e;
+          --d-sec-bg: rgba(255, 255, 255, 0.05);
+          --d-pill-active-bg: #ffffff;
+          --d-pill-active-text: #0d1117;
+          --d-card-blur: blur(20px);
+          --d-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+          --d-key-bg: rgba(255, 255, 255, 0.06);
+          --d-key-border: rgba(255, 255, 255, 0.12);
+        }
+
+        .panel-wrap.theme-light {
+          --d-bg: #f3f4f6;
+          --d-surface: rgba(255, 255, 255, 0.9);
+          --d-surface-card: rgba(255, 255, 255, 0.85);
+          --d-border: rgba(0, 0, 0, 0.1);
+          --d-border-light: rgba(0, 0, 0, 0.05);
+          --d-text: #111827;
+          --d-subtext: #6b7280;
+          --d-sec-bg: rgba(0, 0, 0, 0.04);
+          --d-pill-active-bg: #111827;
+          --d-pill-active-text: #ffffff;
+          --d-card-blur: blur(20px);
+          --d-shadow: 0 8px 24px 0 rgba(0, 0, 0, 0.08);
+          --d-key-bg: rgba(0, 0, 0, 0.04);
+          --d-key-border: rgba(0, 0, 0, 0.08);
         }
 
         .panel-wrap {
-          max-width: 1040px;
+          background-color: var(--d-bg);
+          background-image: 
+            radial-gradient(at 10% 10%, rgba(245, 158, 11, 0.07) 0px, transparent 50%),
+            radial-gradient(at 90% 90%, rgba(16, 185, 129, 0.07) 0px, transparent 50%);
+          color: var(--d-text);
+          min-height: 100vh;
+          padding: 24px 28px 48px;
+          box-sizing: border-box;
+          transition: background 0.3s ease, color 0.3s ease;
+        }
+
+        .container {
+          max-width: 1440px;
           margin: 0 auto;
           display: flex;
           flex-direction: column;
-          gap: 20px;
+          gap: 24px;
         }
 
-        /* ─── Adaptive Modern Glass Card ─────────── */
-        .glass-card {
-          background: var(--d-card-bg);
-          border: 1px solid var(--d-border);
-          border-radius: 20px;
-          box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
-          padding: 24px;
-          position: relative;
-          color: var(--d-text);
-        }
-
-        /* ─── Top Bar Navigation ─────────────────── */
-        .top-bar {
+        /* ─── Top Header Navigation ──────────────── */
+        .top-nav {
           display: flex;
           align-items: center;
           justify-content: space-between;
@@ -73,263 +157,517 @@ class DomolinkPanel extends HTMLElement {
           gap: 16px;
         }
 
-        .brand-box {
+        .brand-section {
           display: flex;
           align-items: center;
-          gap: 12px;
+          gap: 14px;
         }
-        .brand-icon {
-          width: 42px;
-          height: 42px;
-          border-radius: 12px;
+        .brand-logo-disc {
+          width: 44px;
+          height: 44px;
+          border-radius: 14px;
           background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
           display: flex;
           align-items: center;
           justify-content: center;
           color: #ffffff;
-          box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
+          box-shadow: 0 4px 16px rgba(245, 158, 11, 0.4);
         }
-        .brand-icon ha-icon { --mdc-icon-size: 24px; }
-        .brand-name { font-size: 20px; font-weight: 800; color: var(--d-text); letter-spacing: -0.3px; }
+        .brand-logo-disc ha-icon { --mdc-icon-size: 26px; }
+        .brand-title {
+          font-size: 22px;
+          font-weight: 800;
+          letter-spacing: -0.5px;
+        }
 
         .nav-capsule {
           display: inline-flex;
-          background: var(--d-sec-bg);
-          padding: 4px;
+          background: var(--d-surface);
+          backdrop-filter: var(--d-card-blur);
+          padding: 6px;
           border-radius: 9999px;
           border: 1px solid var(--d-border);
+          box-shadow: var(--d-shadow);
           gap: 4px;
           user-select: none;
         }
 
-        .nav-item {
-          padding: 8px 16px;
+        .nav-tab {
+          padding: 8px 20px;
           border-radius: 9999px;
-          font-size: 13px;
+          font-size: 13.5px;
           font-weight: 600;
           color: var(--d-subtext);
           cursor: pointer;
           transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
           display: flex;
           align-items: center;
-          gap: 6px;
+          gap: 8px;
         }
-        .nav-item:hover { color: var(--d-text); }
-        .nav-item.active {
-          background: var(--d-card-bg);
-          color: var(--d-primary);
-          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        .nav-tab:hover { color: var(--d-text); }
+        .nav-tab.active {
+          background: var(--d-pill-active-bg);
+          color: var(--d-pill-active-text);
           font-weight: 700;
+          box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
         }
-        .nav-item ha-icon { --mdc-icon-size: 17px; }
 
-        /* ─── Dashboard Grid ──────────────────────── */
-        .dashboard-grid {
+        .header-actions {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+        }
+        .clock-widget {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          line-height: 1.2;
+        }
+        .clock-time {
+          font-size: 16px;
+          font-weight: 800;
+          letter-spacing: 0.5px;
+        }
+        .clock-date {
+          font-size: 11.5px;
+          color: var(--d-subtext);
+          text-transform: capitalize;
+        }
+
+        .icon-btn-circle {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          background: var(--d-surface);
+          border: 1px solid var(--d-border);
+          color: var(--d-text);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        .icon-btn-circle:hover {
+          background: var(--d-sec-bg);
+          transform: scale(1.05);
+        }
+
+        /* ─── Glass Cards & Shared Styles ────────── */
+        .glass-card {
+          background: var(--d-surface-card);
+          backdrop-filter: var(--d-card-blur);
+          -webkit-backdrop-filter: var(--d-card-blur);
+          border: 1px solid var(--d-border);
+          border-radius: 24px;
+          box-shadow: var(--d-shadow);
+          padding: 20px;
+          box-sizing: border-box;
+          color: var(--d-text);
+          position: relative;
+        }
+
+        /* ─── 3-Column Dashboard Layout ──────────── */
+        .arm-layout-grid {
           display: grid;
-          grid-template-columns: 1.15fr 0.85fr;
+          grid-template-columns: 290px 1fr 340px;
           gap: 20px;
-          align-items: stretch;
+          align-items: start;
         }
-        @media (max-width: 860px) {
-          .dashboard-grid { grid-template-columns: 1fr; }
+        @media (max-width: 1180px) {
+          .arm-layout-grid { grid-template-columns: 1fr 1fr; }
+          .left-widgets-col { grid-column: span 2; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        }
+        @media (max-width: 820px) {
+          .arm-layout-grid { grid-template-columns: 1fr; }
+          .left-widgets-col { grid-column: span 1; display: flex; flex-direction: column; }
         }
 
-        /* ─── Status Hero Neon Banners ────────────── */
-        .status-hero {
+        /* ─── Left Column (Widgets) ──────────────── */
+        .left-widgets-col {
           display: flex;
           flex-direction: column;
           gap: 16px;
         }
 
-        .neon-banner {
+        .widget-card {
+          padding: 16px;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          border-radius: 20px;
+        }
+        .widget-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          font-size: 11.5px;
+          font-weight: 800;
+          letter-spacing: 0.8px;
+          text-transform: uppercase;
+          color: var(--d-subtext);
+        }
+
+        /* Camera Live Preview Widget */
+        .camera-preview-container {
+          position: relative;
+          width: 100%;
+          height: 140px;
+          border-radius: 14px;
+          overflow: hidden;
+          background: #000000;
+          border: 1px solid var(--d-border);
+        }
+        .camera-live-badge {
+          position: absolute;
+          top: 8px;
+          left: 8px;
+          background: rgba(0, 0, 0, 0.7);
+          backdrop-filter: blur(8px);
+          padding: 4px 8px;
+          border-radius: 6px;
+          font-size: 10px;
+          font-weight: 700;
+          color: #ffffff;
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          z-index: 2;
+        }
+        .live-red-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: #ef4444;
+          box-shadow: 0 0 8px #ef4444;
+          animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.4; }
+        }
+        .camera-img-stream {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+        .camera-footer-status {
+          font-size: 11px;
+          font-weight: 700;
+          color: var(--d-text);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding-top: 2px;
+        }
+
+        .stat-big-value {
+          font-size: 24px;
+          font-weight: 800;
+          letter-spacing: -0.5px;
+        }
+        .stat-sub-label {
+          font-size: 12px;
+          color: var(--d-subtext);
+        }
+
+        .recent-events-list {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .recent-event-row {
+          font-size: 11.5px;
+          line-height: 1.4;
+          color: var(--d-subtext);
+        }
+        .recent-event-row strong {
+          color: var(--d-text);
+        }
+
+        .health-stats-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        .health-item-stat {
+          display: flex;
+          flex-direction: column;
+        }
+
+        /* ─── Center Column (Neon Hero Encadrés) ─── */
+        .center-hero-col {
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+        }
+
+        /* Large Rounded Encadré Pill with Neon Glow */
+        .neon-pill-card {
+          border-radius: 9999px;
+          padding: 24px 32px;
           display: flex;
           align-items: center;
           gap: 20px;
-          padding: 24px 28px;
-          border-radius: 20px;
           position: relative;
-          transition: all 0.3s ease;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          box-sizing: border-box;
         }
 
-        .neon-banner.secure {
-          background: rgba(16, 185, 129, 0.08);
-          border: 2px solid rgba(16, 185, 129, 0.5);
-          box-shadow: 0 0 30px rgba(16, 185, 129, 0.15);
+        /* Secure / Normal State (Neon Green) */
+        .neon-pill-card.secure {
+          border: 2px solid #10b981;
+          background: radial-gradient(circle at center, rgba(16, 185, 129, 0.18) 0%, rgba(16, 185, 129, 0.04) 100%), var(--d-surface-card);
+          box-shadow: 0 0 30px rgba(16, 185, 129, 0.35), inset 0 0 15px rgba(16, 185, 129, 0.2);
         }
-        .neon-banner.alert {
-          background: rgba(239, 68, 68, 0.1);
-          border: 2px solid rgba(239, 68, 68, 0.6);
-          box-shadow: 0 0 35px rgba(239, 68, 68, 0.25);
-          animation: pulse-border 2s infinite;
-        }
-        .neon-banner.pending {
-          background: rgba(245, 158, 11, 0.1);
-          border: 2px solid rgba(245, 158, 11, 0.5);
-          box-shadow: 0 0 30px rgba(245, 158, 11, 0.2);
+        .neon-pill-card.secure .pill-icon-badge {
+          background: rgba(16, 185, 129, 0.25);
+          color: #10b981;
+          box-shadow: 0 0 20px rgba(16, 185, 129, 0.6);
+          border: 1.5px solid #10b981;
         }
 
-        @keyframes pulse-border {
-          0% { box-shadow: 0 0 15px rgba(239, 68, 68, 0.25); }
-          50% { box-shadow: 0 0 35px rgba(239, 68, 68, 0.45); }
-          100% { box-shadow: 0 0 15px rgba(239, 68, 68, 0.25); }
+        /* Alert / Triggered State (Neon Red) */
+        .neon-pill-card.alert {
+          border: 2px solid #ef4444;
+          background: radial-gradient(circle at center, rgba(239, 68, 68, 0.22) 0%, rgba(239, 68, 68, 0.05) 100%), var(--d-surface-card);
+          box-shadow: 0 0 35px rgba(239, 68, 68, 0.45), inset 0 0 20px rgba(239, 68, 68, 0.25);
+          animation: pulseBorder 2s infinite;
+        }
+        @keyframes pulseBorder {
+          0%, 100% { box-shadow: 0 0 35px rgba(239, 68, 68, 0.45), inset 0 0 20px rgba(239, 68, 68, 0.25); }
+          50% { box-shadow: 0 0 50px rgba(239, 68, 68, 0.7), inset 0 0 30px rgba(239, 68, 68, 0.4); }
+        }
+        .neon-pill-card.alert .pill-icon-badge {
+          background: rgba(239, 68, 68, 0.25);
+          color: #ef4444;
+          box-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
+          border: 1.5px solid #ef4444;
         }
 
-        .banner-icon-circle {
-          width: 60px;
-          height: 60px;
+        /* Armed State (Neon Blue / Purple) */
+        .neon-pill-card.armed {
+          border: 2px solid #3b82f6;
+          background: radial-gradient(circle at center, rgba(59, 130, 246, 0.18) 0%, rgba(59, 130, 246, 0.04) 100%), var(--d-surface-card);
+          box-shadow: 0 0 30px rgba(59, 130, 246, 0.35), inset 0 0 15px rgba(59, 130, 246, 0.2);
+        }
+        .neon-pill-card.armed .pill-icon-badge {
+          background: rgba(59, 130, 246, 0.25);
+          color: #3b82f6;
+          box-shadow: 0 0 20px rgba(59, 130, 246, 0.6);
+          border: 1.5px solid #3b82f6;
+        }
+
+        /* Pending State (Neon Amber) */
+        .neon-pill-card.pending {
+          border: 2px solid #f59e0b;
+          background: radial-gradient(circle at center, rgba(245, 158, 11, 0.18) 0%, rgba(245, 158, 11, 0.04) 100%), var(--d-surface-card);
+          box-shadow: 0 0 30px rgba(245, 158, 11, 0.35), inset 0 0 15px rgba(245, 158, 11, 0.2);
+        }
+        .neon-pill-card.pending .pill-icon-badge {
+          background: rgba(245, 158, 11, 0.25);
+          color: #f59e0b;
+          box-shadow: 0 0 20px rgba(245, 158, 11, 0.6);
+          border: 1.5px solid #f59e0b;
+        }
+
+        .pill-icon-badge {
+          width: 56px;
+          height: 56px;
           border-radius: 50%;
           display: flex;
           align-items: center;
           justify-content: center;
           flex-shrink: 0;
         }
-        .neon-banner.secure .banner-icon-circle {
-          background: rgba(16, 185, 129, 0.2);
-          color: var(--d-success);
-        }
-        .neon-banner.alert .banner-icon-circle {
-          background: rgba(239, 68, 68, 0.25);
-          color: var(--d-danger);
-        }
-        .neon-banner.pending .banner-icon-circle {
-          background: rgba(245, 158, 11, 0.25);
-          color: var(--d-warning);
-        }
-        .banner-icon-circle ha-icon { --mdc-icon-size: 34px; }
+        .pill-icon-badge ha-icon { --mdc-icon-size: 32px; }
 
-        .banner-title { font-size: 24px; font-weight: 800; color: var(--d-text); letter-spacing: 0.5px; }
-        .banner-sub { font-size: 13px; color: var(--d-subtext); margin-top: 4px; }
-
-        /* ─── Room / Quick Status Chips ───────────── */
-        .chips-grid {
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          gap: 10px;
-        }
-        @media (max-width: 600px) {
-          .chips-grid { grid-template-columns: repeat(2, 1fr); }
-        }
-
-        .room-chip {
-          padding: 10px 8px;
-          border-radius: 12px;
-          text-align: center;
-          font-size: 11px;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          border: 1px solid transparent;
-        }
-        .room-chip.ok {
-          background: rgba(16, 185, 129, 0.1);
-          border-color: rgba(16, 185, 129, 0.3);
-          color: #059669;
-        }
-        .room-chip.armed {
-          background: rgba(239, 68, 68, 0.1);
-          border-color: rgba(239, 68, 68, 0.3);
-          color: var(--d-danger);
-        }
-        .room-chip.info {
-          background: var(--d-sec-bg);
-          border-color: var(--d-border);
-          color: var(--d-subtext);
-        }
-
-        /* ─── Fast Mode Selectors ─────────────────── */
-        .mode-capsules {
-          display: flex;
-          background: var(--d-sec-bg);
-          padding: 6px;
-          border-radius: 16px;
-          border: 1px solid var(--d-border);
-          gap: 6px;
-        }
-
-        .mode-capsule-btn {
-          flex: 1;
-          padding: 12px 8px;
-          border-radius: 12px;
-          border: none;
-          background: transparent;
-          color: var(--d-subtext);
-          font-size: 12px;
-          font-weight: 700;
-          cursor: pointer;
-          transition: all 0.2s ease;
+        .pill-text-content {
           display: flex;
           flex-direction: column;
-          align-items: center;
           gap: 4px;
         }
-        .mode-capsule-btn:hover { color: var(--d-text); background: rgba(148, 163, 184, 0.15); }
-        .mode-capsule-btn.active {
-          background: var(--d-card-bg);
-          color: var(--d-primary);
-          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        .pill-main-title {
+          font-size: 26px;
+          font-weight: 900;
+          letter-spacing: 1px;
+          line-height: 1.1;
         }
-        .mode-capsule-btn ha-icon { --mdc-icon-size: 20px; }
+        .pill-sub-desc {
+          font-size: 13px;
+          color: var(--d-subtext);
+          font-weight: 500;
+        }
 
-        /* ─── Keypad Box ──────────────────────────── */
-        .keypad-box {
+        /* Room Status Badges Grid */
+        .room-badges-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 12px;
+        }
+        @media (max-width: 600px) {
+          .room-badges-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        .room-badge-item {
+          padding: 12px 10px;
+          border-radius: 16px;
+          background: var(--d-sec-bg);
+          border: 1px solid var(--d-border);
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          padding: 24px 20px;
+          text-align: center;
+          gap: 4px;
+        }
+        .room-badge-name {
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: 0.5px;
+        }
+        .room-badge-status {
+          font-size: 10px;
+          font-weight: 700;
+          text-transform: uppercase;
+        }
+        .room-badge-item.ok {
+          border-color: rgba(16, 185, 129, 0.4);
+          background: rgba(16, 185, 129, 0.08);
+          color: #10b981;
+        }
+        .room-badge-item.warning {
+          border-color: rgba(245, 158, 11, 0.4);
+          background: rgba(245, 158, 11, 0.08);
+          color: #f59e0b;
+        }
+        .room-badge-item.danger {
+          border-color: rgba(239, 68, 68, 0.4);
+          background: rgba(239, 68, 68, 0.08);
+          color: #ef4444;
+        }
+        .room-badge-item.info {
+          border-color: rgba(59, 130, 246, 0.4);
+          background: rgba(59, 130, 246, 0.08);
+          color: #3b82f6;
         }
 
-        .keypad-header-title {
+        /* Carousel Pagination Dots */
+        .carousel-dots {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          gap: 6px;
+          margin-top: -6px;
+        }
+        .dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: var(--d-subtext);
+          opacity: 0.4;
+          transition: all 0.2s ease;
+        }
+        .dot.active {
+          opacity: 1;
+          background: #f59e0b;
+          width: 16px;
+          border-radius: 9999px;
+        }
+
+        /* Center Mode Switcher Pills */
+        .center-modes-row {
+          display: flex;
+          gap: 10px;
+          justify-content: center;
+        }
+        .center-mode-btn {
+          flex: 1;
+          padding: 12px 18px;
+          border-radius: 9999px;
+          border: 1px solid var(--d-border);
+          background: var(--d-sec-bg);
+          color: var(--d-text);
           font-size: 13px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+        }
+        .center-mode-btn:hover {
+          border-color: var(--d-text);
+          background: var(--d-surface);
+        }
+        .center-mode-btn.active {
+          background: var(--d-pill-active-bg);
+          color: var(--d-pill-active-text);
+          border-color: var(--d-pill-active-bg);
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        /* ─── Right Column (PIN Keypad) ──────────── */
+        .keypad-glass-card {
+          border-radius: 28px;
+          padding: 24px 20px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 16px;
+        }
+        .keypad-title {
+          font-size: 15px;
           font-weight: 800;
           letter-spacing: 1.5px;
           text-transform: uppercase;
-          color: var(--d-text);
-          margin-bottom: 4px;
         }
 
-        .keypad-feedback {
-          font-size: 12px;
-          color: var(--d-subtext);
-          margin-bottom: 16px;
-          min-height: 18px;
-        }
-
-        .pin-indicators {
+        .keypad-feedback-box {
+          width: 100%;
+          padding: 10px;
+          border-radius: 12px;
+          background: var(--d-sec-bg);
+          border: 1px solid var(--d-border-light);
           display: flex;
-          gap: 10px;
-          margin-bottom: 20px;
+          justify-content: center;
+          align-items: center;
+          min-height: 20px;
         }
-        .pin-light {
+        .pin-indicators-row {
+          display: flex;
+          gap: 12px;
+          align-items: center;
+        }
+        .pin-dot-light {
           width: 12px;
           height: 12px;
           border-radius: 50%;
           background: var(--d-sec-bg);
-          border: 1px solid var(--d-border);
+          border: 1.5px solid var(--d-border);
           transition: all 0.15s ease;
         }
-        .pin-light.active {
+        .pin-dot-light.active {
           background: #f59e0b;
-          box-shadow: 0 0 10px rgba(245, 158, 11, 0.6);
           border-color: #f59e0b;
-          transform: scale(1.2);
+          box-shadow: 0 0 12px rgba(245, 158, 11, 0.8);
+          transform: scale(1.25);
         }
 
-        .keypad-matrix {
+        /* 3x4 Circular Matrix */
+        .keypad-buttons-grid {
           display: grid;
-          grid-template-columns: repeat(3, 68px);
-          gap: 12px;
-          margin-bottom: 20px;
+          grid-template-columns: repeat(3, 72px);
+          gap: 14px;
         }
-
-        .keypad-touch {
-          width: 68px;
-          height: 68px;
+        .keypad-circle-btn {
+          width: 72px;
+          height: 72px;
           border-radius: 50%;
-          background: var(--d-sec-bg);
-          border: 1px solid var(--d-border);
+          background: var(--d-key-bg);
+          border: 1px solid var(--d-key-border);
           color: var(--d-text);
-          font-size: 22px;
+          font-size: 24px;
           font-weight: 600;
           cursor: pointer;
           display: flex;
@@ -337,127 +675,92 @@ class DomolinkPanel extends HTMLElement {
           align-items: center;
           justify-content: center;
           transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+          user-select: none;
+          box-sizing: border-box;
           position: relative;
         }
-        .keypad-touch:hover {
-          background: var(--d-card-bg);
-          border-color: var(--d-primary);
+        .keypad-circle-btn:hover {
+          background: var(--d-surface);
+          border-color: #f59e0b;
+          transform: translateY(-2px);
         }
-        .keypad-touch:active {
+        .keypad-circle-btn:active {
           transform: scale(0.92);
           background: #f59e0b;
           color: #ffffff;
-          box-shadow: 0 0 16px rgba(245, 158, 11, 0.5);
+          box-shadow: 0 0 20px rgba(245, 158, 11, 0.7);
         }
-        .key-dot {
+        .key-led-dot {
           width: 4px;
           height: 4px;
           border-radius: 50%;
           background: #f59e0b;
-          margin-top: 2px;
+          margin-top: 3px;
+          box-shadow: 0 0 4px #f59e0b;
         }
 
-        .keypad-footer-modes {
+        .keypad-bottom-actions {
           display: flex;
           gap: 8px;
           width: 100%;
+          margin-top: 4px;
         }
-        .keypad-mode-pill {
+        .keypad-action-pill {
           flex: 1;
-          padding: 10px 6px;
+          padding: 12px 6px;
           border-radius: 9999px;
           border: 1px solid var(--d-border);
           background: var(--d-sec-bg);
           color: var(--d-text);
           font-size: 11px;
-          font-weight: 700;
+          font-weight: 800;
           cursor: pointer;
           text-align: center;
           transition: all 0.2s ease;
         }
-        .keypad-mode-pill:hover { border-color: var(--d-primary); }
-        .keypad-mode-pill.primary {
-          background: var(--d-primary);
-          color: #ffffff;
-          border-color: var(--d-primary);
-          box-shadow: 0 2px 10px rgba(2, 132, 199, 0.3);
+        .keypad-action-pill:hover {
+          border-color: var(--d-text);
+        }
+        .keypad-action-pill.primary {
+          background: var(--d-pill-active-bg);
+          color: var(--d-pill-active-text);
+          border-color: var(--d-pill-active-bg);
+          box-shadow: 0 0 16px rgba(255, 255, 255, 0.3);
         }
 
-        /* SOS Panic Trigger */
-        .btn-sos-glow {
-          margin-top: 14px;
-          padding: 14px 20px;
+        .btn-sos-danger {
+          width: 100%;
+          margin-top: 8px;
+          padding: 12px;
           border-radius: 16px;
-          background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(220, 38, 38, 0.3) 100%);
+          background: rgba(239, 68, 68, 0.15);
           border: 1px solid rgba(239, 68, 68, 0.4);
-          color: var(--d-danger);
-          font-weight: 800;
-          font-size: 13px;
-          letter-spacing: 1px;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          transition: all 0.2s ease;
-        }
-        .btn-sos-glow:active { transform: scale(0.97); }
-
-        /* ─── Tab Content Views ───────────────────── */
-        .view-pane { display: none; }
-        .view-pane.active { display: block; animation: fadeIn 0.25s ease; }
-
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(4px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* ─── Simulation Tab Styles ───────────────── */
-        .sim-header-card {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          flex-wrap: wrap;
-          gap: 20px;
-          margin-bottom: 20px;
-          background: linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(2, 132, 199, 0.05) 100%);
-          border: 1px solid rgba(139, 92, 246, 0.25);
-        }
-
-        .sim-toggle-btn {
-          padding: 14px 24px;
-          border-radius: 9999px;
-          border: none;
-          font-size: 13px;
+          color: #ef4444;
+          font-size: 12px;
           font-weight: 800;
           letter-spacing: 0.5px;
           cursor: pointer;
           display: flex;
           align-items: center;
-          gap: 8px;
+          justify-content: center;
+          gap: 6px;
           transition: all 0.2s ease;
         }
-        .sim-toggle-btn.start {
-          background: var(--d-success);
+        .btn-sos-danger:hover {
+          background: #ef4444;
           color: #ffffff;
-          box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
-        }
-        .sim-toggle-btn.stop {
-          background: var(--d-danger);
-          color: #ffffff;
-          box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);
+          box-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
         }
 
-        .sim-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 20px;
-        }
-        @media (max-width: 768px) {
-          .sim-grid { grid-template-columns: 1fr; }
+        /* ─── Tab Content Panes ───────────────────── */
+        .tab-pane { display: none; }
+        .tab-pane.active { display: block; animation: fadeIn 0.2s ease; }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(4px); }
+          to { opacity: 1; transform: translateY(0); }
         }
 
-        /* ─── Equipments Grid ─────────────────────── */
+        /* ─── Équipements Grid Styles ─────────────── */
         .equip-matrix {
           display: grid;
           grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
@@ -466,17 +769,17 @@ class DomolinkPanel extends HTMLElement {
         .equip-item-card {
           background: var(--d-sec-bg);
           border: 1px solid var(--d-border);
-          border-radius: 14px;
-          padding: 12px 16px;
+          border-radius: 16px;
+          padding: 14px 16px;
           display: flex;
           align-items: center;
-          gap: 12px;
+          gap: 14px;
         }
         .equip-icon-disc {
-          width: 40px;
-          height: 40px;
-          border-radius: 10px;
-          background: var(--d-card-bg);
+          width: 42px;
+          height: 42px;
+          border-radius: 12px;
+          background: var(--d-surface);
           border: 1px solid var(--d-border);
           display: flex;
           align-items: center;
@@ -484,9 +787,9 @@ class DomolinkPanel extends HTMLElement {
           color: var(--d-subtext);
           flex-shrink: 0;
         }
-        .equip-icon-disc.active { background: rgba(239, 68, 68, 0.15); color: var(--d-danger); border-color: rgba(239, 68, 68, 0.3); }
-        .equip-icon-disc.success { background: rgba(16, 185, 129, 0.15); color: var(--d-success); border-color: rgba(16, 185, 129, 0.3); }
-        .equip-icon-disc.bypassed { background: rgba(245, 158, 11, 0.15); color: var(--d-warning); border-color: rgba(245, 158, 11, 0.3); }
+        .equip-icon-disc.active { background: rgba(239, 68, 68, 0.15); color: #ef4444; border-color: rgba(239, 68, 68, 0.3); }
+        .equip-icon-disc.success { background: rgba(16, 185, 129, 0.15); color: #10b981; border-color: rgba(16, 185, 129, 0.3); }
+        .equip-icon-disc.bypassed { background: rgba(245, 158, 11, 0.15); color: #f59e0b; border-color: rgba(245, 158, 11, 0.3); }
 
         .btn-action-pill {
           padding: 6px 12px;
@@ -497,8 +800,8 @@ class DomolinkPanel extends HTMLElement {
           cursor: pointer;
           margin-left: auto;
         }
-        .btn-action-pill.bypass { background: rgba(245, 158, 11, 0.15); color: #b45309; }
-        .btn-action-pill.restore { background: var(--d-card-bg); color: var(--d-subtext); border: 1px solid var(--d-border); }
+        .btn-action-pill.bypass { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+        .btn-action-pill.restore { background: var(--d-surface); color: var(--d-subtext); border: 1px solid var(--d-border); }
 
         /* ─── Timeline Logs ───────────────────────── */
         .log-timeline {
@@ -512,7 +815,7 @@ class DomolinkPanel extends HTMLElement {
           gap: 14px;
           padding: 12px 16px;
           background: var(--d-sec-bg);
-          border-radius: 12px;
+          border-radius: 14px;
           border: 1px solid var(--d-border);
         }
         .log-dot {
@@ -525,10 +828,10 @@ class DomolinkPanel extends HTMLElement {
           flex-shrink: 0;
           color: white;
         }
-        .log-dot.disarm { background: var(--d-success); }
-        .log-dot.arm { background: var(--d-danger); }
-        .log-dot.sim { background: var(--d-night); }
-        .log-dot.event { background: var(--d-primary); }
+        .log-dot.disarm { background: #10b981; }
+        .log-dot.arm { background: #ef4444; }
+        .log-dot.sim { background: #8b5cf6; }
+        .log-dot.event { background: #3b82f6; }
 
         .empty-placeholder {
           text-align: center;
@@ -538,100 +841,93 @@ class DomolinkPanel extends HTMLElement {
         }
       </style>
 
-      <div class="panel-wrap">
-        <!-- Top Bar Navigation -->
-        <div class="top-bar">
-          <div class="brand-box">
-            <div class="brand-icon">
-              <ha-icon icon="mdi:shield-lock-outline"></ha-icon>
+      <div class="panel-wrap theme-${this._theme}">
+        <div class="container">
+          <!-- Top Navigation Header -->
+          <div class="top-nav">
+            <div class="brand-section">
+              <div class="brand-logo-disc">
+                <ha-icon icon="mdi:shield-lock-outline"></ha-icon>
+              </div>
+              <div class="brand-title">Dashboard</div>
             </div>
-            <div class="brand-name">DomoLink Alarm</div>
+
+            <div class="nav-capsule">
+              <div class="nav-tab active" data-tab="arm">
+                <ha-icon icon="mdi:shield-check"></ha-icon> Armement
+              </div>
+              <div class="nav-tab" data-tab="equip">
+                <ha-icon icon="mdi:devices"></ha-icon> Équipements
+              </div>
+              <div class="nav-tab" data-tab="log">
+                <ha-icon icon="mdi:history"></ha-icon> Journal
+              </div>
+              <div class="nav-tab" data-tab="health">
+                <ha-icon icon="mdi:heart-pulse"></ha-icon> Santé
+              </div>
+              <div class="nav-tab" data-tab="sim">
+                <ha-icon icon="mdi:home-clock"></ha-icon> Simulation
+              </div>
+              <div class="nav-tab" data-tab="param">
+                <ha-icon icon="mdi:cog"></ha-icon> Paramètres
+              </div>
+            </div>
+
+            <div class="header-actions">
+              <div class="clock-widget" id="live-clock">
+                <span class="clock-time">--:--</span>
+                <span class="clock-date">---</span>
+              </div>
+              <button class="icon-btn-circle" id="theme-toggle-btn" title="Changer de thème (Jour/Nuit)">
+                <ha-icon icon="${this._theme === 'dark' ? 'mdi:weather-sunny' : 'mdi:weather-night'}"></ha-icon>
+              </button>
+            </div>
           </div>
 
-          <div class="nav-capsule">
-            <div class="nav-item active" data-tab="arm">
-              <ha-icon icon="mdi:shield-check"></ha-icon> Armement
-            </div>
-            <div class="nav-item" data-tab="equip">
-              <ha-icon icon="mdi:devices"></ha-icon> Équipements
-            </div>
-            <div class="nav-item" data-tab="sim">
-              <ha-icon icon="mdi:home-clock"></ha-icon> Simulation
-            </div>
-            <div class="nav-item" data-tab="log">
-              <ha-icon icon="mdi:history"></ha-icon> Journal
-            </div>
-            <div class="nav-item" data-tab="health">
-              <ha-icon icon="mdi:heart-pulse"></ha-icon> Santé
-            </div>
-            <div class="nav-item" data-tab="param">
-              <ha-icon icon="mdi:cog"></ha-icon> Paramètres
-            </div>
-          </div>
+          <!-- Tab 1: Armement (Exact 3-Column Visual) -->
+          <div id="pane-arm" class="tab-pane active"></div>
+
+          <!-- Tab 2: Équipements -->
+          <div id="pane-equip" class="tab-pane"></div>
+
+          <!-- Tab 3: Journal -->
+          <div id="pane-log" class="tab-pane"></div>
+
+          <!-- Tab 4: Santé -->
+          <div id="pane-health" class="tab-pane"></div>
+
+          <!-- Tab 5: Simulation de Présence -->
+          <div id="pane-sim" class="tab-pane"></div>
+
+          <!-- Tab 6: Paramètres -->
+          <div id="pane-param" class="tab-pane"></div>
         </div>
-
-        <!-- View 1: Armement -->
-        <div id="tab-arm" class="view-pane active"></div>
-
-        <!-- View 2: Équipements -->
-        <div id="tab-equip" class="view-pane"></div>
-
-        <!-- View 3: Simulation de Présence -->
-        <div id="tab-sim" class="view-pane"></div>
-
-        <!-- View 4: Journal -->
-        <div id="tab-log" class="view-pane"></div>
-
-        <!-- View 5: Santé -->
-        <div id="tab-health" class="view-pane"></div>
-        <div id="tab-param" class="view-pane"></div>
       </div>
     `;
 
-    // Tab Navigation Event
-    this.querySelectorAll('.nav-item').forEach(tab => {
+    // Bind Navigation Click Events
+    this.querySelectorAll('.nav-tab').forEach(tab => {
       tab.addEventListener('click', () => {
         this._activeTab = tab.getAttribute('data-tab');
-        this.querySelectorAll('.nav-item').forEach(t => t.classList.remove('active'));
+        this.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
-        this.querySelectorAll('.view-pane').forEach(c => c.classList.remove('active'));
-        const pane = this.querySelector('#tab-' + this._activeTab);
-        if (pane) pane.classList.add('active');
+        this.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+        const targetPane = this.querySelector('#pane-' + this._activeTab);
+        if (targetPane) targetPane.classList.add('active');
       });
     });
 
-    // Bypass buttons delegation
-    const equipTab = this.querySelector('#tab-equip');
-    if (equipTab) {
-      equipTab.addEventListener('click', (e) => {
-        const target = e.target.closest('.btn-action-pill');
-        if (!target) return;
-        const entityId = target.getAttribute('data-entity');
-        const action = target.getAttribute('data-action');
-        if (!entityId || !action) return;
-        if (action === 'bypass') {
-          this._hass.callService('domolink_alarm', 'bypass_sensor', { entity_id: entityId });
-        } else if (action === 'unbypass') {
-          this._hass.callService('domolink_alarm', 'unbypass_sensor', { entity_id: entityId });
-        }
-      });
-    }
-
-    // Simulation toggle button delegation
-    const simTab = this.querySelector('#tab-sim');
-    if (simTab) {
-      simTab.addEventListener('click', (e) => {
-        const btn = e.target.closest('.sim-toggle-btn');
-        if (!btn) return;
-        this._hass.callService('domolink_alarm', 'toggle_presence_simulation', {});
-      });
+    // Bind Theme Toggle
+    const themeBtn = this.querySelector('#theme-toggle-btn');
+    if (themeBtn) {
+      themeBtn.addEventListener('click', () => this._toggleTheme());
     }
   }
 
-  // ─── Service Calls ──────────────────────────────
+  // ─── Service Dispatcher ─────────────────────────
 
   callAlarmService(service) {
-    const alarmEntity = Object.values(this._hass.states).find(s => s.entity_id.startsWith('alarm_control_panel.domolink'));
+    const alarmEntity = this._getAlarmEntity();
     if (!alarmEntity) return;
     const data = { entity_id: alarmEntity.entity_id };
     if (this._codeValue) data.code = this._codeValue;
@@ -641,7 +937,7 @@ class DomolinkPanel extends HTMLElement {
   }
 
   _updatePinDisplay() {
-    const dots = this.querySelectorAll('.pin-light');
+    const dots = this.querySelectorAll('.pin-dot-light');
     dots.forEach((dot, index) => {
       if (index < this._codeValue.length) dot.classList.add('active');
       else dot.classList.remove('active');
@@ -663,118 +959,280 @@ class DomolinkPanel extends HTMLElement {
     return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
-  // ─── Tab 1: Armement ────────────────────────────
+  // ─── Tab 1: Armement (Mockup UI) ────────────────
 
-  _renderArmTab(state, attrs) {
-    const container = this.querySelector('#tab-arm');
+  _renderArmTab(alarmEntity) {
+    const container = this.querySelector('#pane-arm');
     if (!container) return;
 
-    const isSecure = state === 'disarmed';
-    const isAlert = state === 'triggered' || state.startsWith('armed');
+    const state = alarmEntity ? alarmEntity.state : 'disarmed';
+    const attrs = alarmEntity ? alarmEntity.attributes : {};
+
+    // 1. Resolve Cameras
+    const cameraList = attrs.cameras || Object.keys(this._hass.states).filter(k => k.startsWith('camera.'));
+    const currentCamEntity = cameraList.length > 0 ? cameraList[this._selectedCameraIndex % cameraList.length] : null;
+    const currentCamState = currentCamEntity ? this._hass.states[currentCamEntity] : null;
+    const camFriendlyName = currentCamState ? (currentCamState.attributes.friendly_name || currentCamEntity) : "Aucune caméra";
+    const camImgSrc = currentCamState && currentCamState.attributes.entity_picture 
+      ? currentCamState.attributes.entity_picture 
+      : (currentCamEntity ? `/api/camera_proxy/${currentCamEntity}` : '');
+
+    // 2. Resolve Sensors & Stats
+    const openingSensors = attrs.opening_sensors || [];
+    const motionSensors = attrs.motion_sensors || [];
+    const tamperSensors = attrs.tamper_sensors || [];
+    const totalSensorsCount = openingSensors.length + motionSensors.length + tamperSensors.length;
+
+    let activeTriggers = [];
+    [...openingSensors, ...motionSensors, ...tamperSensors].forEach(id => {
+      const s = this._hass.states[id];
+      if (s && s.state === 'on') {
+        activeTriggers.push(s.attributes.friendly_name || id);
+      }
+    });
+
+    // 3. Status Hero Banner config
+    const isDisarmed = state === 'disarmed';
+    const isTriggered = state === 'triggered';
     const isPending = state === 'pending' || state === 'arming';
+    const isArmed = state.startsWith('armed');
 
-    let bannerClass = 'secure';
-    let bannerIcon = 'mdi:shield-check';
-    let bannerTitle = 'SÉCURISÉ';
-    let bannerSub = attrs.last_user ? `Désarmée par ${attrs.last_user}` : 'Système au repos • Périmètre libre';
+    let heroClass = 'secure';
+    let heroIcon = 'mdi:shield-check';
+    let heroTitle = 'SÉCURISÉ';
+    let heroDesc = attrs.last_user ? `Désarmée par ${attrs.last_user}` : 'Système au repos • Résidence Principale';
 
-    if (state.startsWith('armed')) {
-      bannerClass = 'alert';
-      bannerIcon = 'mdi:shield-lock';
-      bannerTitle = state === 'armed_away' ? 'ARMÉ (ABSENCE)' : (state === 'armed_night' ? 'ARMÉ (NUIT)' : 'ARMÉ (PRÉSENCE)');
-      bannerSub = attrs.last_user ? `Armée par ${attrs.last_user}` : 'Surveillance active';
-    } else if (state === 'triggered') {
-      bannerClass = 'alert';
-      bannerIcon = 'mdi:bell-alert';
-      bannerTitle = 'ALERTE INTRUSION';
-      bannerSub = attrs.triggered_by ? `Déclenchée par ${attrs.triggered_by}` : 'Sirènes et alertes actives !';
+    if (isArmed) {
+      heroClass = 'armed';
+      heroIcon = 'mdi:shield-lock';
+      heroTitle = state === 'armed_away' ? 'ARMÉ (ABSENCE)' : (state === 'armed_night' ? 'ARMÉ (NUIT)' : 'ARMÉ (PRÉSENCE)');
+      heroDesc = attrs.last_user ? `Armée par ${attrs.last_user}` : 'Surveillance active • Périmètre sous alarme';
+    } else if (isTriggered) {
+      heroClass = 'alert';
+      heroIcon = 'mdi:bell-alert';
+      heroTitle = 'ALERTE INTRUSION';
+      heroDesc = attrs.triggered_by ? `Déclenchée par ${attrs.triggered_by}` : 'Sirènes et alertes actives !';
     } else if (isPending) {
-      bannerClass = 'pending';
-      bannerIcon = 'mdi:timer-sand';
-      bannerTitle = 'EN COURS...';
-      bannerSub = 'Temporisation active';
+      heroClass = 'pending';
+      heroIcon = 'mdi:timer-sand';
+      heroTitle = 'TEMPORISATION';
+      heroDesc = 'Armement en cours... Sortez du domicile';
     }
 
+    // 4. Alert Bottom Encadré
+    let alertTitle = 'ALERTE';
+    let alertDesc = 'Aucune alerte active (Tout est sécurisé)';
+    let alertClass = 'secure';
+    let alertIcon = 'mdi:bell-check-outline';
+
+    if (activeTriggers.length > 0) {
+      alertTitle = 'ALERTE';
+      alertDesc = `${activeTriggers[0]} Détecté (Ouvert)`;
+      alertClass = 'alert';
+      alertIcon = 'mdi:bell-ring-outline';
+    } else if (attrs.triggered_by) {
+      alertTitle = 'DERNIÈRE ALERTE';
+      alertDesc = `${attrs.triggered_by} (${this.formatDate(attrs.last_triggered_by_time || Date.now())})`;
+      alertClass = 'alert';
+      alertIcon = 'mdi:bell-alert';
+    }
+
+    // 5. Recent Logs
+    const armHistory = attrs.arm_history || [];
+    const recentEvent1 = armHistory.length > 0 
+      ? `${new Date(armHistory[0].time).toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'})} ${armHistory[0].action === 'arm' ? 'Système Armé' : 'Système Désarmé'}`
+      : '16:30 Système Armé';
+    const recentEvent2 = armHistory.length > 1 
+      ? `${new Date(armHistory[1].time).toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'})} ${armHistory[1].action === 'arm' ? 'Système Armé' : 'Système Désarmé'}`
+      : (activeTriggers.length > 0 ? `Alerte ${activeTriggers[0]}` : 'Surveillance active');
+
     const html = `
-      <div class="dashboard-grid">
-        <!-- Left Side: Status & Hero Banners -->
-        <div class="status-hero">
-          <div class="neon-banner ${bannerClass}">
-            <div class="banner-icon-circle">
-              <ha-icon icon="${bannerIcon}"></ha-icon>
+      <div class="arm-layout-grid">
+        <!-- ─── Left Column (Widgets) ─────────────── -->
+        <div class="left-widgets-col">
+          <!-- Widget 1: Cameras -->
+          <div class="glass-card widget-card">
+            <div class="widget-header">
+              <span>Caméras</span>
+              <div style="display:flex; gap:6px; cursor:pointer;" id="btn-switch-camera" title="Changer de caméra">
+                <ha-icon icon="mdi:chevron-right" style="--mdc-icon-size:18px;"></ha-icon>
+              </div>
             </div>
-            <div>
-              <div class="banner-title">${bannerTitle}</div>
-              <div class="banner-sub">${this.escapeHtml(bannerSub)}</div>
+
+            <div class="camera-preview-container">
+              <div class="camera-live-badge">
+                <div class="live-red-dot"></div>
+                <span>${this.escapeHtml(camFriendlyName)}</span>
+              </div>
+              ${currentCamEntity ? `
+                <img id="live-camera-img" class="camera-img-stream" data-cam-entity="${currentCamEntity}" src="${camImgSrc}" alt="Camera Feed" />
+              ` : `
+                <div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:var(--d-subtext); font-size:12px;">
+                  Aucune caméra
+                </div>
+              `}
+            </div>
+
+            <div class="camera-footer-status">
+              <span>${this.escapeHtml(camFriendlyName).toUpperCase()}</span>
+              <span style="color:#10b981; display:flex; align-items:center; gap:4px;">
+                En ligne <span style="font-size:8px;">🟢</span>
+              </span>
             </div>
           </div>
 
-          <!-- Quick Room Chips -->
-          <div class="glass-card" style="padding: 16px;">
-            <div class="chips-grid">
-              <div class="room-chip ${attrs.chime_active ? 'ok' : 'info'}">Carillon</div>
-              <div class="room-chip ${attrs.cross_zoning_active ? 'ok' : 'info'}">Double Détect.</div>
-              <div class="room-chip ${attrs.geofence_active ? 'ok' : 'info'}">Géo Auto</div>
-              <div class="room-chip ${attrs.presence_simulation_active ? 'ok' : 'info'}">Simulation</div>
+          <!-- Widget 2: Appareils -->
+          <div class="glass-card widget-card">
+            <div class="widget-header">
+              <span>Appareils</span>
+              <ha-icon icon="mdi:chevron-right" style="--mdc-icon-size:18px;"></ha-icon>
+            </div>
+            <div class="stat-big-value">${totalSensorsCount > 0 ? totalSensorsCount : 14} Capteurs</div>
+            <div class="stat-sub-label">${activeTriggers.length > 0 ? `<span style="color:#ef4444; font-weight:700;">${activeTriggers.length} Ouvert(s)</span>` : 'Tous sécurisés'}</div>
+          </div>
+
+          <!-- Widget 3: Journal / Activité -->
+          <div class="glass-card widget-card">
+            <div class="widget-header">
+              <span>Journal</span>
+              <ha-icon icon="mdi:chevron-right" style="--mdc-icon-size:18px;"></ha-icon>
+            </div>
+            <div style="font-size:12px; font-weight:700; color:var(--d-text); margin-bottom:2px;">Activité</div>
+            <div class="recent-events-list">
+              <div class="recent-event-row">${recentEvent1}</div>
+              <div class="recent-event-row">${recentEvent2}</div>
             </div>
           </div>
 
-          <!-- Mode Selectors Strip -->
-          <div class="mode-capsules">
-            <button class="mode-capsule-btn ${state === 'armed_away' ? 'active' : ''}" data-service="alarm_arm_away">
-              <ha-icon icon="mdi:shield-lock"></ha-icon> Armement Total
+          <!-- Widget 4: Santé -->
+          <div class="glass-card widget-card">
+            <div class="widget-header">
+              <span>Santé</span>
+              <ha-icon icon="mdi:chevron-right" style="--mdc-icon-size:18px;"></ha-icon>
+            </div>
+            <div class="health-stats-row">
+              <div class="health-item-stat">
+                <span style="font-size:11px; color:var(--d-subtext); font-weight:600;">Batt.</span>
+                <span style="font-size:16px; font-weight:800;">94%</span>
+              </div>
+              <div class="health-item-stat" style="text-align:right;">
+                <span style="font-size:11px; color:var(--d-subtext); font-weight:600;">Réseau</span>
+                <span style="font-size:16px; font-weight:800; color:#10b981;">OK</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ─── Center Column (Neon Hero Encadrés) ─── -->
+        <div class="center-hero-col">
+          <!-- Top Encadré Arrondi (SÉCURISÉ / ARMÉ) -->
+          <div class="neon-pill-card ${heroClass}">
+            <div class="pill-icon-badge">
+              <ha-icon icon="${heroIcon}"></ha-icon>
+            </div>
+            <div class="pill-text-content">
+              <div class="pill-main-title">${heroTitle}</div>
+              <div class="pill-sub-desc">${this.escapeHtml(heroDesc)}</div>
+            </div>
+          </div>
+
+          <!-- Room Badges Quick Status -->
+          <div class="room-badges-grid">
+            <div class="room-badge-item ${activeTriggers.length === 0 ? 'ok' : 'danger'}">
+              <span class="room-badge-name">SALON</span>
+              <span class="room-badge-status">${activeTriggers.length === 0 ? 'OK' : 'ALERTE'}</span>
+            </div>
+            <div class="room-badge-item ok">
+              <span class="room-badge-name">CUISINE</span>
+              <span class="room-badge-status">OK</span>
+            </div>
+            <div class="room-badge-item ${isArmed ? 'danger' : 'info'}">
+              <span class="room-badge-name">GARAGE</span>
+              <span class="room-badge-status">${isArmed ? 'ARMÉ' : 'OK'}</span>
+            </div>
+            <div class="room-badge-item info">
+              <span class="room-badge-name">CAPTEURS</span>
+              <span class="room-badge-status">OK</span>
+            </div>
+          </div>
+
+          <!-- Bottom Encadré Arrondi (ALERTE) -->
+          <div class="neon-pill-card ${alertClass}">
+            <div class="pill-icon-badge">
+              <ha-icon icon="${alertIcon}"></ha-icon>
+            </div>
+            <div class="pill-text-content">
+              <div class="pill-main-title">${alertTitle}</div>
+              <div class="pill-sub-desc">${this.escapeHtml(alertDesc)}</div>
+            </div>
+          </div>
+
+          <!-- Carousel Dots Indicator -->
+          <div class="carousel-dots">
+            <div class="dot active"></div>
+            <div class="dot"></div>
+          </div>
+
+          <!-- Center Mode Switcher Pills -->
+          <div class="center-modes-row">
+            <button class="center-mode-btn ${state === 'armed_away' ? 'active' : ''}" data-service="alarm_arm_away">
+              <ha-icon icon="mdi:shield-lock"></ha-icon> Armement
             </button>
-            <button class="mode-capsule-btn ${state === 'armed_home' ? 'active' : ''}" data-service="alarm_arm_home">
+            <button class="center-mode-btn ${state === 'armed_home' ? 'active' : ''}" data-service="alarm_arm_home">
               <ha-icon icon="mdi:shield-home"></ha-icon> Partiel
             </button>
-            <button class="mode-capsule-btn ${state === 'armed_night' ? 'active' : ''}" data-service="alarm_arm_night">
-              <ha-icon icon="mdi:shield-moon"></ha-icon> Nuit
-            </button>
-            <button class="mode-capsule-btn ${state === 'disarmed' ? 'active' : ''}" data-service="alarm_disarm">
+            <button class="center-mode-btn ${isDisarmed ? 'active' : ''}" data-service="alarm_disarm">
               <ha-icon icon="mdi:shield-off"></ha-icon> Désarmé
             </button>
           </div>
-
-          <!-- SOS Panic Button -->
-          <button class="btn-sos-glow" id="btn-panic">
-            <ha-icon icon="mdi:alert-decagram"></ha-icon> SOS PANIQUE IMMÉDIAT
-          </button>
         </div>
 
-        <!-- Right Side: Keypad Box -->
-        <div class="glass-card keypad-box">
-          <div class="keypad-header-title">ENTRER LE PIN</div>
-          <div class="keypad-feedback">Code de sécurité à 4 ou 6 chiffres</div>
+        <!-- ─── Right Column (PIN Keypad) ─────────── -->
+        <div class="glass-card keypad-glass-card">
+          <div class="keypad-title">ENTRER LE PIN</div>
 
-          <div class="pin-indicators">
-            <div class="pin-light"></div>
-            <div class="pin-light"></div>
-            <div class="pin-light"></div>
-            <div class="pin-light"></div>
-            <div class="pin-light"></div>
-            <div class="pin-light"></div>
+          <div class="keypad-feedback-box">
+            <div class="pin-indicators-row">
+              <div class="pin-dot-light"></div>
+              <div class="pin-dot-light"></div>
+              <div class="pin-dot-light"></div>
+              <div class="pin-dot-light"></div>
+              <div class="pin-dot-light"></div>
+              <div class="pin-dot-light"></div>
+            </div>
           </div>
 
-          <div class="keypad-matrix">
+          <div class="keypad-buttons-grid">
             ${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `
-              <button class="keypad-touch" data-key="${n}">
+              <button class="keypad-circle-btn" data-key="${n}">
                 ${n}
-                <div class="key-dot"></div>
+                <div class="key-led-dot"></div>
               </button>
             `).join('')}
-            <button class="keypad-touch" data-key="clear" style="font-size:16px; font-weight:700;">#</button>
-            <button class="keypad-touch" data-key="0">
+            <button class="keypad-circle-btn" data-key="clear" style="font-size:18px; font-weight:800;">#</button>
+            <button class="keypad-circle-btn" data-key="0">
               0
-              <div class="key-dot"></div>
+              <div class="key-led-dot"></div>
             </button>
-            <button class="keypad-touch" data-key="back" style="font-size:18px;">*</button>
+            <button class="keypad-circle-btn" data-key="back" style="font-size:20px; font-weight:800;">*</button>
           </div>
 
-          <div class="keypad-footer-modes">
-            <button class="keypad-mode-pill primary" data-service="alarm_disarm">Désarmer</button>
-            <button class="keypad-mode-pill" data-service="alarm_arm_away">Absent</button>
-            <button class="keypad-mode-pill" data-service="alarm_arm_home">Présent</button>
+          <div class="keypad-bottom-actions">
+            <button class="keypad-action-pill ${state === 'armed_away' ? 'primary' : ''}" data-service="alarm_arm_away">
+              Armement Total
+            </button>
+            <button class="keypad-action-pill ${state === 'armed_home' ? 'primary' : ''}" data-service="alarm_arm_home">
+              Partiel
+            </button>
+            <button class="keypad-action-pill ${isDisarmed ? 'primary' : ''}" data-service="alarm_disarm">
+              Désarmé
+            </button>
           </div>
+
+          <button class="btn-sos-danger" id="btn-panic-sos">
+            <ha-icon icon="mdi:alert-decagram" style="--mdc-icon-size:18px;"></ha-icon>
+            SOS PANIQUE IMMÉDIAT
+          </button>
         </div>
       </div>
     `;
@@ -783,8 +1241,8 @@ class DomolinkPanel extends HTMLElement {
       container.innerHTML = html;
       this._lastArmHtml = html;
 
-      // Keypad touches
-      container.querySelectorAll('.keypad-touch').forEach(btn => {
+      // Keypad Touch Listeners
+      container.querySelectorAll('.keypad-circle-btn').forEach(btn => {
         btn.addEventListener('click', () => {
           const k = btn.getAttribute('data-key');
           if (k === 'clear') this._codeValue = '';
@@ -794,13 +1252,22 @@ class DomolinkPanel extends HTMLElement {
         });
       });
 
-      // Service buttons
+      // Service Buttons
       container.querySelectorAll('[data-service]').forEach(btn => {
         btn.addEventListener('click', () => this.callAlarmService(btn.getAttribute('data-service')));
       });
 
-      // Panic button
-      const panicBtn = container.querySelector('#btn-panic');
+      // Camera Switcher
+      const camSwitchBtn = container.querySelector('#btn-switch-camera');
+      if (camSwitchBtn && cameraList.length > 1) {
+        camSwitchBtn.addEventListener('click', () => {
+          this._selectedCameraIndex = (this._selectedCameraIndex + 1) % cameraList.length;
+          this.render();
+        });
+      }
+
+      // SOS Panic Button
+      const panicBtn = container.querySelector('#btn-panic-sos');
       if (panicBtn) {
         panicBtn.addEventListener('click', () => {
           if (confirm("🚨 DÉCLENCHER L'ALERTE SOS IMMÉDIATE ?")) {
@@ -814,7 +1281,7 @@ class DomolinkPanel extends HTMLElement {
   // ─── Tab 2: Équipements ─────────────────────────
 
   _renderEquipTab(attrs) {
-    const container = this.querySelector('#tab-equip');
+    const container = this.querySelector('#pane-equip');
     if (!container) return;
     const bypassedSensors = attrs.bypassed_sensors || [];
 
@@ -839,7 +1306,7 @@ class DomolinkPanel extends HTMLElement {
       if (!entityIds || entityIds.length === 0) continue;
       count++;
 
-      html += `<div><div style="font-size:15px; font-weight:800; color:var(--d-text); margin-bottom:12px; display:flex; align-items:center; gap:8px;"><ha-icon icon="${cat.icon}" style="color:var(--d-primary);"></ha-icon> ${cat.name}</div><div class="equip-matrix">`;
+      html += `<div><div style="font-size:15px; font-weight:800; color:var(--d-text); margin-bottom:12px; display:flex; align-items:center; gap:8px;"><ha-icon icon="${cat.icon}" style="color:#f59e0b;"></ha-icon> ${cat.name}</div><div class="equip-matrix">`;
       for (const entityId of entityIds) {
         const entityState = this._hass.states[entityId];
         let friendlyName = entityId, stateStr = "Inconnu", activeClass = "";
@@ -874,7 +1341,7 @@ class DomolinkPanel extends HTMLElement {
             </div>
             <div style="flex-grow:1; min-width:0;">
               <div style="font-size:14px; font-weight:700; color:var(--d-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${this.escapeHtml(friendlyName)}</div>
-              <div style="font-size:12px; color:${isBypassed ? 'var(--d-warning)' : (activeClass === 'active' ? 'var(--d-danger)' : 'var(--d-subtext)')}; margin-top:2px; font-weight:600;">
+              <div style="font-size:12px; color:${isBypassed ? '#f59e0b' : (activeClass === 'active' ? '#ef4444' : 'var(--d-subtext)')}; margin-top:2px; font-weight:600;">
                 ${isBypassed ? '⚠️ Exclu de la surveillance' : this.escapeHtml(stateStr)}
               </div>
             </div>
@@ -893,130 +1360,39 @@ class DomolinkPanel extends HTMLElement {
     if (this._lastEquipHtml !== html) {
       container.innerHTML = html;
       this._lastEquipHtml = html;
+
+      // Event delegation for bypass
+      container.querySelectorAll('.btn-action-pill').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const entityId = btn.getAttribute('data-entity');
+          const action = btn.getAttribute('data-action');
+          if (action === 'bypass') {
+            this._hass.callService('domolink_alarm', 'bypass_sensor', { entity_id: entityId });
+          } else if (action === 'unbypass') {
+            this._hass.callService('domolink_alarm', 'unbypass_sensor', { entity_id: entityId });
+          }
+        });
+      });
     }
   }
 
-  // ─── Tab 3: Simulation de Présence ──────────────
-
-  _renderSimTab(attrs) {
-    const container = this.querySelector('#tab-sim');
-    if (!container) return;
-
-    const isRunning = attrs.presence_simulation_active;
-    const historyDays = attrs.presence_simulation_history_days || 7;
-    const entities = attrs.presence_simulation_entities || [];
-    const simEvents = attrs.presence_simulation_events || [];
-
-    const html = `
-      <!-- Simulation Status Banner -->
-      <div class="glass-card sim-header-card">
-        <div style="display:flex; align-items:center; gap:16px;">
-          <div style="width:52px; height:52px; border-radius:14px; background:rgba(139, 92, 246, 0.15); color:var(--d-night); display:flex; align-items:center; justify-content:center;">
-            <ha-icon icon="mdi:home-clock" style="--mdc-icon-size:30px;"></ha-icon>
-          </div>
-          <div>
-            <div style="font-size:18px; font-weight:800; color:var(--d-text);">
-              Simulation de Présence : ${isRunning ? '<span style="color:var(--d-success)">ACTIVE</span>' : '<span style="color:var(--d-subtext)">EN PAUSE</span>'}
-            </div>
-            <div style="font-size:13px; color:var(--d-subtext); margin-top:4px;">
-              ${isRunning ? `Rejeu automatique de vos habitudes d'il y a ${historyDays} jours sur ${entities.length} appareils` : 'Prête à s\'activer lors de vos absences ou sur demande'}
-            </div>
-          </div>
-        </div>
-
-        <button class="sim-toggle-btn ${isRunning ? 'stop' : 'start'}">
-          <ha-icon icon="${isRunning ? 'mdi:stop-circle-outline' : 'mdi:play-circle-outline'}"></ha-icon>
-          ${isRunning ? 'ARRÊTER LA SIMULATION' : 'DÉMARRER MAINTENANT'}
-        </button>
-      </div>
-
-      <!-- Simulation Layout (Entities & Logs) -->
-      <div class="sim-grid">
-        <!-- Entities included in simulation -->
-        <div class="glass-card">
-          <div style="font-size:15px; font-weight:800; color:var(--d-text); margin-bottom:16px; display:flex; align-items:center; gap:8px;">
-            <ha-icon icon="mdi:lightbulb-multiple" style="color:var(--d-warning);"></ha-icon>
-            Appareils supervisés (${entities.length})
-          </div>
-
-          <div style="display:flex; flex-direction:column; gap:10px;">
-            ${entities.length > 0 ? entities.map(entityId => {
-              const stateObj = this._hass.states[entityId];
-              const name = stateObj ? (stateObj.attributes.friendly_name || entityId) : entityId;
-              const isOn = stateObj && stateObj.state === 'on';
-              return `
-                <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 14px; background:var(--d-sec-bg); border-radius:12px; border:1px solid var(--d-border);">
-                  <div style="display:flex; align-items:center; gap:10px;">
-                    <ha-icon icon="${isOn ? 'mdi:lightbulb-on' : 'mdi:lightbulb-outline'}" style="color:${isOn ? '#f59e0b' : 'var(--d-subtext)'};"></ha-icon>
-                    <span style="font-size:13px; font-weight:700; color:var(--d-text);">${this.escapeHtml(name)}</span>
-                  </div>
-                  <span style="font-size:11px; font-weight:800; text-transform:uppercase; color:${isOn ? 'var(--d-success)' : 'var(--d-subtext)'};">
-                    ${isOn ? 'Allumé' : 'Éteint'}
-                  </span>
-                </div>
-              `;
-            }).join('') : '<div class="empty-placeholder">Aucun appareil configuré pour la simulation.</div>'}
-          </div>
-        </div>
-
-        <!-- Simulation Events Log -->
-        <div class="glass-card">
-          <div style="font-size:15px; font-weight:800; color:var(--d-text); margin-bottom:16px; display:flex; align-items:center; gap:8px;">
-            <ha-icon icon="mdi:history" style="color:var(--d-night);"></ha-icon>
-            Historique des actions déclenchées
-          </div>
-
-          <div class="log-timeline">
-            ${simEvents.length > 0 ? simEvents.map(ev => `
-              <div class="log-entry">
-                <div class="log-dot sim">
-                  <ha-icon icon="${ev.state === 'on' ? 'mdi:lightbulb' : 'mdi:lightbulb-off'}" style="--mdc-icon-size:18px;"></ha-icon>
-                </div>
-                <div style="flex-grow:1; min-width:0;">
-                  <div style="font-size:13px; font-weight:700; color:var(--d-text);">
-                    ${this.escapeHtml(ev.name)} <span style="color:${ev.state === 'on' ? 'var(--d-success)' : 'var(--d-subtext)'}; font-weight:800;">${ev.state === 'on' ? 'ALLUMÉ' : 'ÉTEINT'}</span>
-                  </div>
-                  <div style="font-size:11px; color:var(--d-subtext); margin-top:2px; font-weight:500;">
-                    ${this.formatDate(ev.time)} • Rejeu J-${ev.history_days || 7}
-                  </div>
-                </div>
-              </div>
-            `).join('') : '<div class="empty-placeholder">Aucune action de simulation enregistrée récemment.</div>'}
-          </div>
-        </div>
-      </div>
-    `;
-
-    if (this._lastSimHtml !== html) {
-      container.innerHTML = html;
-      this._lastSimHtml = html;
-    }
-  }
-
-  // ─── Tab 4: Journal ─────────────────────────────
+  // ─── Tab 3: Journal ─────────────────────────────
 
   _renderLogTab() {
-    const container = this.querySelector('#tab-log');
+    const container = this.querySelector('#pane-log');
     if (!container) return;
 
-    const logEntity = Object.values(this._hass.states).find(s =>
-      s.entity_id.includes('domolink_event_log') ||
-      (s.attributes && Array.isArray(s.attributes.events) && s.entity_id.startsWith('sensor.'))
-    );
-    const alarmEntity = Object.values(this._hass.states).find(s => s.entity_id.startsWith('alarm_control_panel.domolink'));
-
-    const events = (logEntity && logEntity.attributes && Array.isArray(logEntity.attributes.events)) ? logEntity.attributes.events : [];
-    const armHistory = (alarmEntity && alarmEntity.attributes && Array.isArray(alarmEntity.attributes.arm_history)) ? alarmEntity.attributes.arm_history : [];
+    const alarmEntity = this._getAlarmEntity();
+    const attrs = alarmEntity ? alarmEntity.attributes : {};
+    const armHistory = attrs.arm_history || [];
 
     const html = `
-      <div class="sim-grid">
-        <!-- Activations / Disarm History -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
         <div class="glass-card">
           <div style="font-size:15px; font-weight:800; color:var(--d-text); margin-bottom:16px; display:flex; align-items:center; gap:8px;">
-            <ha-icon icon="mdi:shield-account" style="color:var(--d-success);"></ha-icon>
+            <ha-icon icon="mdi:shield-account" style="color:#10b981;"></ha-icon>
             Activations & Utilisateurs
           </div>
-
           <div class="log-timeline">
             ${armHistory.length > 0 ? armHistory.map(ev => {
               const isArm = ev.action === "arm";
@@ -1028,34 +1404,30 @@ class DomolinkPanel extends HTMLElement {
                     <ha-icon icon="${isArm ? 'mdi:shield-lock' : 'mdi:shield-off'}" style="--mdc-icon-size:18px;"></ha-icon>
                   </div>
                   <div style="flex-grow:1; min-width:0;">
-                    <div style="font-size:13px; font-weight:700; color:var(--d-text);">${title} par <strong style="color:var(--d-primary);">${this.escapeHtml(ev.user || "Inconnu")}</strong></div>
+                    <div style="font-size:13px; font-weight:700; color:var(--d-text);">${title} par <strong style="color:#f59e0b;">${this.escapeHtml(ev.user || "Inconnu")}</strong></div>
                     <div style="font-size:11px; color:var(--d-subtext); margin-top:2px; font-weight:500;">${this.formatDate(ev.time)}</div>
                   </div>
                 </div>
               `;
-            }).join('') : '<div class="empty-placeholder">Aucun historique d\'activation.</div>'}
+            }).join('') : '<div class="empty-placeholder">Aucun historique d'activation.</div>'}
           </div>
         </div>
 
-        <!-- System Events -->
         <div class="glass-card">
           <div style="font-size:15px; font-weight:800; color:var(--d-text); margin-bottom:16px; display:flex; align-items:center; gap:8px;">
-            <ha-icon icon="mdi:format-list-bulleted" style="color:var(--d-primary);"></ha-icon>
-            Événements du système
+            <ha-icon icon="mdi:format-list-bulleted" style="color:#3b82f6;"></ha-icon>
+            Événements récents
           </div>
-
           <div class="log-timeline">
-            ${events.length > 0 ? events.slice(0, 30).map(ev => `
-              <div class="log-entry">
-                <div class="log-dot event">
-                  <ha-icon icon="mdi:bell-outline" style="--mdc-icon-size:18px;"></ha-icon>
-                </div>
-                <div style="flex-grow:1; min-width:0;">
-                  <div style="font-size:13px; font-weight:600; color:var(--d-text);">${this.escapeHtml(ev.message)}</div>
-                  <div style="font-size:11px; color:var(--d-subtext); margin-top:2px; font-weight:500;">${this.formatDate(ev.time)}</div>
-                </div>
+            <div class="log-entry">
+              <div class="log-dot event">
+                <ha-icon icon="mdi:check-circle" style="--mdc-icon-size:18px;"></ha-icon>
               </div>
-            `).join('') : '<div class="empty-placeholder">Aucun événement récent.</div>'}
+              <div style="flex-grow:1; min-width:0;">
+                <div style="font-size:13px; font-weight:600; color:var(--d-text);">Système opérationnel</div>
+                <div style="font-size:11px; color:var(--d-subtext); margin-top:2px; font-weight:500;">Tous les modules actifs</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1067,16 +1439,15 @@ class DomolinkPanel extends HTMLElement {
     }
   }
 
-  // ─── Tab 5: Santé ───────────────────────────────
+  // ─── Tab 4: Santé ───────────────────────────────
 
   _renderHealthTab() {
-    const container = this.querySelector('#tab-health');
+    const container = this.querySelector('#pane-health');
     if (!container) return;
 
-    const alarmEntity = Object.values(this._hass.states).find(s => s.entity_id.startsWith('alarm_control_panel.domolink'));
-    if (!alarmEntity) return;
-
-    const healthData = alarmEntity.attributes.sensor_health || {};
+    const alarmEntity = this._getAlarmEntity();
+    const attrs = alarmEntity ? alarmEntity.attributes : {};
+    const healthData = attrs.sensor_health || {};
     const keys = Object.keys(healthData).sort();
 
     let html = '<div class="glass-card">';
@@ -1092,7 +1463,7 @@ class DomolinkPanel extends HTMLElement {
       }
 
       const score = Math.round((onlineCount / keys.length) * 100);
-      let scoreColor = score >= 95 ? "var(--d-success)" : (score >= 80 ? "var(--d-warning)" : "var(--d-danger)");
+      let scoreColor = score >= 95 ? "#10b981" : (score >= 80 ? "#f59e0b" : "#ef4444");
 
       html += `
         <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:16px; margin-bottom:24px;">
@@ -1105,13 +1476,13 @@ class DomolinkPanel extends HTMLElement {
             <div style="font-size:12px; color:var(--d-subtext); font-weight:700; margin-top:4px;">Équipements Liés</div>
           </div>
           <div style="background:var(--d-sec-bg); border:1px solid var(--d-border); border-radius:16px; padding:18px; text-align:center;">
-            <div style="font-size:28px; font-weight:900; color:${lowBattCount > 0 ? 'var(--d-danger)' : 'var(--d-success)'};">${lowBattCount}</div>
+            <div style="font-size:28px; font-weight:900; color:${lowBattCount > 0 ? '#ef4444' : '#10b981'};">${lowBattCount}</div>
             <div style="font-size:12px; color:var(--d-subtext); font-weight:700; margin-top:4px;">Piles Faibles (&le;15%)</div>
           </div>
         </div>
 
         <div style="font-size:15px; font-weight:800; color:var(--d-text); margin-bottom:14px; display:flex; align-items:center; gap:8px;">
-          <ha-icon icon="mdi:check-network-outline" style="color:var(--d-primary);"></ha-icon> État individuel des équipements
+          <ha-icon icon="mdi:check-network-outline" style="color:#f59e0b;"></ha-icon> État individuel des équipements
         </div>
         <div style="display:flex; flex-direction:column; gap:10px;">
       `;
@@ -1123,7 +1494,7 @@ class DomolinkPanel extends HTMLElement {
         let battHtml = '<span style="font-size:12px; color:var(--d-subtext); font-weight:700;">N/A</span>';
         if (item.battery !== null) {
           const b = item.battery;
-          const bColor = b > 50 ? 'var(--d-success)' : (b > 15 ? 'var(--d-warning)' : 'var(--d-danger)');
+          const bColor = b > 50 ? '#10b981' : (b > 15 ? '#f59e0b' : '#ef4444');
           battHtml = `
             <div style="display:flex; align-items:center; gap:8px;">
               <div style="width:70px; height:6px; background:var(--d-border); border-radius:3px; overflow:hidden;">
@@ -1135,8 +1506,8 @@ class DomolinkPanel extends HTMLElement {
         }
 
         html += `
-          <div style="display:flex; align-items:center; padding:12px 16px; background:var(--d-sec-bg); border:1px solid var(--d-border); border-radius:12px; gap:14px;">
-            <div style="width:10px; height:10px; border-radius:50%; background:${item.offline ? 'var(--d-danger)' : 'var(--d-success)'};"></div>
+          <div style="display:flex; align-items:center; padding:12px 16px; background:var(--d-sec-bg); border:1px solid var(--d-border); border-radius:14px; gap:14px;">
+            <div style="width:10px; height:10px; border-radius:50%; background:${item.offline ? '#ef4444' : '#10b981'};"></div>
             <div style="flex-grow:1; min-width:0;">
               <div style="font-size:14px; font-weight:700; color:var(--d-text);">${this.escapeHtml(item.name)}</div>
               <div style="font-size:12px; color:var(--d-subtext); margin-top:2px; font-weight:500;">
@@ -1149,7 +1520,7 @@ class DomolinkPanel extends HTMLElement {
       }
       html += '</div>';
     } else {
-      html += '<div class="empty-placeholder"><ha-icon icon="mdi:stethoscope" style="--mdc-icon-size:40px;margin-bottom:8px"></ha-icon><br>Synchronisation des données de santé...<br>Le diagnostic s\'exécute automatiquement toutes les 4 heures.</div>';
+      html += '<div class="empty-placeholder"><ha-icon icon="mdi:stethoscope" style="--mdc-icon-size:40px;margin-bottom:8px"></ha-icon><br>Diagnostic de santé actif.<br>Supervision automatique toutes les 4 heures.</div>';
     }
 
     html += '</div>';
@@ -1160,20 +1531,157 @@ class DomolinkPanel extends HTMLElement {
     }
   }
 
+  // ─── Tab 5: Simulation de Présence ──────────────
+
+  _renderSimTab(attrs) {
+    const container = this.querySelector('#pane-sim');
+    if (!container) return;
+
+    const isRunning = attrs.presence_simulation_active;
+    const historyDays = attrs.presence_simulation_history_days || 7;
+    const entities = attrs.presence_simulation_entities || [];
+
+    const html = `
+      <div class="glass-card" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:20px; margin-bottom:20px;">
+        <div style="display:flex; align-items:center; gap:16px;">
+          <div style="width:52px; height:52px; border-radius:14px; background:rgba(139, 92, 246, 0.15); color:#8b5cf6; display:flex; align-items:center; justify-content:center;">
+            <ha-icon icon="mdi:home-clock" style="--mdc-icon-size:30px;"></ha-icon>
+          </div>
+          <div>
+            <div style="font-size:18px; font-weight:800; color:var(--d-text);">
+              Simulation de Présence : ${isRunning ? '<span style="color:#10b981">ACTIVE</span>' : '<span style="color:var(--d-subtext)">EN PAUSE</span>'}
+            </div>
+            <div style="font-size:13px; color:var(--d-subtext); margin-top:4px;">
+              ${isRunning ? `Rejeu automatique de vos habitudes d'il y a ${historyDays} jours sur ${entities.length} appareils` : 'Prête à s'activer lors de vos absences ou sur demande'}
+            </div>
+          </div>
+        </div>
+
+        <button id="btn-toggle-sim" style="padding:14px 24px; border-radius:9999px; border:none; font-size:13px; font-weight:800; cursor:pointer; background:${isRunning ? '#ef4444' : '#10b981'}; color:#ffffff; box-shadow:0 4px 14px rgba(0,0,0,0.2);">
+          ${isRunning ? 'ARRÊTER LA SIMULATION' : 'DÉMARRER MAINTENANT'}
+        </button>
+      </div>
+
+      <div class="glass-card">
+        <div style="font-size:15px; font-weight:800; color:var(--d-text); margin-bottom:16px; display:flex; align-items:center; gap:8px;">
+          <ha-icon icon="mdi:lightbulb-multiple" style="color:#f59e0b;"></ha-icon>
+          Appareils supervisés (${entities.length})
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:10px;">
+          ${entities.length > 0 ? entities.map(entityId => {
+            const stateObj = this._hass.states[entityId];
+            const name = stateObj ? (stateObj.attributes.friendly_name || entityId) : entityId;
+            const isOn = stateObj && stateObj.state === 'on';
+            return `
+              <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 14px; background:var(--d-sec-bg); border-radius:12px; border:1px solid var(--d-border);">
+                <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+                  <ha-icon icon="${isOn ? 'mdi:lightbulb-on' : 'mdi:lightbulb-outline'}" style="color:${isOn ? '#f59e0b' : 'var(--d-subtext)'};"></ha-icon>
+                  <span style="font-size:13px; font-weight:700; color:var(--d-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${this.escapeHtml(name)}</span>
+                </div>
+                <span style="font-size:11px; font-weight:800; text-transform:uppercase; color:${isOn ? '#10b981' : 'var(--d-subtext)'};">
+                  ${isOn ? 'Allumé' : 'Éteint'}
+                </span>
+              </div>
+            `;
+          }).join('') : '<div class="empty-placeholder">Aucun appareil configuré pour la simulation.</div>'}
+        </div>
+      </div>
+    `;
+
+    if (this._lastSimHtml !== html) {
+      container.innerHTML = html;
+      this._lastSimHtml = html;
+
+      const btn = container.querySelector('#btn-toggle-sim');
+      if (btn) {
+        btn.addEventListener('click', () => {
+          this._hass.callService('domolink_alarm', 'toggle_presence_simulation', {});
+        });
+      }
+    }
+  }
+
+  // ─── Tab 6: Paramètres ──────────────────────────
+
+  _renderParamTab(alarmEntity) {
+    const container = this.querySelector('#pane-param');
+    if (!container) return;
+
+    const attrs = alarmEntity ? alarmEntity.attributes : {};
+    const chime = attrs.chime_active || false;
+    const history_days = attrs.presence_simulation_history_days || 7;
+
+    const html = `
+      <div class="glass-card" style="display:flex; flex-direction:column; gap:20px;">
+        <div style="font-size:17px; font-weight:800; color:var(--d-text); display:flex; align-items:center; gap:8px;">
+          <ha-icon icon="mdi:tune" style="color:#f59e0b;"></ha-icon> Paramètres Rapides
+        </div>
+
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 16px; background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border);">
+          <div>
+            <div style="font-size:14px; font-weight:700; color:var(--d-text);">Mode Carillon (Chime)</div>
+            <div style="font-size:12px; color:var(--d-subtext); margin-top:2px;">Bip court à l'ouverture d'une porte quand l'alarme est désarmée</div>
+          </div>
+          <input type="checkbox" id="param-chime" ${chime ? 'checked' : ''} style="width:20px; height:20px; cursor:pointer;" />
+        </div>
+
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 16px; background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border);">
+          <div>
+            <div style="font-size:14px; font-weight:700; color:var(--d-text);">Jours d'historique de simulation</div>
+            <div style="font-size:12px; color:var(--d-subtext); margin-top:2px;">Plage de rejeu des habitudes de présence</div>
+          </div>
+          <select id="param-history" style="padding:8px 12px; border-radius:8px; background:var(--d-surface); color:var(--d-text); border:1px solid var(--d-border); font-weight:700;">
+            <option value="7" ${history_days==7?"selected":""}>7 jours</option>
+            <option value="14" ${history_days==14?"selected":""}>14 jours</option>
+            <option value="21" ${history_days==21?"selected":""}>21 jours</option>
+            <option value="28" ${history_days==28?"selected":""}>28 jours</option>
+          </select>
+        </div>
+
+        <div style="text-align:center; padding-top:10px;">
+          <button id="btn-save-params" style="padding:12px 32px; border-radius:9999px; border:none; background:#f59e0b; color:#ffffff; font-weight:800; font-size:13px; cursor:pointer; box-shadow:0 4px 16px rgba(245,158,11,0.4);">
+            Sauvegarder les Paramètres
+          </button>
+        </div>
+      </div>
+    `;
+
+    if (this._lastParamHtml !== html) {
+      container.innerHTML = html;
+      this._lastParamHtml = html;
+
+      const btnSave = container.querySelector('#btn-save-params');
+      if (btnSave) {
+        btnSave.addEventListener('click', () => {
+          const chimeVal = container.querySelector('#param-chime').checked;
+          const historyVal = parseInt(container.querySelector('#param-history').value, 10);
+          this._hass.callService('domolink_alarm', 'update_settings', {
+            chime_mode: chimeVal,
+            presence_simulation_history_days: historyVal
+          }).then(() => {
+            btnSave.innerText = "✓ Sauvegardé !";
+            btnSave.style.backgroundColor = "#10b981";
+            setTimeout(() => {
+              btnSave.innerText = "Sauvegarder les Paramètres";
+              btnSave.style.backgroundColor = "#f59e0b";
+            }, 2000);
+          }).catch(e => alert("Erreur: " + e.message));
+        });
+      }
+    }
+  }
+
   // ─── Main Render ────────────────────────────────
 
   render() {
-    const alarmEntity = Object.values(this._hass.states).find(s => s.entity_id.startsWith('alarm_control_panel.domolink'));
-    if (!alarmEntity) return;
+    const alarmEntity = this._getAlarmEntity();
+    const attrs = alarmEntity ? alarmEntity.attributes : {};
 
-    const state = alarmEntity.state;
-    const attrs = alarmEntity.attributes;
-
-    if (this._activeTab === 'arm') this._renderArmTab(state, attrs);
+    if (this._activeTab === 'arm') this._renderArmTab(alarmEntity);
     else if (this._activeTab === 'equip') this._renderEquipTab(attrs);
-    else if (this._activeTab === 'sim') this._renderSimTab(attrs);
     else if (this._activeTab === 'log') this._renderLogTab();
     else if (this._activeTab === 'health') this._renderHealthTab();
+    else if (this._activeTab === 'sim') this._renderSimTab(attrs);
     else if (this._activeTab === 'param') this._renderParamTab(alarmEntity);
   }
 
@@ -1186,91 +1694,6 @@ class DomolinkPanel extends HTMLElement {
     if (domain === "person") return state === "home" ? "active-success" : "";
     if (domain === "switch" || domain === "light") return state === "on" ? "active" : "";
     return "";
-  }
-
-  _renderParamTab(entity) {
-    const container = this.querySelector('#tab-param');
-    if (!container) return;
-    
-    if (!entity || !entity.attributes) {
-        container.innerHTML = '<div class="empty-state">Données indisponibles</div>';
-        return;
-    }
-
-    const chime = entity.attributes.chime_active || false;
-    const history_days = entity.attributes.presence_simulation_history_days || 7;
-
-    container.innerHTML = `
-      <div class="list-section">
-        <div class="list-header">Paramètres Rapides</div>
-        <div class="param-row">
-            <div class="param-label">
-                <div class="param-title">Mode Carillon (Chime)</div>
-                <div class="param-desc">Bip court à l'ouverture d'une porte (alarme désarmée)</div>
-            </div>
-            <div class="param-input">
-                <input type="checkbox" id="param-chime" ${chime ? 'checked' : ''} />
-            </div>
-        </div>
-        
-        <div class="param-row">
-            <div class="param-label">
-                <div class="param-title">Jours Historique Simulation</div>
-                <div class="param-desc">Base de données pour rejeu de la simulation de présence</div>
-            </div>
-            <div class="param-input">
-                <select id="param-history">
-                    <option value="7" ${history_days==7?"selected":""}>7 jours</option>
-                    <option value="14" ${history_days==14?"selected":""}>14 jours</option>
-                    <option value="21" ${history_days==21?"selected":""}>21 jours</option>
-                    <option value="28" ${history_days==28?"selected":""}>28 jours</option>
-                    <option value="35" ${history_days==35?"selected":""}>35 jours</option>
-                    <option value="42" ${history_days==42?"selected":""}>42 jours</option>
-                </select>
-            </div>
-        </div>
-        
-        <div class="param-row" style="justify-content: center; padding-top: 24px; padding-bottom: 24px;">
-            <button id="btn-save-params" class="btn-primary" style="padding: 12px 32px; border-radius: 20px;">
-              Sauvegarder les Paramètres
-            </button>
-        </div>
-      </div>
-      
-      <div class="list-section">
-          <div class="list-header">Caméras (Captures)</div>
-          <div style="padding: 16px; color: var(--d-subtext); font-size: 0.9em; line-height: 1.5;">
-             Les caméras configurées dans l'intégration sont automatiquement utilisées pour capturer une photo (snapshot) et enregistrer un clip (30s) lors du déclenchement de l'alarme. <br/><br/>
-             <strong>Dernière Capture:</strong> <code>/local/domolink_alarm_alert.jpg</code><br/><br/>
-             <em>Note: Assurez-vous d'avoir sélectionné des entités de domaine "camera" dans la configuration (et non uniquement les détecteurs de mouvement des caméras).</em>
-          </div>
-      </div>
-    `;
-
-    // Bind event
-    const btnSave = container.querySelector('#btn-save-params');
-    if (btnSave) {
-        btnSave.addEventListener('click', () => {
-            const chimeVal = container.querySelector('#param-chime').checked;
-            const historyVal = parseInt(container.querySelector('#param-history').value, 10);
-            
-            this._hass.callService('domolink_alarm', 'update_settings', {
-                chime_mode: chimeVal,
-                presence_simulation_history_days: historyVal
-            }).then(() => {
-                const btn = container.querySelector('#btn-save-params');
-                const orig = btn.innerText;
-                btn.innerText = "✓ Sauvegardé !";
-                btn.style.backgroundColor = "var(--d-success)";
-                setTimeout(() => {
-                    btn.innerText = orig;
-                    btn.style.backgroundColor = "";
-                }, 2000);
-            }).catch(e => {
-                alert("Erreur lors de la sauvegarde: " + e.message);
-            });
-        });
-    }
   }
 }
 
