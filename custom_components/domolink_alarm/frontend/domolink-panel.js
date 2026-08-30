@@ -1409,7 +1409,7 @@ class DomolinkPanel extends HTMLElement {
                   </div>
                 </div>
               `;
-            }).join('') : '<div class="empty-placeholder">Aucun historique d'activation.</div>'}
+            }).join('') : '<div class="empty-placeholder">Aucun historique d\'activation.</div>'}
           </div>
         </div>
 
@@ -1552,7 +1552,7 @@ class DomolinkPanel extends HTMLElement {
               Simulation de Présence : ${isRunning ? '<span style="color:#10b981">ACTIVE</span>' : '<span style="color:var(--d-subtext)">EN PAUSE</span>'}
             </div>
             <div style="font-size:13px; color:var(--d-subtext); margin-top:4px;">
-              ${isRunning ? `Rejeu automatique de vos habitudes d'il y a ${historyDays} jours sur ${entities.length} appareils` : 'Prête à s'activer lors de vos absences ou sur demande'}
+              ${isRunning ? `Rejeu automatique de vos habitudes d'il y a ${historyDays} jours sur ${entities.length} appareils` : "Prête à s'activer lors de vos absences ou sur demande"}
             </div>
           </div>
         </div>
