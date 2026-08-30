@@ -179,11 +179,11 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ),
                     vol.Optional(CONF_MEDIA_PLAYERS_LABELS, default=[]): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                     vol.Optional(CONF_NOTIFY_SERVICES, default=[]): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain="notify", multiple=True)
+                        selector.EntitySelectorConfig(domain=["notify", "script"], multiple=True)
                     ),
                     vol.Optional(CONF_NOTIFY_SERVICES_LABELS, default=[]): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                     vol.Optional(CONF_EMERGENCY_CONTACT, default=[]): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain="notify", multiple=True)
+                        selector.EntitySelectorConfig(domain=["notify", "script"], multiple=True)
                     ),
                     vol.Optional(CONF_EMERGENCY_CONTACT_LABELS, default=[]): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                     vol.Optional(CONF_PRESENCE_SIMULATION_ENTITIES, default=[]): selector.EntitySelector(
@@ -335,11 +335,11 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Optional(CONF_MEDIA_PLAYERS_LABELS, default=self.options.get(CONF_MEDIA_PLAYERS_LABELS, [])): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                     vol.Optional(CONF_NOTIFY_SERVICES, default=self.options.get(CONF_NOTIFY_SERVICES, [])): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain="notify", multiple=True)
+                        selector.EntitySelectorConfig(domain=["notify", "script"], multiple=True)
                     ),
                     vol.Optional(CONF_NOTIFY_SERVICES_LABELS, default=self.options.get(CONF_NOTIFY_SERVICES_LABELS, [])): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                     vol.Optional(CONF_EMERGENCY_CONTACT, default=self.options.get(CONF_EMERGENCY_CONTACT, [])): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain="notify", multiple=True)
+                        selector.EntitySelectorConfig(domain=["notify", "script"], multiple=True)
                     ),
                     vol.Optional(CONF_EMERGENCY_CONTACT_LABELS, default=self.options.get(CONF_EMERGENCY_CONTACT_LABELS, [])): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                     vol.Optional(CONF_PRESENCE_SIMULATION_ENTITIES, default=self.options.get(CONF_PRESENCE_SIMULATION_ENTITIES, [])): selector.EntitySelector(
