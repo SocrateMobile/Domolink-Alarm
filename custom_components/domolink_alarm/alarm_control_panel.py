@@ -832,7 +832,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             sent = False
 
             # Strategy 1: Modern HA Notify Entity (`notify.send_message` with entity_id)
-            if self.hass.services.has_service("notify", "send_message"):
+            if target.startswith("notify.") and self.hass.services.has_service("notify", "send_message"):
                 try:
                     payload = {"entity_id": target, "message": message}
                     if data:
