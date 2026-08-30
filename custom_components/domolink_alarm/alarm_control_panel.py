@@ -172,7 +172,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.9.16",
+            sw_version="0.9.17",
         )
 
         self._siren_task = None
@@ -309,9 +309,9 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._free_mobile_user = options.get("free_mobile_user", data.get("free_mobile_user", ""))
         self._free_mobile_pass = options.get("free_mobile_pass", data.get("free_mobile_pass", ""))
         
-        self._icloud_account = options.get("icloud_account", data.get("icloud_account", ""))
-        icloud_devs_raw = options.get("icloud_devices", data.get("icloud_devices", ""))
-        self._icloud_devices = [d.strip() for d in icloud_devs_raw.split(",")] if icloud_devs_raw else []
+        # Migration & Loading of iCloud devices
+        icloud_devs = options.get("icloud_devices", data.get("icloud_devices", []))
+        self._icloud_devices = icloud_devs if isinstance(icloud_devs, list) else []
 
     @callback
     def async_update_options(self):
@@ -816,25 +816,42 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         # ───────────────────────────────────────────────────────────────────────
 
         # ─── NATIVE APPLE ICLOUD FIND MY ALERT ─────────────────────────────────
-        if hasattr(self, "_icloud_account") and self._icloud_account and hasattr(self, "_icloud_devices") and self._icloud_devices:
-            # We trigger Find My alert ONLY for critical intrusions or panic modes, not for arming/disarming.
-            # But the user asked to send the messages too, so we'll do display_message for everything,
-            # and play_sound ONLY for alerts/emergencies.
-            for device in self._icloud_devices:
+        if hasattr(self, "_icloud_devices") and self._icloud_devices:
+            from homeassistant.helpers import device_registry as dr
+            dev_reg = dr.async_get(self.hass)
+            for device_id in self._icloud_devices:
                 try:
-                    # 1. Always display the message (Arming, Disarming, Triggers)
+                    device_entry = dev_reg.async_get(device_id)
+                    if not device_entry:
+                        continue
+                    
+                    # iCloud integration creates devices using the exact Apple 'Find My' device name.
+                    device_name = device_entry.name
+                    if not device_name:
+                        continue
+                        
+                    # Extract the account (Apple ID username) dynamically from the device's config entry
+                    account = None
+                    for entry_id in device_entry.config_entries:
+                        config_entry = self.hass.config_entries.async_get_entry(entry_id)
+                        if config_entry and config_entry.domain == "icloud":
+                            account = config_entry.data.get("username")
+                            break
+                            
+                    if not account:
+                        continue
+
                     self.hass.async_create_task(
                         self.hass.services.async_call(
                             "icloud", "display_message",
-                            {"account": self._icloud_account, "device_name": device, "message": message, "sound": is_alert or is_emergency}
+                            {"account": account, "device_name": device_name, "message": message, "sound": is_alert or is_emergency}
                         )
                     )
-                    # 2. Trigger the extreme 'Find My' sound if it's an alert or panic
                     if is_alert or is_emergency:
                         self.hass.async_create_task(
                             self.hass.services.async_call(
                                 "icloud", "play_sound",
-                                {"account": self._icloud_account, "device_name": device}
+                                {"account": account, "device_name": device_name}
                             )
                         )
                 except Exception as e:
