@@ -3,48 +3,80 @@
     "title": "Сигналізація Domolink",
     "step": {
       "sensors": {
-        "title": "Налаштування Domolink (1/3)",
-        "description": "Виберіть датчики та пристрої.",
+        "title": "Налаштування сигналізації Domolink (1/3)",
+        "description": "Виберіть ваші датчики та пристрої.",
         "data": {
           "name": "Назва сигналізації",
           "opening_sensors": "Датчики відкриття",
+          "opening_sensors_labels": "Мітки (Датчики відкриття)",
           "motion_sensors": "Датчики руху",
+          "motion_sensors_labels": "Мітки (Датчики руху)",
           "tamper_sensors": "Датчики саботажу (24/7)",
+          "tamper_sensors_labels": "Мітки (Датчики саботажу)",
           "night_sensors": "Датчики нічного режиму",
+          "night_sensors_labels": "Мітки (Датчики нічного режиму)",
           "keypads": "Клавіатури",
-          "cameras": {
-            "cameras": "Камери"
-          }
+          "keypads_labels": "Мітки (Клавіатури)",
+          "cameras": "Камери",
+          "cameras_labels": "Мітки (Камери)",
+          "safety_sensors": "Технічні датчики 24/7 (Дим, Вода, Газ, CO)",
+          "safety_sensors_labels": "Мітки (Технічні датчики 24/7)"
         }
       },
       "actuators": {
-        "title": "Налаштування Domolink (2/3)",
+        "title": "Налаштування сигналізації Domolink (2/3)",
         "data": {
           "sirens": "Сирени",
-          "lights": "Тривожне освітлення",
+          "sirens_labels": "Мітки (Сирени)",
+          "lights": "Аварійне освітлення",
+          "lights_labels": "Мітки (Аварійне освітлення)",
           "media_players": "Медіаплеєри (TTS)",
-          "notify_services": "Пристрої для сповіщень (Необов'язково)"
+          "media_players_labels": "Мітки (Медіаплеєри)",
+          "notify_services": "Пристрої для сповіщень (Опціонально)",
+          "notify_services_labels": "Мітки (Сповіщення)",
+          "free_mobile_user": "Free Mobile - Ідентифікатор (Опціонально)",
+          "free_mobile_pass": "Free Mobile - API-ключ (Опціонально)",
+          "icloud_devices": "Пристрої Apple для виклику (iCloud)",
+          "emergency_contact": "Контакт для надзвичайних ситуацій",
+          "emergency_contact_labels": "Мітки (Контакт для надзвичайних ситуацій)",
+          "presence_simulation_entities": "Симуляція присутності (Світло / Розетки)",
+          "presence_simulation_labels": "Мітки (Симуляція присутності)"
         }
       },
       "logic": {
-        "title": "Налаштування Domolink (3/3)",
+        "title": "Налаштування сигналізації Domolink (3/3)",
         "data": {
-          "persons": "Люди (Геозони)",
-          "users_codes": "Коди",
+          "persons": "Користувачі (Геолокація)",
+          "persons_labels": "Мітки (Користувачі)",
+          "users_codes": "Коди користувачів",
           "duress_code": "Код під примусом",
-          "bypass_allowed": "Дозволити обхід",
-          "health_check": "Перевірка здоров'я",
-          "geofence_auto_arm": "Авто-постановка Геозони",
-          "exit_delay": "Затримка на вихід (секунди)",
-          "entry_delay": "Затримка на вхід (секунди)",
-          "siren_duration": "Тривалість сирени"
+          "rfid_tags": "RFID-мітки (tag_id:Ім'я, ...)",
+          "bypass_allowed": "Дозволити виключення датчиків",
+          "health_check": "Перевірка стану системи",
+          "geofence_auto_arm": "Автопостановка під охорону за геолокацією",
+          "geofence_reminder": "Сповіщення з нагадуванням про постановку під охорону",
+          "geofence_reminder_delay": "Затримка перед нагадуванням (хвилин)",
+          "cross_zoning": "Подвійне виявлення (Захист від помилкових спрацьовувань)",
+          "cross_zoning_window": "Вікно підтвердження подвійного виявлення (секунд)",
+          "presence_simulation_history_days": "Днів історії для симуляції (назад)",
+          "siren_test": "Періодичний тест сирен",
+          "siren_test_day": "День тесту (1=Понеділок, 7=Неділя)",
+          "siren_test_hour": "Година тесту (0-23)",
+          "schedule_enabled": "Увімкнути постановку за розкладом",
+          "schedule_arm_time": "Час постановки (HH:MM)",
+          "schedule_disarm_time": "Час зняття (HH:MM)",
+          "schedule_mode": "Режим постановки за розкладом (night, away, home)",
+          "exit_delay": "Затримка на вихід (секунд)",
+          "entry_delay": "Затримка на вхід (секунд)",
+          "siren_duration": "Тривалість роботи сирени",
+          "chime_mode": "Режим передзвону (Звук відкриття при знятій охороні)"
         }
       }
     },
     "error": {
-      "invalid_code": "Код має бути числовим.",
+      "invalid_code": "Код повинен бути числовим.",
       "cannot_connect": "Помилка підключення",
-      "unknown": "Невідома помилка"
+      "unknown": "Неочікувана помилка"
     },
     "abort": {
       "already_configured": "Пристрій вже налаштовано"
@@ -53,40 +85,72 @@
   "options": {
     "step": {
       "sensors": {
-        "title": "Налаштування Domolink (1/3)",
+        "title": "Налаштування сигналізації Domolink (1/3)",
         "data": {
           "name": "Назва сигналізації",
           "opening_sensors": "Датчики відкриття",
+          "opening_sensors_labels": "Мітки (Датчики відкриття)",
           "motion_sensors": "Датчики руху",
+          "motion_sensors_labels": "Мітки (Датчики руху)",
           "tamper_sensors": "Датчики саботажу (24/7)",
+          "tamper_sensors_labels": "Мітки (Датчики саботажу)",
           "night_sensors": "Датчики нічного режиму",
+          "night_sensors_labels": "Мітки (Датчики нічного режиму)",
           "keypads": "Клавіатури",
-          "cameras": {
-            "cameras": "Камери"
-          }
+          "keypads_labels": "Мітки (Клавіатури)",
+          "cameras": "Камери",
+          "cameras_labels": "Мітки (Камери)",
+          "safety_sensors": "Технічні датчики 24/7 (Дим, Вода, Газ, CO)",
+          "safety_sensors_labels": "Мітки (Технічні датчики 24/7)"
         }
       },
       "actuators": {
-        "title": "Налаштування Domolink (2/3)",
+        "title": "Налаштування сигналізації Domolink (2/3)",
         "data": {
           "sirens": "Сирени",
-          "lights": "Тривожне освітлення",
+          "sirens_labels": "Мітки (Сирени)",
+          "lights": "Аварійне освітлення",
+          "lights_labels": "Мітки (Аварійне освітлення)",
           "media_players": "Медіаплеєри (TTS)",
-          "notify_services": "Пристрої для сповіщень (Необов'язково)"
+          "media_players_labels": "Мітки (Медіаплеєри)",
+          "notify_services": "Пристрої для сповіщень (Опціонально)",
+          "notify_services_labels": "Мітки (Сповіщення)",
+          "free_mobile_user": "Free Mobile - Ідентифікатор (Опціонально)",
+          "free_mobile_pass": "Free Mobile - API-ключ (Опціонально)",
+          "icloud_devices": "Пристрої Apple для виклику (iCloud)",
+          "emergency_contact": "Контакт для надзвичайних ситуацій",
+          "emergency_contact_labels": "Мітки (Контакт для надзвичайних ситуацій)",
+          "presence_simulation_entities": "Симуляція присутності (Світло / Розетки)",
+          "presence_simulation_labels": "Мітки (Симуляція присутності)"
         }
       },
       "logic": {
-        "title": "Налаштування Domolink (3/3)",
+        "title": "Налаштування сигналізації Domolink (3/3)",
         "data": {
-          "persons": "Люди (Геозони)",
-          "users_codes": "Коди",
+          "persons": "Користувачі (Геолокація)",
+          "persons_labels": "Мітки (Користувачі)",
+          "users_codes": "Коди користувачів",
           "duress_code": "Код під примусом",
-          "bypass_allowed": "Дозволити обхід",
-          "health_check": "Перевірка здоров'я",
-          "geofence_auto_arm": "Авто-постановка Геозони",
-          "exit_delay": "Затримка на вихід (секунди)",
-          "entry_delay": "Затримка на вхід (секунди)",
-          "siren_duration": "Тривалість сирени"
+          "rfid_tags": "RFID-мітки (tag_id:Ім'я, ...)",
+          "bypass_allowed": "Дозволити виключення датчиків",
+          "health_check": "Перевірка стану системи",
+          "geofence_auto_arm": "Автопостановка під охорону за геолокацією",
+          "geofence_reminder": "Сповіщення з нагадуванням про постановку під охорону",
+          "geofence_reminder_delay": "Затримка перед нагадуванням (хвилин)",
+          "cross_zoning": "Подвійне виявлення (Захист від помилкових спрацьовувань)",
+          "cross_zoning_window": "Вікно підтвердження подвійного виявлення (секунд)",
+          "presence_simulation_history_days": "Днів історії для симуляції (назад)",
+          "siren_test": "Періодичний тест сирен",
+          "siren_test_day": "День тесту (1=Понеділок, 7=Неділя)",
+          "siren_test_hour": "Година тесту (0-23)",
+          "schedule_enabled": "Увімкнути постановку за розкладом",
+          "schedule_arm_time": "Час постановки (HH:MM)",
+          "schedule_disarm_time": "Час зняття (HH:MM)",
+          "schedule_mode": "Режим постановки за розкладом (night, away, home)",
+          "exit_delay": "Затримка на вихід (секунд)",
+          "entry_delay": "Затримка на вхід (секунд)",
+          "siren_duration": "Тривалість роботи сирени",
+          "chime_mode": "Режим передзвону (Звук відкриття при знятій охороні)"
         }
       }
     }
@@ -94,13 +158,13 @@
   "state": {
     "alarm_control_panel": {
       "domolink_alarm": {
-        "disarmed": "Вимкнено",
-        "armed_home": "Увімкнено (Вдома)",
-        "armed_away": "Увімкнено (Не вдома)",
-        "armed_night": "Увімкнено (Ніч)",
-        "arming": "Вмикається...",
-        "pending": "Очікування...",
-        "triggered": "ТРИВОГА"
+        "disarmed": "Знято з охорони",
+        "armed_home": "Під охороною (Вдома)",
+        "armed_away": "Під охороною (Іду)",
+        "armed_night": "Під охороною (Ніч)",
+        "arming": "Постановка під охорону...",
+        "pending": "В очікуванні...",
+        "triggered": "СПРАЦЮВАЛА"
       }
     },
     "sensor": {
@@ -112,7 +176,7 @@
   "entity": {
     "button": {
       "domolink_sos": {
-        "name": "Тривожна кнопка SOS"
+        "name": "Паніка SOS"
       }
     },
     "sensor": {

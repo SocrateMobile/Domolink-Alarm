@@ -7,37 +7,69 @@
         "description": "Seleziona i tuoi sensori e dispositivi.",
         "data": {
           "name": "Nome dell'allarme",
-          "opening_sensors": "Sensori di Apertura",
-          "motion_sensors": "Sensori di Movimento",
-          "tamper_sensors": "Sensori di Manomissione (24/7)",
-          "night_sensors": "Sensori Modalità Notte",
+          "opening_sensors": "Sensori di apertura",
+          "opening_sensors_labels": "Etichette (Sensori di apertura)",
+          "motion_sensors": "Sensori di movimento",
+          "motion_sensors_labels": "Etichette (Sensori di movimento)",
+          "tamper_sensors": "Sensori di manomissione (24/7)",
+          "tamper_sensors_labels": "Etichette (Sensori di manomissione)",
+          "night_sensors": "Sensori modalità notte",
+          "night_sensors_labels": "Etichette (Sensori modalità notte)",
           "keypads": "Tastiere",
-          "cameras": {
-            "cameras": "Telecamere"
-          }
+          "keypads_labels": "Etichette (Tastiere)",
+          "cameras": "Telecamere",
+          "cameras_labels": "Etichette (Telecamere)",
+          "safety_sensors": "Sensori tecnici 24/7 (Fumo, Acqua, Gas, CO)",
+          "safety_sensors_labels": "Etichette (Sensori tecnici 24/7)"
         }
       },
       "actuators": {
         "title": "Configura Allarme Domolink (2/3)",
         "data": {
           "sirens": "Sirene",
-          "lights": "Luci di Panico",
-          "media_players": "Lettori Multimediali (TTS)",
-          "notify_services": "Dispositivi di Notifica (Opzionale)"
+          "sirens_labels": "Etichette (Sirene)",
+          "lights": "Luci di emergenza",
+          "lights_labels": "Etichette (Luci di emergenza)",
+          "media_players": "Lettori multimediali (TTS)",
+          "media_players_labels": "Etichette (Lettori multimediali)",
+          "notify_services": "Dispositivi di notifica (Opzionale)",
+          "notify_services_labels": "Etichette (Notifiche)",
+          "free_mobile_user": "Free Mobile - ID Utente (Opzionale)",
+          "free_mobile_pass": "Free Mobile - Chiave API (Opzionale)",
+          "icloud_devices": "Dispositivi Apple da far suonare (iCloud)",
+          "emergency_contact": "Contatto di emergenza",
+          "emergency_contact_labels": "Etichette (Contatto di emergenza)",
+          "presence_simulation_entities": "Simulazione di presenza (Luci / Prese)",
+          "presence_simulation_labels": "Etichette (Simulazione di presenza)"
         }
       },
       "logic": {
         "title": "Configura Allarme Domolink (3/3)",
         "data": {
-          "persons": "Persone (Geofencing)",
-          "users_codes": "Codici",
-          "duress_code": "Codice di Costrizione",
+          "persons": "Persone (Geolocalizzazione)",
+          "persons_labels": "Etichette (Persone)",
+          "users_codes": "Codici utente",
+          "duress_code": "Codice sotto coercizione",
+          "rfid_tags": "Tag RFID (tag_id:Nome, ...)",
           "bypass_allowed": "Consenti bypass",
-          "health_check": "Controllo salute",
+          "health_check": "Controllo stato del sistema",
           "geofence_auto_arm": "Auto-inserimento Geofence",
-          "exit_delay": "Ritardo di Uscita (secondi)",
-          "entry_delay": "Ritardo di Ingresso (secondi)",
-          "siren_duration": "Durata Sirena"
+          "geofence_reminder": "Notifica di promemoria inserimento",
+          "geofence_reminder_delay": "Ritardo prima del promemoria (minuti)",
+          "cross_zoning": "Doppia rilevazione (Anti-falso allarme di movimento)",
+          "cross_zoning_window": "Finestra di conferma doppia rilevazione (secondi)",
+          "presence_simulation_history_days": "Giorni di cronologia da riprodurre per la simulazione",
+          "siren_test": "Test periodico delle sirene",
+          "siren_test_day": "Giorno del test (1=Lunedì, 7=Domenica)",
+          "siren_test_hour": "Ora del test (0-23)",
+          "schedule_enabled": "Attiva inserimento programmato",
+          "schedule_arm_time": "Ora di inserimento (HH:MM)",
+          "schedule_disarm_time": "Ora di disinserimento (HH:MM)",
+          "schedule_mode": "Modalità programmata (night, away, home)",
+          "exit_delay": "Ritardo di uscita (secondi)",
+          "entry_delay": "Ritardo di ingresso (secondi)",
+          "siren_duration": "Durata sirena",
+          "chime_mode": "Modalità cicalino (Avviso di apertura al disinserimento)"
         }
       }
     },
@@ -56,37 +88,69 @@
         "title": "Configura Allarme Domolink (1/3)",
         "data": {
           "name": "Nome dell'allarme",
-          "opening_sensors": "Sensori di Apertura",
-          "motion_sensors": "Sensori di Movimento",
-          "tamper_sensors": "Sensori di Manomissione (24/7)",
-          "night_sensors": "Sensori Modalità Notte",
+          "opening_sensors": "Sensori di apertura",
+          "opening_sensors_labels": "Etichette (Sensori di apertura)",
+          "motion_sensors": "Sensori di movimento",
+          "motion_sensors_labels": "Etichette (Sensori di movimento)",
+          "tamper_sensors": "Sensori di manomissione (24/7)",
+          "tamper_sensors_labels": "Etichette (Sensori di manomissione)",
+          "night_sensors": "Sensori modalità notte",
+          "night_sensors_labels": "Etichette (Sensori modalità notte)",
           "keypads": "Tastiere",
-          "cameras": {
-            "cameras": "Telecamere"
-          }
+          "keypads_labels": "Etichette (Tastiere)",
+          "cameras": "Telecamere",
+          "cameras_labels": "Etichette (Telecamere)",
+          "safety_sensors": "Sensori tecnici 24/7 (Fumo, Acqua, Gas, CO)",
+          "safety_sensors_labels": "Etichette (Sensori tecnici 24/7)"
         }
       },
       "actuators": {
         "title": "Configura Allarme Domolink (2/3)",
         "data": {
           "sirens": "Sirene",
-          "lights": "Luci di Panico",
-          "media_players": "Lettori Multimediali (TTS)",
-          "notify_services": "Dispositivi di Notifica (Opzionale)"
+          "sirens_labels": "Etichette (Sirene)",
+          "lights": "Luci di emergenza",
+          "lights_labels": "Etichette (Luci di emergenza)",
+          "media_players": "Lettori multimediali (TTS)",
+          "media_players_labels": "Etichette (Lettori multimediali)",
+          "notify_services": "Dispositivi di notifica (Opzionale)",
+          "notify_services_labels": "Etichette (Notifiche)",
+          "free_mobile_user": "Free Mobile - ID Utente (Opzionale)",
+          "free_mobile_pass": "Free Mobile - Chiave API (Opzionale)",
+          "icloud_devices": "Dispositivi Apple da far suonare (iCloud)",
+          "emergency_contact": "Contatto di emergenza",
+          "emergency_contact_labels": "Etichette (Contatto di emergenza)",
+          "presence_simulation_entities": "Simulazione di presenza (Luci / Prese)",
+          "presence_simulation_labels": "Etichette (Simulazione di presenza)"
         }
       },
       "logic": {
         "title": "Configura Allarme Domolink (3/3)",
         "data": {
-          "persons": "Persone (Geofencing)",
-          "users_codes": "Codici",
-          "duress_code": "Codice di Costrizione",
+          "persons": "Persone (Geolocalizzazione)",
+          "persons_labels": "Etichette (Persone)",
+          "users_codes": "Codici utente",
+          "duress_code": "Codice sotto coercizione",
+          "rfid_tags": "Tag RFID (tag_id:Nome, ...)",
           "bypass_allowed": "Consenti bypass",
-          "health_check": "Controllo salute",
+          "health_check": "Controllo stato del sistema",
           "geofence_auto_arm": "Auto-inserimento Geofence",
-          "exit_delay": "Ritardo di Uscita (secondi)",
-          "entry_delay": "Ritardo di Ingresso (secondi)",
-          "siren_duration": "Durata Sirena"
+          "geofence_reminder": "Notifica di promemoria inserimento",
+          "geofence_reminder_delay": "Ritardo prima del promemoria (minuti)",
+          "cross_zoning": "Doppia rilevazione (Anti-falso allarme di movimento)",
+          "cross_zoning_window": "Finestra di conferma doppia rilevazione (secondi)",
+          "presence_simulation_history_days": "Giorni di cronologia da riprodurre per la simulazione",
+          "siren_test": "Test periodico delle sirene",
+          "siren_test_day": "Giorno del test (1=Lunedì, 7=Domenica)",
+          "siren_test_hour": "Ora del test (0-23)",
+          "schedule_enabled": "Attiva inserimento programmato",
+          "schedule_arm_time": "Ora di inserimento (HH:MM)",
+          "schedule_disarm_time": "Ora di disinserimento (HH:MM)",
+          "schedule_mode": "Modalità programmata (night, away, home)",
+          "exit_delay": "Ritardo di uscita (secondi)",
+          "entry_delay": "Ritardo di ingresso (secondi)",
+          "siren_duration": "Durata sirena",
+          "chime_mode": "Modalità cicalino (Avviso di apertura al disinserimento)"
         }
       }
     }
@@ -100,7 +164,7 @@
         "armed_night": "Inserito (Notte)",
         "arming": "Inserimento...",
         "pending": "In attesa...",
-        "triggered": "SCATTATO"
+        "triggered": "ALLARME"
       }
     },
     "sensor": {
@@ -117,7 +181,7 @@
     },
     "sensor": {
       "domolink_event_log": {
-        "name": "Ultimo Evento"
+        "name": "Ultimo evento"
       }
     }
   }
