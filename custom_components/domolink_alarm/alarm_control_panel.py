@@ -179,7 +179,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.9.29",
+            sw_version="0.9.30",
         )
 
         self._siren_task = None
@@ -1111,6 +1111,13 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 self._faults.append(entity_id)
                 self.async_write_ha_state()
                 self._log_event(f"Capteur {new_state.name} ouvert pendant le délai d'entrée")
+                from homeassistant.util.dt import now as dt_now
+                self.hass.async_create_task(
+                    self._async_send_notification(
+                        f"⚠️ Détection pendant délai d'entrée : {new_state.name}\n({dt_now().strftime('%H:%M:%S')})",
+                        is_alert=True
+                    )
+                )
             return
 
         # Cross-zoning check for motion sensors in Away / Night
