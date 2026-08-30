@@ -1587,10 +1587,12 @@ class DomolinkPanel extends HTMLElement {
               let iconColor = 'var(--d-subtext)';
               let dotClass = 'info';
               
-              if (ev.message.includes('DÉCLENCHÉE') || ev.message.includes('ALERTE') || ev.message.includes('Sabotage')) {
+              let entryStyle = '';
+              if (ev.message.includes('DÉCLENCHÉE') || ev.message.includes('ALERTE') || ev.message.includes('Sabotage') || ev.message.includes('Sirène prolongée')) {
                 icon = 'mdi:alert';
                 iconColor = '#ef4444';
                 dotClass = 'alert';
+                entryStyle = 'background: rgba(239, 68, 68, 0.15); border-left: 4px solid #ef4444; border-radius: 12px;';
               } else if (ev.message.includes('Armée')) {
                 icon = 'mdi:shield-lock';
                 iconColor = '#f59e0b';
@@ -1602,7 +1604,7 @@ class DomolinkPanel extends HTMLElement {
               }
               
               return `
-                <div class="log-entry">
+                <div class="log-entry" style="${entryStyle}">
                   <div class="log-dot ${dotClass}" style="color: ${iconColor};">
                     <ha-icon icon="${icon}" style="--mdc-icon-size:18px;"></ha-icon>
                   </div>
