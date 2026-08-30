@@ -172,7 +172,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.9.21",
+            sw_version="0.9.22",
         )
 
         self._siren_task = None
@@ -1325,6 +1325,15 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         """Asynchronously capture photos and trigger recordings with timeout protection."""
         if not self._cameras:
             return
+
+        # 1. Wake up cameras (turn_on for battery/sleep models like Arlo)
+        for camera in self._cameras:
+            try:
+                await self.hass.services.async_call(
+                    "camera", "turn_on", {"entity_id": camera}
+                )
+            except Exception:
+                pass
 
         try:
             www_dir = self.hass.config.path("www")
