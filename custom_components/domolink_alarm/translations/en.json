@@ -3,47 +3,79 @@
     "title": "Domolink Alarm",
     "step": {
       "sensors": {
-        "title": "Configure Domolink Alarm (1/3)",
+        "title": "Domolink Alarm Configuration (1/3)",
         "description": "Select your sensors and devices.",
         "data": {
           "name": "Alarm Name",
           "opening_sensors": "Opening Sensors",
+          "opening_sensors_labels": "Labels (Opening Sensors)",
           "motion_sensors": "Motion Sensors",
+          "motion_sensors_labels": "Labels (Motion Sensors)",
           "tamper_sensors": "Tamper Sensors (24/7)",
+          "tamper_sensors_labels": "Labels (Tamper Sensors)",
           "night_sensors": "Night Mode Sensors",
+          "night_sensors_labels": "Labels (Night Mode Sensors)",
           "keypads": "Keypads",
-          "cameras": {
-            "cameras": "Cameras"
-          }
+          "keypads_labels": "Labels (Keypads)",
+          "cameras": "Cameras",
+          "cameras_labels": "Labels (Cameras)",
+          "safety_sensors": "Technical Sensors 24/7 (Smoke, Water, Gas, CO)",
+          "safety_sensors_labels": "Labels (Technical Sensors 24/7)"
         }
       },
       "actuators": {
-        "title": "Configure Domolink Alarm (2/3)",
+        "title": "Domolink Alarm Configuration (2/3)",
         "data": {
           "sirens": "Sirens",
-          "lights": "Panic Lights",
+          "sirens_labels": "Labels (Sirens)",
+          "lights": "Emergency Lights",
+          "lights_labels": "Labels (Emergency Lights)",
           "media_players": "Media Players (TTS)",
-          "notify_services": "Notification Devices (Optional)"
+          "media_players_labels": "Labels (Media Players)",
+          "notify_services": "Notification Devices (Optional)",
+          "notify_services_labels": "Labels (Notifications)",
+          "free_mobile_user": "Free Mobile - User ID (Optional)",
+          "free_mobile_pass": "Free Mobile - API Key (Optional)",
+          "icloud_devices": "Apple Devices to Ring (iCloud Integration)",
+          "emergency_contact": "Emergency Contact",
+          "emergency_contact_labels": "Labels (Emergency Contact)",
+          "presence_simulation_entities": "Presence Simulation (Lights / Outlets)",
+          "presence_simulation_labels": "Labels (Presence Simulation)"
         }
       },
       "logic": {
-        "title": "Configure Domolink Alarm (3/3)",
+        "title": "Domolink Alarm Configuration (3/3)",
         "data": {
-          "persons": "Persons (Geofencing)",
-          "users_codes": "Codes",
+          "persons": "Persons (Geolocation)",
+          "persons_labels": "Labels (Persons)",
+          "users_codes": "User Codes",
           "duress_code": "Duress Code",
+          "rfid_tags": "RFID Tags (tag_id:Name, ...)",
           "bypass_allowed": "Allow Bypass",
           "health_check": "Health Check",
-          "geofence_auto_arm": "Auto-arm Geofence",
+          "geofence_auto_arm": "Geolocation Auto-Arming",
+          "geofence_reminder": "Arming Reminder Notification",
+          "geofence_reminder_delay": "Delay Before Reminder (minutes)",
+          "cross_zoning": "Cross-Zoning (Anti-false alarm for motion)",
+          "cross_zoning_window": "Cross-Zoning Confirmation Window (seconds)",
+          "presence_simulation_history_days": "History to Replay for Simulation (days ago)",
+          "siren_test": "Periodic Siren Test",
+          "siren_test_day": "Test Day (1=Monday, 7=Sunday)",
+          "siren_test_hour": "Test Hour (0-23)",
+          "schedule_enabled": "Enable Scheduled Arming",
+          "schedule_arm_time": "Arming Time (HH:MM)",
+          "schedule_disarm_time": "Disarming Time (HH:MM)",
+          "schedule_mode": "Scheduled Arming Mode (night, away, home)",
           "exit_delay": "Exit Delay (seconds)",
           "entry_delay": "Entry Delay (seconds)",
-          "siren_duration": "Siren Duration"
+          "siren_duration": "Siren Duration",
+          "chime_mode": "Chime Mode (Open chime when disarmed)"
         }
       }
     },
     "error": {
-      "invalid_code": "Code must be numeric.",
-      "cannot_connect": "Failed to connect",
+      "invalid_code": "The code must be numeric.",
+      "cannot_connect": "Connection failed",
       "unknown": "Unexpected error"
     },
     "abort": {
@@ -53,40 +85,72 @@
   "options": {
     "step": {
       "sensors": {
-        "title": "Configure Domolink Alarm (1/3)",
+        "title": "Domolink Alarm Configuration (1/3)",
         "data": {
           "name": "Alarm Name",
           "opening_sensors": "Opening Sensors",
+          "opening_sensors_labels": "Labels (Opening Sensors)",
           "motion_sensors": "Motion Sensors",
+          "motion_sensors_labels": "Labels (Motion Sensors)",
           "tamper_sensors": "Tamper Sensors (24/7)",
+          "tamper_sensors_labels": "Labels (Tamper Sensors)",
           "night_sensors": "Night Mode Sensors",
+          "night_sensors_labels": "Labels (Night Mode Sensors)",
           "keypads": "Keypads",
-          "cameras": {
-            "cameras": "Cameras"
-          }
+          "keypads_labels": "Labels (Keypads)",
+          "cameras": "Cameras",
+          "cameras_labels": "Labels (Cameras)",
+          "safety_sensors": "Technical Sensors 24/7 (Smoke, Water, Gas, CO)",
+          "safety_sensors_labels": "Labels (Technical Sensors 24/7)"
         }
       },
       "actuators": {
-        "title": "Configure Domolink Alarm (2/3)",
+        "title": "Domolink Alarm Configuration (2/3)",
         "data": {
           "sirens": "Sirens",
-          "lights": "Panic Lights",
+          "sirens_labels": "Labels (Sirens)",
+          "lights": "Emergency Lights",
+          "lights_labels": "Labels (Emergency Lights)",
           "media_players": "Media Players (TTS)",
-          "notify_services": "Notification Devices (Optional)"
+          "media_players_labels": "Labels (Media Players)",
+          "notify_services": "Notification Devices (Optional)",
+          "notify_services_labels": "Labels (Notifications)",
+          "free_mobile_user": "Free Mobile - User ID (Optional)",
+          "free_mobile_pass": "Free Mobile - API Key (Optional)",
+          "icloud_devices": "Apple Devices to Ring (iCloud Integration)",
+          "emergency_contact": "Emergency Contact",
+          "emergency_contact_labels": "Labels (Emergency Contact)",
+          "presence_simulation_entities": "Presence Simulation (Lights / Outlets)",
+          "presence_simulation_labels": "Labels (Presence Simulation)"
         }
       },
       "logic": {
-        "title": "Configure Domolink Alarm (3/3)",
+        "title": "Domolink Alarm Configuration (3/3)",
         "data": {
-          "persons": "Persons (Geofencing)",
-          "users_codes": "Codes",
+          "persons": "Persons (Geolocation)",
+          "persons_labels": "Labels (Persons)",
+          "users_codes": "User Codes",
           "duress_code": "Duress Code",
+          "rfid_tags": "RFID Tags (tag_id:Name, ...)",
           "bypass_allowed": "Allow Bypass",
           "health_check": "Health Check",
-          "geofence_auto_arm": "Auto-arm Geofence",
+          "geofence_auto_arm": "Geolocation Auto-Arming",
+          "geofence_reminder": "Arming Reminder Notification",
+          "geofence_reminder_delay": "Delay Before Reminder (minutes)",
+          "cross_zoning": "Cross-Zoning (Anti-false alarm for motion)",
+          "cross_zoning_window": "Cross-Zoning Confirmation Window (seconds)",
+          "presence_simulation_history_days": "History to Replay for Simulation (days ago)",
+          "siren_test": "Periodic Siren Test",
+          "siren_test_day": "Test Day (1=Monday, 7=Sunday)",
+          "siren_test_hour": "Test Hour (0-23)",
+          "schedule_enabled": "Enable Scheduled Arming",
+          "schedule_arm_time": "Arming Time (HH:MM)",
+          "schedule_disarm_time": "Disarming Time (HH:MM)",
+          "schedule_mode": "Scheduled Arming Mode (night, away, home)",
           "exit_delay": "Exit Delay (seconds)",
           "entry_delay": "Entry Delay (seconds)",
-          "siren_duration": "Siren Duration"
+          "siren_duration": "Siren Duration",
+          "chime_mode": "Chime Mode (Open chime when disarmed)"
         }
       }
     }
@@ -112,7 +176,7 @@
   "entity": {
     "button": {
       "domolink_sos": {
-        "name": "SOS Panic"
+        "name": "Panic SOS"
       }
     },
     "sensor": {
