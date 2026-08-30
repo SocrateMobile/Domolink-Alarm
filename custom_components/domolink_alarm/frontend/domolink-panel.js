@@ -1054,14 +1054,81 @@ class DomolinkPanel extends HTMLElement {
       alertIcon = 'mdi:bell-alert';
     }
 
-    // 5. Recent Logs
-    const armHistory = attrs.arm_history || [];
-    const recentEvent1 = armHistory.length > 0 
-      ? `${new Date(armHistory[0].time).toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'})} ${armHistory[0].action === 'arm' ? 'Système Armé' : 'Système Désarmé'}`
-      : '16:30 Système Armé';
-    const recentEvent2 = armHistory.length > 1 
-      ? `${new Date(armHistory[1].time).toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'})} ${armHistory[1].action === 'arm' ? 'Système Armé' : 'Système Désarmé'}`
-      : (activeTriggers.length > 0 ? `Alerte ${activeTriggers[0]}` : 'Surveillance active');
+    // 5. Real Unified Recent Events
+    const allRecentEvents = [];
+    (attrs.system_events || []).forEach(ev => {
+      if (ev && ev.message) allRecentEvents.push({ time: ev.time, text: ev.message });
+    });
+    (attrs.arm_history || []).forEach(ev => {
+      if (ev) {
+        const title = ev.action === 'arm' ? `Armement (${ev.mode || 'Absent'})` : 'Désarmement';
+        allRecentEvents.push({ time: ev.time, text: `${title} par ${ev.user || 'Système'}` });
+      }
+    });
+    allRecentEvents.sort((a, b) => new Date(b.time) - new Date(a.time));
+
+    const recentEvent1 = allRecentEvents.length > 0 
+      ? `${new Date(allRecentEvents[0].time).toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'})} ${allRecentEvents[0].text}`
+      : 'Surveillance active';
+    const recentEvent2 = allRecentEvents.length > 1 
+      ? `${new Date(allRecentEvents[1].time).toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'})} ${allRecentEvents[1].text}`
+      : (activeTriggers.length > 0 ? `Alerte: ${activeTriggers[0]}` : 'Système opérationnel');
+
+    // 6. Real Subsystem Health & Categories
+    const healthData = attrs.sensor_health || {};
+    let minBattery = null;
+    let offlineCount = 0;
+    const allDeviceIds = [
+      ...(attrs.opening_sensors || []),
+      ...(attrs.motion_sensors || []),
+      ...(attrs.tamper_sensors || []),
+      ...(attrs.night_sensors || []),
+      ...(attrs.safety_sensors || []),
+      ...(attrs.sirens || []),
+      ...(attrs.cameras || [])
+    ];
+
+    allDeviceIds.forEach(id => {
+      const s = this._hass.states[id];
+      if (s) {
+        if (s.state === 'unavailable' || s.state === 'unknown') offlineCount++;
+        const b = s.attributes && (s.attributes.battery_level !== undefined ? s.attributes.battery_level : s.attributes.battery);
+        if (typeof b === 'number' && !isNaN(b)) {
+          if (minBattery === null || b < minBattery) minBattery = Math.round(b);
+        }
+      }
+    });
+
+    Object.values(healthData).forEach(item => {
+      if (item.offline) offlineCount++;
+      if (item.battery !== null && !isNaN(item.battery)) {
+        if (minBattery === null || item.battery < minBattery) minBattery = Math.round(item.battery);
+      }
+    });
+
+    const battLabel = minBattery !== null ? `${minBattery}%` : 'Secteur';
+    const battColor = minBattery !== null ? (minBattery > 50 ? '#10b981' : (minBattery > 15 ? '#f59e0b' : '#ef4444')) : '#10b981';
+    const netLabel = offlineCount > 0 ? `${offlineCount} HS` : 'OK';
+    const netColor = offlineCount > 0 ? '#ef4444' : '#10b981';
+
+    // 7. Real Subsystem Badges
+    const openDoors = (attrs.opening_sensors || []).filter(id => {
+      const s = this._hass.states[id];
+      return s && ['on', 'open', 'true', 'detected', 'unlocked', '1'].includes(String(s.state).toLowerCase());
+    });
+    const activeMotions = (attrs.motion_sensors || []).filter(id => {
+      const s = this._hass.states[id];
+      return s && ['on', 'detected', 'motion', 'true', '1'].includes(String(s.state).toLowerCase());
+    });
+    const activeSabotages = [...(attrs.tamper_sensors || []), ...(attrs.safety_sensors || [])].filter(id => {
+      const s = this._hass.states[id];
+      return s && ['on', 'detected', 'true', '1'].includes(String(s.state).toLowerCase());
+    });
+    const totalPersons = (attrs.persons || []).length;
+    const homePersons = (attrs.persons || []).filter(id => {
+      const s = this._hass.states[id];
+      return s && s.state === 'home';
+    });
 
     const html = `
       <div class="arm-layout-grid">
@@ -1104,7 +1171,7 @@ class DomolinkPanel extends HTMLElement {
           </div>
 
           <!-- Widget 2: Appareils -->
-          <div class="glass-card widget-card">
+          <div class="glass-card widget-card" id="widget-nav-equip" style="cursor:pointer;" title="Voir les équipements">
             <div class="widget-header">
               <span>Appareils</span>
               <ha-icon icon="mdi:chevron-right" style="--mdc-icon-size:18px;"></ha-icon>
@@ -1114,7 +1181,7 @@ class DomolinkPanel extends HTMLElement {
           </div>
 
           <!-- Widget 3: Journal / Activité -->
-          <div class="glass-card widget-card">
+          <div class="glass-card widget-card" id="widget-nav-log" style="cursor:pointer;" title="Voir le journal des événements">
             <div class="widget-header">
               <span>Journal</span>
               <ha-icon icon="mdi:chevron-right" style="--mdc-icon-size:18px;"></ha-icon>
@@ -1127,19 +1194,19 @@ class DomolinkPanel extends HTMLElement {
           </div>
 
           <!-- Widget 4: Santé -->
-          <div class="glass-card widget-card">
+          <div class="glass-card widget-card" id="widget-nav-health" style="cursor:pointer;" title="Voir la santé des équipements">
             <div class="widget-header">
               <span>Santé</span>
               <ha-icon icon="mdi:chevron-right" style="--mdc-icon-size:18px;"></ha-icon>
             </div>
             <div class="health-stats-row">
               <div class="health-item-stat">
-                <span style="font-size:11px; color:var(--d-subtext); font-weight:600;">Batt.</span>
-                <span style="font-size:16px; font-weight:800;">94%</span>
+                <span style="font-size:11px; color:var(--d-subtext); font-weight:600;">Pile min.</span>
+                <span style="font-size:16px; font-weight:800; color:${battColor};">${battLabel}</span>
               </div>
               <div class="health-item-stat" style="text-align:right;">
                 <span style="font-size:11px; color:var(--d-subtext); font-weight:600;">Réseau</span>
-                <span style="font-size:16px; font-weight:800; color:#10b981;">OK</span>
+                <span style="font-size:16px; font-weight:800; color:${netColor};">${netLabel}</span>
               </div>
             </div>
           </div>
@@ -1158,23 +1225,23 @@ class DomolinkPanel extends HTMLElement {
             </div>
           </div>
 
-          <!-- Room Badges Quick Status -->
+          <!-- Real Subsystem Badges Grid -->
           <div class="room-badges-grid">
-            <div class="room-badge-item ${activeTriggers.length === 0 ? 'ok' : 'danger'}">
-              <span class="room-badge-name">SALON</span>
-              <span class="room-badge-status">${activeTriggers.length === 0 ? 'OK' : 'ALERTE'}</span>
+            <div class="room-badge-item ${openDoors.length === 0 ? 'ok' : 'danger'}">
+              <span class="room-badge-name">OUVERTURES</span>
+              <span class="room-badge-status">${openDoors.length === 0 ? 'SÉCURISÉ' : `${openDoors.length} OUVERT`}</span>
             </div>
-            <div class="room-badge-item ok">
-              <span class="room-badge-name">CUISINE</span>
-              <span class="room-badge-status">OK</span>
+            <div class="room-badge-item ${activeMotions.length === 0 ? 'ok' : 'danger'}">
+              <span class="room-badge-name">MOUVEMENTS</span>
+              <span class="room-badge-status">${activeMotions.length === 0 ? 'REPOS' : 'DÉTECTÉ'}</span>
             </div>
-            <div class="room-badge-item ${isArmed ? 'danger' : 'info'}">
-              <span class="room-badge-name">GARAGE</span>
-              <span class="room-badge-status">${isArmed ? 'ARMÉ' : 'OK'}</span>
+            <div class="room-badge-item ${activeSabotages.length === 0 ? 'ok' : 'danger'}">
+              <span class="room-badge-name">SÉCURITÉ 24/7</span>
+              <span class="room-badge-status">${activeSabotages.length === 0 ? 'PROTÉGÉ' : 'ALERTE'}</span>
             </div>
-            <div class="room-badge-item info">
-              <span class="room-badge-name">CAPTEURS</span>
-              <span class="room-badge-status">OK</span>
+            <div class="room-badge-item ${isArmed ? 'info' : 'ok'}">
+              <span class="room-badge-name">OCCUPATION</span>
+              <span class="room-badge-status">${totalPersons > 0 ? `${homePersons.length}/${totalPersons} PRÉSENT(S)` : (isArmed ? 'ARMÉ' : 'SURVEILLANCE')}</span>
             </div>
           </div>
 
@@ -1320,6 +1387,35 @@ class DomolinkPanel extends HTMLElement {
         liveBtn.addEventListener('click', (e) => {
           e.stopPropagation();
           triggerLiveStream();
+        });
+      }
+
+      // Clickable Widgets for Quick Navigation
+      const navEquip = container.querySelector('#widget-nav-equip');
+      if (navEquip) {
+        navEquip.addEventListener('click', () => {
+          this._activeTab = 'equip';
+          this.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.getAttribute('data-tab') === 'equip'));
+          this.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'pane-equip'));
+          this.render();
+        });
+      }
+      const navLog = container.querySelector('#widget-nav-log');
+      if (navLog) {
+        navLog.addEventListener('click', () => {
+          this._activeTab = 'log';
+          this.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.getAttribute('data-tab') === 'log'));
+          this.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'pane-log'));
+          this.render();
+        });
+      }
+      const navHealth = container.querySelector('#widget-nav-health');
+      if (navHealth) {
+        navHealth.addEventListener('click', () => {
+          this._activeTab = 'health';
+          this.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.getAttribute('data-tab') === 'health'));
+          this.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'pane-health'));
+          this.render();
         });
       }
 
