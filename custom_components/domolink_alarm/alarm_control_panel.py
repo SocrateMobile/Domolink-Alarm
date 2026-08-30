@@ -172,7 +172,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.9.24",
+            sw_version="0.9.25",
         )
 
         self._siren_task = None
@@ -196,6 +196,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._duress_code = ""
         
         self._arm_history = []
+        self._system_events = []
         self._sensor_health = {}
         self._presence_simulation_events = []
         self._presence_simulation_forced = False
@@ -368,6 +369,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             "cross_zoning_active": self._cross_zoning,
             "geofence_reminder_active": self._geofence_reminder,
             "arm_history": self._arm_history,
+            "system_events": self._system_events,
             "sensor_health": self._sensor_health,
         }
 
@@ -398,8 +400,16 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
     def _log_event(self, message):
         """Log an event and notify sensor."""
+        event_item = {"time": utcnow().isoformat(), "message": message}
+        self._system_events.insert(0, event_item)
+        if len(self._system_events) > 50:
+            self._system_events = self._system_events[:50]
         if self._event_sensor:
             self._event_sensor.async_add_event(utcnow().isoformat(), message)
+        try:
+            self.async_write_ha_state()
+        except Exception:
+            pass
 
     # ─── Lifecycle ────────────────────────────────────────────────
 
@@ -415,6 +425,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 self._last_triggered_by = last_state.attributes.get("last_triggered_by")
                 self._last_user = last_state.attributes.get("last_user")
                 self._arm_history = last_state.attributes.get("arm_history", [])
+                self._system_events = last_state.attributes.get("system_events", [])
 
         # Track sensor changes
         all_sensors = list(set(

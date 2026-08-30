@@ -39,7 +39,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 config={
                     "_panel_custom": {
                         "name": "domolink-panel",
-                        "module_url": "/domolink_alarm_panel/domolink-panel.js?v=0.9.24",
+                        "module_url": "/domolink_alarm_panel/domolink-panel.js?v=0.9.25",
                     }
                 },
                 require_admin=False,
