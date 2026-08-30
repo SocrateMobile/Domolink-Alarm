@@ -384,6 +384,12 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         """Register the event log sensor."""
         self._event_sensor = sensor
 
+    def _get_french_time(self):
+        """Retourne la date et l'heure formatée en français."""
+        now = datetime.datetime.now()
+        months = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
+        return f"{now.day} {months[now.month-1]} {now.year} à {now.strftime('%Hh%M')}"
+
     def _log_event(self, message):
         """Log an event and notify sensor."""
         if self._event_sensor:
@@ -1221,8 +1227,10 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                     _LOGGER.error("Failed to record camera %s: %s", camera, e)
 
         # 2. Critical notification with disarm button and camera photo
+        french_time = self._get_french_time()
+        alarm_name = self.name or "Domolink Alarm"
         await self._async_send_notification(
-            f"🚨 INTRUSION DÉTECTÉE 🚨\nCapteur : {name}",
+            f"🚨 INTRUSION DÉTECTÉE 🚨\n{name} a déclenché l'alarme {alarm_name} le {french_time}",
             is_alert=True,
         )
 
@@ -1251,6 +1259,16 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             self._pre_trigger_state == AlarmControlPanelState.ARMED_AWAY
             or triggering_entity in self._tamper_sensors
         )
+        
+        # ALWAYS schedule auto-rearm / siren turn off after siren_duration
+        if self._siren_task:
+            self._siren_task()
+        self._siren_task = async_call_later(
+            self.hass,
+            self._siren_duration,
+            self._cb_turn_off_siren,
+        )
+        
         if should_siren:
             self._log_event("Activation des sirènes et lumières d'urgence")
             if self._sirens:
@@ -1258,11 +1276,6 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                     await self.hass.services.async_call(
                         "homeassistant", "turn_on",
                         {"entity_id": self._sirens},
-                    )
-                    self._siren_task = async_call_later(
-                        self.hass,
-                        self._siren_duration,
-                        self._cb_turn_off_siren,  # Fix #1: sync callback
                     )
                 except Exception as e:
                     _LOGGER.error("Failed to turn on sirens: %s", e)
@@ -1319,6 +1332,13 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 else AlarmControlPanelState.ARMED_AWAY
             )
             self._state = target_state
+            
+            french_time = self._get_french_time()
+            alarm_name = self.name or "Domolink Alarm"
+            trigger_name = self._triggered_by or "Un capteur"
+            msg = f"Dernier contact : {trigger_name} a déclenché l'alarme {alarm_name} (levé). Plus de contact, maison de nouveau sous alarme ({french_time})."
+            await self._async_send_notification(msg)
+            
             self._faults.clear()
             self._log_event(f"Fin de cycle sirène — Système ré-armé ({target_state.value})")
             self.async_write_ha_state()
