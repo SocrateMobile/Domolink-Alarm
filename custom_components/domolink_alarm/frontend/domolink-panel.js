@@ -564,6 +564,9 @@ class DomolinkPanel extends HTMLElement {
             <div class="nav-item" data-tab="health">
               <ha-icon icon="mdi:heart-pulse"></ha-icon> Santé
             </div>
+            <div class="nav-item" data-tab="param">
+              <ha-icon icon="mdi:cog"></ha-icon> Paramètres
+            </div>
           </div>
         </div>
 
@@ -1171,6 +1174,7 @@ class DomolinkPanel extends HTMLElement {
     else if (this._activeTab === 'sim') this._renderSimTab(attrs);
     else if (this._activeTab === 'log') this._renderLogTab();
     else if (this._activeTab === 'health') this._renderHealthTab();
+    else if (this._activeTab === 'param') this._renderParamTab(alarmEntity);
   }
 
   // ─── Helpers ────────────────────────────────────
@@ -1269,3 +1273,5 @@ class DomolinkPanel extends HTMLElement {
     }
   }
 }
+
+customElements.define('domolink-panel', DomolinkPanel);
