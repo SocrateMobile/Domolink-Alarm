@@ -1,188 +1,206 @@
 {
-  "config": {
-    "title": "Domolink Alarm",
-    "step": {
-      "sensors": {
-        "title": "Configuration de Domolink Alarm (1/3)",
-        "description": "Sélectionnez vos capteurs et dispositifs.",
-        "data": {
-          "name": "Nom de l'alarme",
-          "opening_sensors": "Capteurs d'ouverture",
-          "opening_sensors_labels": "Étiquettes (Capteurs d'ouverture)",
-          "motion_sensors": "Capteurs de mouvement",
-          "motion_sensors_labels": "Étiquettes (Capteurs de mouvement)",
-          "tamper_sensors": "Capteurs de sabotage (24/7)",
-          "tamper_sensors_labels": "Étiquettes (Capteurs de sabotage)",
-          "night_sensors": "Capteurs Mode Nuit",
-          "night_sensors_labels": "Étiquettes (Capteurs Mode Nuit)",
-          "keypads": "Claviers",
-          "keypads_labels": "Étiquettes (Claviers)",
-          "cameras": "Caméras",
-          "cameras_labels": "Étiquettes (Caméras)",
-          "safety_sensors": "Capteurs Techniques 24/7 (Fumée, Eau, Gaz, CO)",
-          "safety_sensors_labels": "Étiquettes (Capteurs Techniques 24/7)"
+    "config": {
+        "title": "Domolink Alarm",
+        "step": {
+            "sensors": {
+                "title": "Configuration de Domolink Alarm (1/3)",
+                "description": "Sélectionnez vos capteurs et dispositifs.",
+                "data": {
+                    "name": "Nom de l'alarme",
+                    "opening_sensors": "Capteurs d'ouverture",
+                    "opening_sensors_labels": "Étiquettes (Capteurs d'ouverture)",
+                    "motion_sensors": "Capteurs de mouvement",
+                    "motion_sensors_labels": "Étiquettes (Capteurs de mouvement)",
+                    "tamper_sensors": "Capteurs de sabotage (24/7)",
+                    "tamper_sensors_labels": "Étiquettes (Capteurs de sabotage)",
+                    "night_sensors": "Capteurs Mode Nuit",
+                    "night_sensors_labels": "Étiquettes (Capteurs Mode Nuit)",
+                    "keypads": "Claviers",
+                    "keypads_labels": "Étiquettes (Claviers)",
+                    "cameras": "Caméras",
+                    "cameras_labels": "Étiquettes (Caméras)",
+                    "safety_sensors": "Capteurs Techniques 24/7 (Fumée, Eau, Gaz, CO)",
+                    "safety_sensors_labels": "Étiquettes (Capteurs Techniques 24/7)"
+                }
+            },
+            "actuators": {
+                "title": "Configuration de Domolink Alarm (2/3)",
+                "data": {
+                    "sirens": "Sirènes",
+                    "sirens_labels": "Étiquettes (Sirènes)",
+                    "lights": "Lumières d'urgence",
+                    "lights_labels": "Étiquettes (Lumières d'urgence)",
+                    "media_players": "Lecteurs multimédia (TTS)",
+                    "media_players_labels": "Étiquettes (Lecteurs multimédia)",
+                    "notify_services": "Appareils pour Notifications (Optionnel)",
+                    "notify_services_labels": "Étiquettes (Notifications)",
+                    "free_mobile_user": "Free Mobile - Identifiant (Optionnel)",
+                    "free_mobile_pass": "Free Mobile - Clé API (Optionnel)",
+                    "icloud_devices": "Appareils Apple à faire sonner (intégration iCloud)",
+                    "emergency_contact": "Contact d'urgence",
+                    "emergency_contact_labels": "Étiquettes (Contact d'urgence)",
+                    "presence_simulation_entities": "Simulation de Présence (Lumières / Prises)",
+                    "presence_simulation_labels": "Étiquettes (Simulation de Présence)"
+                }
+            },
+            "logic": {
+                "title": "Configuration de Domolink Alarm (3/3)",
+                "data": {
+                    "persons": "Personnes (Géolocalisation)",
+                    "persons_labels": "Étiquettes (Personnes)",
+                    "users_codes": "Codes Utilisateurs",
+                    "duress_code": "Code Sous Contrainte",
+                    "rfid_tags": "Tags RFID (tag_id:Nom, ...)",
+                    "bypass_allowed": "Autoriser le contournement",
+                    "health_check": "Vérification de santé",
+                    "geofence_auto_arm": "Auto-armement Géolocalisation",
+                    "geofence_reminder": "Rappel d'oubli d'armement par notification",
+                    "geofence_reminder_delay": "Délai avant rappel d'oubli (minutes)",
+                    "cross_zoning": "Double Détection (Anti-fausse alerte mouvements)",
+                    "cross_zoning_window": "Fenêtre de confirmation double détection (secondes)",
+                    "presence_simulation_history_days": "Historique à rejouer pour la simulation (jours en arrière)",
+                    "siren_test": "Test périodique des sirènes",
+                    "siren_test_day": "Jour du test (1=Lundi, 7=Dimanche)",
+                    "siren_test_hour": "Heure du test (0-23)",
+                    "schedule_enabled": "Activer la planification d'armement",
+                    "schedule_arm_time": "Heure d'armement (HH:MM)",
+                    "schedule_disarm_time": "Heure de désarmement (HH:MM)",
+                    "schedule_mode": "Mode d'armement planifié (night, away, home)",
+                    "exit_delay": "Délai de sortie (secondes)",
+                    "entry_delay": "Délai d'entrée (secondes)",
+                    "siren_duration": "Durée Sirène",
+                    "chime_mode": "Mode Carillon (Annonce d'ouverture quand désarmée)"
+                }
+            },
+            "mqtt": {
+                "title": "Domolink - Connexion MQTT",
+                "description": "Configurez l'intégration MQTT pour publier les états et recevoir des commandes.",
+                "data": {
+                    "mqtt_enabled": "Activer la liaison MQTT",
+                    "mqtt_topic_base": "Topique de base (ex: domolink/alarme)",
+                    "mqtt_require_code": "Exiger un code PIN pour désarmer via MQTT"
+                }
+            }
+        },
+        "error": {
+            "invalid_code": "Le code doit être numérique.",
+            "cannot_connect": "Échec de la connexion",
+            "unknown": "Erreur inattendue"
+        },
+        "abort": {
+            "already_configured": "L'appareil est déjà configuré"
         }
-      },
-      "actuators": {
-        "title": "Configuration de Domolink Alarm (2/3)",
-        "data": {
-          "sirens": "Sirènes",
-          "sirens_labels": "Étiquettes (Sirènes)",
-          "lights": "Lumières d'urgence",
-          "lights_labels": "Étiquettes (Lumières d'urgence)",
-          "media_players": "Lecteurs multimédia (TTS)",
-          "media_players_labels": "Étiquettes (Lecteurs multimédia)",
-          "notify_services": "Appareils pour Notifications (Optionnel)",
-          "notify_services_labels": "Étiquettes (Notifications)",
-          "free_mobile_user": "Free Mobile - Identifiant (Optionnel)",
-          "free_mobile_pass": "Free Mobile - Clé API (Optionnel)",
-          "icloud_devices": "Appareils Apple à faire sonner (intégration iCloud)",
-          "emergency_contact": "Contact d'urgence",
-          "emergency_contact_labels": "Étiquettes (Contact d'urgence)",
-          "presence_simulation_entities": "Simulation de Présence (Lumières / Prises)",
-          "presence_simulation_labels": "Étiquettes (Simulation de Présence)"
-        }
-      },
-      "logic": {
-        "title": "Configuration de Domolink Alarm (3/3)",
-        "data": {
-          "persons": "Personnes (Géolocalisation)",
-          "persons_labels": "Étiquettes (Personnes)",
-          "users_codes": "Codes Utilisateurs",
-          "duress_code": "Code Sous Contrainte",
-          "rfid_tags": "Tags RFID (tag_id:Nom, ...)",
-          "bypass_allowed": "Autoriser le contournement",
-          "health_check": "Vérification de santé",
-          "geofence_auto_arm": "Auto-armement Géolocalisation",
-          "geofence_reminder": "Rappel d'oubli d'armement par notification",
-          "geofence_reminder_delay": "Délai avant rappel d'oubli (minutes)",
-          "cross_zoning": "Double Détection (Anti-fausse alerte mouvements)",
-          "cross_zoning_window": "Fenêtre de confirmation double détection (secondes)",
-          "presence_simulation_history_days": "Historique à rejouer pour la simulation (jours en arrière)",
-          "siren_test": "Test périodique des sirènes",
-          "siren_test_day": "Jour du test (1=Lundi, 7=Dimanche)",
-          "siren_test_hour": "Heure du test (0-23)",
-          "schedule_enabled": "Activer la planification d'armement",
-          "schedule_arm_time": "Heure d'armement (HH:MM)",
-          "schedule_disarm_time": "Heure de désarmement (HH:MM)",
-          "schedule_mode": "Mode d'armement planifié (night, away, home)",
-          "exit_delay": "Délai de sortie (secondes)",
-          "entry_delay": "Délai d'entrée (secondes)",
-          "siren_duration": "Durée Sirène",
-          "chime_mode": "Mode Carillon (Annonce d'ouverture quand désarmée)"
-        }
-      }
     },
-    "error": {
-      "invalid_code": "Le code doit être numérique.",
-      "cannot_connect": "Échec de la connexion",
-      "unknown": "Erreur inattendue"
-    },
-    "abort": {
-      "already_configured": "L'appareil est déjà configuré"
-    }
-  },
-  "options": {
-    "step": {
-      "sensors": {
-        "title": "Configuration de Domolink Alarm (1/3)",
-        "data": {
-          "name": "Nom de l'alarme",
-          "opening_sensors": "Capteurs d'ouverture",
-          "opening_sensors_labels": "Étiquettes (Capteurs d'ouverture)",
-          "motion_sensors": "Capteurs de mouvement",
-          "motion_sensors_labels": "Étiquettes (Capteurs de mouvement)",
-          "tamper_sensors": "Capteurs de sabotage (24/7)",
-          "tamper_sensors_labels": "Étiquettes (Capteurs de sabotage)",
-          "night_sensors": "Capteurs Mode Nuit",
-          "night_sensors_labels": "Étiquettes (Capteurs Mode Nuit)",
-          "keypads": "Claviers",
-          "keypads_labels": "Étiquettes (Claviers)",
-          "cameras": "Caméras",
-          "cameras_labels": "Étiquettes (Caméras)",
-          "safety_sensors": "Capteurs Techniques 24/7 (Fumée, Eau, Gaz, CO)",
-          "safety_sensors_labels": "Étiquettes (Capteurs Techniques 24/7)"
+    "options": {
+        "step": {
+            "sensors": {
+                "title": "Configuration de Domolink Alarm (1/3)",
+                "data": {
+                    "name": "Nom de l'alarme",
+                    "opening_sensors": "Capteurs d'ouverture",
+                    "opening_sensors_labels": "Étiquettes (Capteurs d'ouverture)",
+                    "motion_sensors": "Capteurs de mouvement",
+                    "motion_sensors_labels": "Étiquettes (Capteurs de mouvement)",
+                    "tamper_sensors": "Capteurs de sabotage (24/7)",
+                    "tamper_sensors_labels": "Étiquettes (Capteurs de sabotage)",
+                    "night_sensors": "Capteurs Mode Nuit",
+                    "night_sensors_labels": "Étiquettes (Capteurs Mode Nuit)",
+                    "keypads": "Claviers",
+                    "keypads_labels": "Étiquettes (Claviers)",
+                    "cameras": "Caméras",
+                    "cameras_labels": "Étiquettes (Caméras)",
+                    "safety_sensors": "Capteurs Techniques 24/7 (Fumée, Eau, Gaz, CO)",
+                    "safety_sensors_labels": "Étiquettes (Capteurs Techniques 24/7)"
+                }
+            },
+            "actuators": {
+                "title": "Configuration de Domolink Alarm (2/3)",
+                "data": {
+                    "sirens": "Sirènes",
+                    "sirens_labels": "Étiquettes (Sirènes)",
+                    "lights": "Lumières d'urgence",
+                    "lights_labels": "Étiquettes (Lumières d'urgence)",
+                    "media_players": "Lecteurs multimédia (TTS)",
+                    "media_players_labels": "Étiquettes (Lecteurs multimédia)",
+                    "notify_services": "Appareils pour Notifications (Optionnel)",
+                    "notify_services_labels": "Étiquettes (Notifications)",
+                    "free_mobile_user": "Free Mobile - Identifiant (Optionnel)",
+                    "free_mobile_pass": "Free Mobile - Clé API (Optionnel)",
+                    "icloud_devices": "Appareils Apple à faire sonner (intégration iCloud)",
+                    "emergency_contact": "Contact d'urgence",
+                    "emergency_contact_labels": "Étiquettes (Contact d'urgence)",
+                    "presence_simulation_entities": "Simulation de Présence (Lumières / Prises)",
+                    "presence_simulation_labels": "Étiquettes (Simulation de Présence)"
+                }
+            },
+            "logic": {
+                "title": "Configuration de Domolink Alarm (3/3)",
+                "data": {
+                    "persons": "Personnes (Géolocalisation)",
+                    "persons_labels": "Étiquettes (Personnes)",
+                    "users_codes": "Codes Utilisateurs",
+                    "duress_code": "Code Sous Contrainte",
+                    "rfid_tags": "Tags RFID (tag_id:Nom, ...)",
+                    "bypass_allowed": "Autoriser le contournement",
+                    "health_check": "Vérification de santé",
+                    "geofence_auto_arm": "Auto-armement Géolocalisation",
+                    "geofence_reminder": "Rappel d'oubli d'armement par notification",
+                    "geofence_reminder_delay": "Délai avant rappel d'oubli (minutes)",
+                    "cross_zoning": "Double Détection (Anti-fausse alerte mouvements)",
+                    "cross_zoning_window": "Fenêtre de confirmation double détection (secondes)",
+                    "presence_simulation_history_days": "Historique à rejouer pour la simulation (jours en arrière)",
+                    "siren_test": "Test périodique des sirènes",
+                    "siren_test_day": "Jour du test (1=Lundi, 7=Dimanche)",
+                    "siren_test_hour": "Heure du test (0-23)",
+                    "schedule_enabled": "Activer la planification d'armement",
+                    "schedule_arm_time": "Heure d'armement (HH:MM)",
+                    "schedule_disarm_time": "Heure de désarmement (HH:MM)",
+                    "schedule_mode": "Mode d'armement planifié (night, away, home)",
+                    "exit_delay": "Délai de sortie (secondes)",
+                    "entry_delay": "Délai d'entrée (secondes)",
+                    "siren_duration": "Durée Sirène",
+                    "chime_mode": "Mode Carillon (Annonce d'ouverture quand désarmée)"
+                }
+            },
+            "mqtt": {
+                "title": "Domolink - Connexion MQTT",
+                "description": "Configurez l'intégration MQTT pour publier les états et recevoir des commandes.",
+                "data": {
+                    "mqtt_enabled": "Activer la liaison MQTT",
+                    "mqtt_topic_base": "Topique de base (ex: domolink/alarme)",
+                    "mqtt_require_code": "Exiger un code PIN pour désarmer via MQTT"
+                }
+            }
         }
-      },
-      "actuators": {
-        "title": "Configuration de Domolink Alarm (2/3)",
-        "data": {
-          "sirens": "Sirènes",
-          "sirens_labels": "Étiquettes (Sirènes)",
-          "lights": "Lumières d'urgence",
-          "lights_labels": "Étiquettes (Lumières d'urgence)",
-          "media_players": "Lecteurs multimédia (TTS)",
-          "media_players_labels": "Étiquettes (Lecteurs multimédia)",
-          "notify_services": "Appareils pour Notifications (Optionnel)",
-          "notify_services_labels": "Étiquettes (Notifications)",
-          "free_mobile_user": "Free Mobile - Identifiant (Optionnel)",
-          "free_mobile_pass": "Free Mobile - Clé API (Optionnel)",
-          "icloud_devices": "Appareils Apple à faire sonner (intégration iCloud)",
-          "emergency_contact": "Contact d'urgence",
-          "emergency_contact_labels": "Étiquettes (Contact d'urgence)",
-          "presence_simulation_entities": "Simulation de Présence (Lumières / Prises)",
-          "presence_simulation_labels": "Étiquettes (Simulation de Présence)"
-        }
-      },
-      "logic": {
-        "title": "Configuration de Domolink Alarm (3/3)",
-        "data": {
-          "persons": "Personnes (Géolocalisation)",
-          "persons_labels": "Étiquettes (Personnes)",
-          "users_codes": "Codes Utilisateurs",
-          "duress_code": "Code Sous Contrainte",
-          "rfid_tags": "Tags RFID (tag_id:Nom, ...)",
-          "bypass_allowed": "Autoriser le contournement",
-          "health_check": "Vérification de santé",
-          "geofence_auto_arm": "Auto-armement Géolocalisation",
-          "geofence_reminder": "Rappel d'oubli d'armement par notification",
-          "geofence_reminder_delay": "Délai avant rappel d'oubli (minutes)",
-          "cross_zoning": "Double Détection (Anti-fausse alerte mouvements)",
-          "cross_zoning_window": "Fenêtre de confirmation double détection (secondes)",
-          "presence_simulation_history_days": "Historique à rejouer pour la simulation (jours en arrière)",
-          "siren_test": "Test périodique des sirènes",
-          "siren_test_day": "Jour du test (1=Lundi, 7=Dimanche)",
-          "siren_test_hour": "Heure du test (0-23)",
-          "schedule_enabled": "Activer la planification d'armement",
-          "schedule_arm_time": "Heure d'armement (HH:MM)",
-          "schedule_disarm_time": "Heure de désarmement (HH:MM)",
-          "schedule_mode": "Mode d'armement planifié (night, away, home)",
-          "exit_delay": "Délai de sortie (secondes)",
-          "entry_delay": "Délai d'entrée (secondes)",
-          "siren_duration": "Durée Sirène",
-          "chime_mode": "Mode Carillon (Annonce d'ouverture quand désarmée)"
-        }
-      }
-    }
-  },
-  "state": {
-    "alarm_control_panel": {
-      "domolink_alarm": {
-        "disarmed": "Désarmée",
-        "armed_home": "Armée (Présence)",
-        "armed_away": "Armée (Absence)",
-        "armed_night": "Armée (Nuit)",
-        "arming": "Armement...",
-        "pending": "En attente...",
-        "triggered": "DÉCLENCHÉE"
-      }
     },
-    "sensor": {
-      "domolink_event_log": {
-        "unknown": "Inconnu"
-      }
-    }
-  },
-  "entity": {
-    "button": {
-      "domolink_sos": {
-        "name": "Panique SOS"
-      }
+    "state": {
+        "alarm_control_panel": {
+            "domolink_alarm": {
+                "disarmed": "Désarmée",
+                "armed_home": "Armée (Présence)",
+                "armed_away": "Armée (Absence)",
+                "armed_night": "Armée (Nuit)",
+                "arming": "Armement...",
+                "pending": "En attente...",
+                "triggered": "DÉCLENCHÉE"
+            }
+        },
+        "sensor": {
+            "domolink_event_log": {
+                "unknown": "Inconnu"
+            }
+        }
     },
-    "sensor": {
-      "domolink_event_log": {
-        "name": "Dernier Événement"
-      }
+    "entity": {
+        "button": {
+            "domolink_sos": {
+                "name": "Panique SOS"
+            }
+        },
+        "sensor": {
+            "domolink_event_log": {
+                "name": "Dernier Événement"
+            }
+        }
     }
-  }
 }

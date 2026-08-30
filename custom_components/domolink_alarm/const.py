@@ -87,3 +87,11 @@ DEFAULT_SCHEDULE_MODE = "night"
 
 CONF_ICLOUD_ACCOUNT = "icloud_account"
 CONF_ICLOUD_DEVICES = "icloud_devices"
+
+CONF_MQTT_ENABLED = "mqtt_enabled"
+CONF_MQTT_TOPIC_BASE = "mqtt_topic_base"
+CONF_MQTT_REQUIRE_CODE = "mqtt_require_code"
+
+DEFAULT_MQTT_ENABLED = False
+DEFAULT_MQTT_TOPIC_BASE = "domolink/alarme"
+DEFAULT_MQTT_REQUIRE_CODE = False
