@@ -834,10 +834,15 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             # Strategy 1: Modern HA Notify Entity (`notify.send_message` with entity_id)
             if target.startswith("notify.") and self.hass.services.has_service("notify", "send_message"):
                 try:
-                    payload = {"entity_id": target, "message": message}
+                    payload = {"message": message}
                     if data:
                         payload["data"] = data
-                    await self.hass.services.async_call("notify", "send_message", payload)
+                    await self.hass.services.async_call(
+                        "notify", 
+                        "send_message", 
+                        service_data=payload,
+                        target={"entity_id": target}
+                    )
                     sent = True
                     _LOGGER.debug("Domolink: Notification envoyée via notify.send_message à %s", target)
                 except Exception as e:
