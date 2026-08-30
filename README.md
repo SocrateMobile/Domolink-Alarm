@@ -8,6 +8,13 @@ Conçue pour dépasser les standards du marché, elle offre une configuration 10
 ## 🌟 Fonctionnalités Principales
 
 
+### 🚀 Nouveautés de la version 0.9.34 (Intégration Totale)
+- **Support MQTT Complet** : Domolink publie désormais ses changements d'états et ses événements (au format JSON) sur un broker MQTT, et peut recevoir des commandes brutes (`ARM_AWAY`, `DISARM`, `PANIC`) depuis des systèmes externes (Node-RED, claviers physiques tiers).
+- **Journal Analytique Visuel** : L'onglet "Journal" dans le panneau latéral affiche des couleurs dynamiques (Rouge pour les alertes/sabotages/double-détections, Orange pour les avertissements silencieux, délais d'entrée et envois de SMS).
+- **Transparence des Communications** : Chaque appel téléphonique, SMS Free Mobile, ou Push Notification envoyé par le système est précisément tracé et horodaté dans le journal avec les destinataires.
+- **Sirène Intelligente** : Lors d'une sirène en cours, si un nouvel intrus est détecté, la sirène prolonge automatiquement son cycle. Une fois la sirène éteinte et le système restauré, tout nouveau mouvement annule le délai d'entrée pour relancer immédiatement l'alerte !
+- **Filtrage Anti-Faux Positifs Avancé** : Le moteur interne rejette de manière stricte les simples mises à jour d'attributs des capteurs (comme la baisse de batterie) pour empêcher les déclenchements fantômes.
+
 ### 🚀 Nouveautés de la version 0.9.15
 - **Photos et Vidéos Multi-Caméras** : Lors d'une intrusion, une capture photo et un enregistrement vidéo de 30 secondes sont sauvegardés **pour toutes vos caméras**. Intègre une optimisation spécifique pour les caméras **Arlo** (`aarlo`).
 - **Envoi de SMS Natif (Free Mobile)** : Envoyez des alertes de secours hors réseau Wi-Fi via l'API Free Mobile SMS de façon 100% autonome.
