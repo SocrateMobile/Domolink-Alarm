@@ -7,6 +7,16 @@ Conçue pour dépasser les standards du marché, elle offre une configuration 10
 
 ## 🌟 Fonctionnalités Principales
 
+
+### 🚀 Nouveautés de la version 0.9.15
+- **Photos et Vidéos Multi-Caméras** : Lors d'une intrusion, une capture photo et un enregistrement vidéo de 30 secondes sont sauvegardés **pour toutes vos caméras**. Intègre une optimisation spécifique pour les caméras **Arlo** (`aarlo`).
+- **Envoi de SMS Natif (Free Mobile)** : Envoyez des alertes de secours hors réseau Wi-Fi via l'API Free Mobile SMS de façon 100% autonome.
+- **Bouton Panique (SOS)** : Déclenchez l'alerte générale (sirènes, notifications d'urgence) d'un simple appui, incluant vos contacts d'urgence.
+- **Réarmement Automatique** : À la fin du temps de sonnerie, l'alarme se réarme toute seule et vous informe ("Maison de nouveau sous alarme").
+- **Horodatage Français** : Les notifications sont désormais lisibles et horodatées précisément (ex: *30 Août 2026 à 18h00*).
+- **Test Sirène Automatique** : Vérifiez le bon fonctionnement de vos sirènes de façon planifiée.
+- **Planification (Schedule)** : Armement et désarmement automatiques selon vos propres horaires.
+
 ### 🛡️ Sécurité & Dissuasion
 - **Gestion des Modes Intelligente** :
   - 🏡 *Armé Présent (Home)* : Seules les ouvertures périphériques déclenchent (pas de radars intérieurs), déclenchant notifications et caméras sans sirène.
