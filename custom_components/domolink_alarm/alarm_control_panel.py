@@ -179,12 +179,13 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.9.27",
+            sw_version="0.9.28",
         )
 
         self._siren_task = None
         self._arming_task = None
         self._pending_task = None
+        self._post_trigger_active = False
         self._geofence_reminder_task = None
         self._presence_simulation_task = None
         self._faults = []
@@ -1030,6 +1031,10 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
         if not new_state:
             return
+            
+        # Ignore attribute changes where the core state didn't actually change
+        if old_state and old_state.state == new_state.state:
+            return
 
         # Geofencing
         if entity_id in self._persons:
@@ -1100,6 +1105,14 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             )
             return
 
+        # Track sensors during entry delay (PENDING)
+        if self._state == AlarmControlPanelState.PENDING:
+            if entity_id not in self._faults:
+                self._faults.append(entity_id)
+                self.async_write_ha_state()
+                self._log_event(f"Capteur {new_state.name} ouvert pendant le délai d'entrée")
+            return
+
         # Cross-zoning check for motion sensors in Away / Night
         if self._cross_zoning and entity_id in self._motion_sensors and self._state in (AlarmControlPanelState.ARMED_AWAY, AlarmControlPanelState.ARMED_NIGHT):
             now_loop = self.hass.loop.time()
@@ -1134,7 +1147,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                     self._faults.append(entity_id)
                 self.async_write_ha_state()
                 self._log_event(f"Autre détection: {new_state.name}")
-                await self._async_send_notification(f"🚨 Détection supplémentaire : {new_state.name}", is_alert=True)
+                await self._async_send_notification(f"🚨 Nouvelle détection pendant l'alerte : {new_state.name}\n({dt_now().strftime('%H:%M:%S')})", is_alert=True)
             return
 
         # Handle different armed modes
@@ -1154,7 +1167,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
             if is_valid_sensor:
                 # Entry delay only for ARMED_AWAY
-                if self._state == AlarmControlPanelState.ARMED_AWAY and self._entry_delay > 0:
+                if self._state == AlarmControlPanelState.ARMED_AWAY and self._entry_delay > 0 and not getattr(self, '_post_trigger_active', False):
                     if self._pending_task is None:
                         _LOGGER.info("Starting entry delay for %s", entity_id)
                         self._pre_trigger_state = self._state
@@ -1485,11 +1498,13 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             
             self._faults.clear()
             self._log_event(f"Fin de cycle sirène — Système ré-armé ({target_state.value})")
+            self._post_trigger_active = True
             self.async_write_ha_state()
 
     # ─── Helper: Cancel All Tasks ─────────────────────────────────
 
     def _cancel_all_tasks(self):
+        self._post_trigger_active = False
         """Cancel any pending timers."""
         if self._arming_task:
             self._arming_task()

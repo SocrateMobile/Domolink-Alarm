@@ -1581,15 +1581,37 @@ class DomolinkPanel extends HTMLElement {
             Événements récents
           </div>
           <div class="log-timeline">
-            <div class="log-entry">
-              <div class="log-dot event">
-                <ha-icon icon="mdi:check-circle" style="--mdc-icon-size:18px;"></ha-icon>
-              </div>
-              <div style="flex-grow:1; min-width:0;">
-                <div style="font-size:13px; font-weight:600; color:var(--d-text);">Système opérationnel</div>
-                <div style="font-size:11px; color:var(--d-subtext); margin-top:2px; font-weight:500;">Tous les modules actifs</div>
-              </div>
-            </div>
+            ${systemEvents.length > 0 ? systemEvents.map(ev => {
+              let icon = 'mdi:information-variant';
+              let iconColor = 'var(--d-subtext)';
+              let dotClass = 'info';
+              
+              if (ev.message.includes('DÉCLENCHÉE') || ev.message.includes('ALERTE') || ev.message.includes('Sabotage')) {
+                icon = 'mdi:alert';
+                iconColor = '#ef4444';
+                dotClass = 'alert';
+              } else if (ev.message.includes('Armée')) {
+                icon = 'mdi:shield-lock';
+                iconColor = '#f59e0b';
+                dotClass = 'warning';
+              } else if (ev.message.includes('Désarmée')) {
+                icon = 'mdi:shield-check';
+                iconColor = '#10b981';
+                dotClass = 'event';
+              }
+              
+              return `
+                <div class="log-entry">
+                  <div class="log-dot ${dotClass}" style="color: ${iconColor};">
+                    <ha-icon icon="${icon}" style="--mdc-icon-size:18px;"></ha-icon>
+                  </div>
+                  <div style="flex-grow:1; min-width:0;">
+                    <div style="font-size:13px; font-weight:600; color:var(--d-text); line-height:1.4;">${ev.message}</div>
+                    <div style="font-size:11px; color:var(--d-subtext); margin-top:2px; font-weight:500;">${this.formatDate(ev.time)}</div>
+                  </div>
+                </div>
+              `;
+            }).join('') : '<div class="empty-placeholder">Aucun événement système.</div>'}
           </div>
         </div>
       </div>
