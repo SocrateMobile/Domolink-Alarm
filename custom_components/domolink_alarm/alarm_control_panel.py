@@ -834,9 +834,17 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             # Strategy 1: Modern HA Notify Entity (`notify.send_message` with entity_id)
             if target.startswith("notify.") and self.hass.services.has_service("notify", "send_message"):
                 try:
-                    payload = {"message": message}
+                    # Nettoyage des émojis pour Free Mobile (qui plante souvent sur les caractères spéciaux)
+                    safe_message = message
+                    if "free_mobile" in target or "sms" in target:
+                        safe_message = message.replace("🚨", "").replace("🟢", "").replace("🔴", "").replace("🟠", "").replace("🛡️", "").replace("⚠️", "")
+                        
+                    payload = {"message": safe_message}
                     if data:
                         payload["data"] = data
+                    
+                    # Rétrocompatibilité maximale : entity_id dans payload ET target
+                    payload["entity_id"] = target
                     await self.hass.services.async_call(
                         "notify", 
                         "send_message", 
