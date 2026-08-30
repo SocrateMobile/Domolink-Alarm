@@ -2,6 +2,7 @@
 import os
 import random
 import logging
+import datetime
 from datetime import timedelta
 
 import asyncio
@@ -1219,9 +1220,11 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             self._log_event(f"Lancement de l'enregistrement sur {len(self._cameras)} caméra(s)")
             for camera in self._cameras:
                 try:
+                    safe_cam = camera.replace(".", "_")
+                    record_path = self.hass.config.path(f"www/domolink_record_{safe_cam}.mp4")
                     await self.hass.services.async_call(
                         "camera", "record",
-                        {"entity_id": camera, "duration": 30},
+                        {"entity_id": camera, "duration": 30, "filename": record_path},
                     )
                 except Exception as e:
                     _LOGGER.error("Failed to record camera %s: %s", camera, e)
