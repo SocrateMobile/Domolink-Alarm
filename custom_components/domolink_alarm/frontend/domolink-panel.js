@@ -809,6 +809,14 @@ class DomolinkPanel extends HTMLElement {
           flex-direction: column;
           gap: 10px;
         }
+        .log-entry.row-alert {
+          background: rgba(239, 68, 68, 0.15);
+          border-left: 4px solid #ef4444;
+        }
+        .log-entry.row-warning {
+          background: rgba(249, 115, 22, 0.15);
+          border-left: 4px solid #f97316;
+        }
         .log-entry {
           display: flex;
           align-items: center;
@@ -1587,17 +1595,17 @@ class DomolinkPanel extends HTMLElement {
               let iconColor = 'var(--d-subtext)';
               let dotClass = 'info';
               
-              let entryStyle = '';
+              let entryClass = '';
               if (ev.message.includes('DÉCLENCHÉE') || ev.message.includes('ALERTE') || ev.message.includes('Sabotage') || ev.message.includes('Sirène prolongée') || ev.message.includes('Double détection confirmée') || ev.message.includes('PANIQUE')) {
                 icon = 'mdi:alert';
                 iconColor = '#ef4444';
                 dotClass = 'alert';
-                entryStyle = 'background: rgba(239, 68, 68, 0.15); border-left: 4px solid #ef4444; border-radius: 12px;';
+                entryClass = 'row-alert';
               } else if (ev.message.includes('Pré-détection') || ev.message.includes("pendant le délai d'entrée") || ev.message.includes("pendant délai d'entrée") || ev.message.includes('Message envoyé') || ev.message.includes("SMS d'alerte envoyé")) {
                 icon = 'mdi:alert-outline';
                 iconColor = '#f97316'; // Orange
                 dotClass = 'warning';
-                entryStyle = 'background: rgba(249, 115, 22, 0.15); border-left: 4px solid #f97316; border-radius: 12px;';
+                entryClass = 'row-warning';
               } else if (ev.message.includes('Armée')) {
                 icon = 'mdi:shield-lock';
                 iconColor = '#f59e0b';
@@ -1609,7 +1617,7 @@ class DomolinkPanel extends HTMLElement {
               }
               
               return `
-                <div class="log-entry" style="${entryStyle}">
+                <div class="log-entry ${entryClass}">
                   <div class="log-dot ${dotClass}" style="color: ${iconColor};">
                     <ha-icon icon="${icon}" style="--mdc-icon-size:18px;"></ha-icon>
                   </div>
