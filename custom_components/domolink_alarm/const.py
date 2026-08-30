@@ -28,6 +28,8 @@ CONF_MEDIA_PLAYERS = "media_players"
 CONF_MEDIA_PLAYERS_LABELS = "media_players_labels"
 CONF_NOTIFY_SERVICES = "notify_services"
 CONF_NOTIFY_SERVICES_LABELS = "notify_services_labels"
+CONF_FREE_MOBILE_USER = "free_mobile_user"
+CONF_FREE_MOBILE_PASS = "free_mobile_pass"
 
 CONF_USERS_CODES = "users_codes"
 CONF_DURESS_CODE = "duress_code"

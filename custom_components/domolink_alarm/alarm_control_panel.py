@@ -304,6 +304,9 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._notify_services = get_merged(CONF_NOTIFY_SERVICES, CONF_NOTIFY_SERVICES_LABELS, ["notify", "script"])
         self._emergency_contact = get_merged("emergency_contact", "emergency_contact_labels", ["notify", "script"])
         self._presence_simulation_entities = get_merged(CONF_PRESENCE_SIMULATION_ENTITIES, CONF_PRESENCE_SIMULATION_LABELS, ["light", "switch", "cover"])
+        
+        self._free_mobile_user = options.get("free_mobile_user", data.get("free_mobile_user", ""))
+        self._free_mobile_pass = options.get("free_mobile_pass", data.get("free_mobile_pass", ""))
 
     @callback
     def async_update_options(self):
@@ -769,6 +772,38 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
     async def _async_send_notification(self, message, is_alert=False, custom_data=None, is_emergency=False):
         """Send notifications to configured services/entities with universal compatibility."""
+        
+        # ─── NATIVE FREE MOBILE SMS BACKUP ─────────────────────────────────────
+        if hasattr(self, "_free_mobile_user") and self._free_mobile_user and self._free_mobile_pass:
+            # We send native SMS for alerts and emergencies, or if explicitly requested.
+            if is_alert or is_emergency or ("Désarmement" in message or "Armement" in message):
+                try:
+                    import urllib.parse
+                    from homeassistant.helpers.aiohttp_client import async_get_clientsession
+                    
+                    # Clean emojis that crash the Free API
+                    safe_msg = message.replace("🚨", "").replace("🟢", "").replace("🔴", "").replace("🟠", "").replace("🛡️", "").replace("⚠️", "")
+                    safe_msg = f"Domolink: {safe_msg.strip()}"
+                    encoded_msg = urllib.parse.quote(safe_msg)
+                    url = f"https://smsapi.free-mobile.fr/sendmsg?user={self._free_mobile_user}&pass={self._free_mobile_pass}&msg={encoded_msg}"
+                    
+                    session = async_get_clientsession(self.hass)
+                    
+                    async def _send_sms_task():
+                        try:
+                            async with session.get(url) as response:
+                                if response.status == 200:
+                                    _LOGGER.info("Domolink: SMS natif Free Mobile envoyé avec succès")
+                                else:
+                                    _LOGGER.error("Domolink: Erreur API Free Mobile (%s)", response.status)
+                        except Exception as e:
+                            _LOGGER.error("Domolink: Exception lors de l'envoi SMS Free Mobile: %s", e)
+                    
+                    self.hass.async_create_task(_send_sms_task())
+                except Exception as e:
+                    _LOGGER.error("Domolink: Impossible de préparer le SMS natif: %s", e)
+        # ───────────────────────────────────────────────────────────────────────
+
         targets = []
         if self._notify_services:
             targets.extend(self._notify_services)
