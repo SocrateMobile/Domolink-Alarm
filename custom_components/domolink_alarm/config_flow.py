@@ -82,6 +82,12 @@ from .const import (
     DEFAULT_SCHEDULE_ARM_TIME,
     DEFAULT_SCHEDULE_DISARM_TIME,
     DEFAULT_SCHEDULE_MODE,
+    CONF_MQTT_ENABLED,
+    CONF_MQTT_TOPIC_BASE,
+    CONF_MQTT_REQUIRE_CODE,
+    DEFAULT_MQTT_ENABLED,
+    DEFAULT_MQTT_TOPIC_BASE,
+    DEFAULT_MQTT_REQUIRE_CODE,
 )
 
 
@@ -206,8 +212,7 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Step 3: Configure logic and delays."""
         if user_input is not None:
             self.data.update(user_input)
-            title = self.data.get(CONF_NAME, DEFAULT_NAME)
-            return self.async_create_entry(title=title, data=self.data)
+            return await self.async_step_mqtt()
 
         return self.async_show_form(
             step_id="logic",
@@ -249,6 +254,24 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Get the options flow for this handler."""
         return DomolinkAlarmOptionsFlow()
 
+
+    async def async_step_mqtt(self, user_input=None):
+        """Step 4: Configure MQTT."""
+        if user_input is not None:
+            self.data.update(user_input)
+            title = self.data.get(CONF_NAME, DEFAULT_NAME)
+            return self.async_create_entry(title=title, data=self.data)
+
+        return self.async_show_form(
+            step_id="mqtt",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(CONF_MQTT_ENABLED, default=DEFAULT_MQTT_ENABLED): bool,
+                    vol.Optional(CONF_MQTT_TOPIC_BASE, default=DEFAULT_MQTT_TOPIC_BASE): str,
+                    vol.Optional(CONF_MQTT_REQUIRE_CODE, default=DEFAULT_MQTT_REQUIRE_CODE): bool,
+                }
+            ),
+        )
 
 class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
     """Handle options."""
@@ -366,7 +389,7 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
         """Step 3: Configure logic and delays."""
         if user_input is not None:
             self.options.update(user_input)
-            return self.async_create_entry(title="", data=self.options)
+            return await self.async_step_mqtt()
 
         return self.async_show_form(
             step_id="logic",
@@ -398,6 +421,24 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
                     vol.Optional(CONF_ENTRY_DELAY, default=self.options.get(CONF_ENTRY_DELAY, DEFAULT_ENTRY_DELAY)): int,
                     vol.Optional(CONF_SIREN_DURATION, default=self.options.get(CONF_SIREN_DURATION, DEFAULT_SIREN_DURATION)): int,
                     vol.Optional(CONF_CHIME_MODE, default=self.options.get(CONF_CHIME_MODE, DEFAULT_CHIME_MODE)): bool,
+                }
+            ),
+        )
+
+
+    async def async_step_mqtt(self, user_input=None):
+        """Step 4: Configure MQTT options."""
+        if user_input is not None:
+            self.options.update(user_input)
+            return self.async_create_entry(title="", data=self.options)
+
+        return self.async_show_form(
+            step_id="mqtt",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(CONF_MQTT_ENABLED, default=self.options.get(CONF_MQTT_ENABLED, DEFAULT_MQTT_ENABLED)): bool,
+                    vol.Optional(CONF_MQTT_TOPIC_BASE, default=self.options.get(CONF_MQTT_TOPIC_BASE, DEFAULT_MQTT_TOPIC_BASE)): str,
+                    vol.Optional(CONF_MQTT_REQUIRE_CODE, default=self.options.get(CONF_MQTT_REQUIRE_CODE, DEFAULT_MQTT_REQUIRE_CODE)): bool,
                 }
             ),
         )

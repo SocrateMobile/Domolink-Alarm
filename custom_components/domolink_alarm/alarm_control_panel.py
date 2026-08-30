@@ -179,7 +179,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.9.31",
+            sw_version="0.9.32",
         )
 
         self._siren_task = None
@@ -317,6 +317,10 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         
         self._free_mobile_user = options.get("free_mobile_user", data.get("free_mobile_user", ""))
         self._free_mobile_pass = options.get("free_mobile_pass", data.get("free_mobile_pass", ""))
+        self._mqtt_enabled = options.get("mqtt_enabled", data.get("mqtt_enabled", False))
+        self._mqtt_topic_base = options.get("mqtt_topic_base", data.get("mqtt_topic_base", "domolink/alarme"))
+        self._mqtt_require_code = options.get("mqtt_require_code", data.get("mqtt_require_code", False))
+        self._mqtt_unsub = None
         
         # Migration & Loading of iCloud devices
         icloud_devs = options.get("icloud_devices", data.get("icloud_devices", []))
@@ -329,6 +333,17 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self.async_write_ha_state()
 
     # ─── Properties ───────────────────────────────────────────────
+
+    @callback
+    def async_write_ha_state(self):
+        """Write state to HA and push to MQTT if enabled."""
+        super().async_write_ha_state()
+        if hasattr(self, "_mqtt_enabled") and self._mqtt_enabled and "mqtt" in self.hass.config.components:
+            from homeassistant.components import mqtt
+            state_str = self.state if hasattr(self, "state") and self.state else "unknown"
+            self.hass.async_create_task(
+                mqtt.async_publish(self.hass, f"{self._mqtt_topic_base}/state", state_str, retain=True)
+            )
 
     @property
     def unique_id(self):
