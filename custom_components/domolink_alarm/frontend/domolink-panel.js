@@ -1265,19 +1265,27 @@ class DomolinkPanel extends HTMLElement {
         btn.addEventListener('click', () => this.callAlarmService(btn.getAttribute('data-service')));
       });
 
-      // Camera Live Stream Trigger (Forces Arlo / Camera to wake up and stream)
+      // Camera Live Stream Trigger (Reliably opens Home Assistant live stream player)
       const triggerLiveStream = () => {
-        if (currentCamEntity) {
-          // Wake up camera in HA
-          this._hass.callService('camera', 'turn_on', { entity_id: currentCamEntity }).catch(() => {});
-          // Dispatch more-info to open live WebRTC / HLS dialog
-          const event = new CustomEvent('hass-more-info', {
-            detail: { entityId: currentCamEntity },
-            bubbles: true,
-            composed: true,
-          });
-          this.dispatchEvent(event);
+        if (!currentCamEntity) return;
+
+        const liveBtn = container.querySelector('#btn-open-live-stream');
+        if (liveBtn) {
+          const origHtml = liveBtn.innerHTML;
+          liveBtn.innerHTML = '<span class="live-red-dot"></span> CONNEXION...';
+          setTimeout(() => { if (liveBtn) liveBtn.innerHTML = origHtml; }, 3000);
         }
+
+        // Fire hass-more-info event to open HA native WebRTC/HLS live dialog
+        const event = new CustomEvent('hass-more-info', {
+          detail: { entityId: currentCamEntity },
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+        });
+        
+        this.dispatchEvent(event);
+        window.dispatchEvent(event);
       };
 
       const camBox = container.querySelector('#camera-preview-box');
