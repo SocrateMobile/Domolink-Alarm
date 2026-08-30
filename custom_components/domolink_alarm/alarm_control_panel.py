@@ -172,7 +172,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.9.23",
+            sw_version="0.9.24",
         )
 
         self._siren_task = None
@@ -340,6 +340,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
     def extra_state_attributes(self):
         """Expose extra attributes for Lovelace and automations."""
         return {
+            "domolink_alarm": True,
             "faults": self._faults,
             "triggered_by": self._triggered_by,
             "last_triggered_by": self._last_triggered_by,
