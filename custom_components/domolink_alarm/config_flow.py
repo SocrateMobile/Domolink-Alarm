@@ -376,7 +376,7 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
                         selector.EntitySelectorConfig(domain="person", multiple=True)
                     ),
                     vol.Optional(CONF_PERSONS_LABELS, default=self.options.get(CONF_PERSONS_LABELS, [])): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
-                    vol.Required(CONF_USERS_CODES, default=self.options.get(CONF_USERS_CODES, "")): str,
+                    vol.Optional(CONF_USERS_CODES, default=self.options.get(CONF_USERS_CODES, "")): str,
                     vol.Optional(CONF_DURESS_CODE, default=self.options.get(CONF_DURESS_CODE, "")): str,
                     vol.Optional(CONF_RFID_TAGS, default=self.options.get(CONF_RFID_TAGS, "")): str,
                     vol.Optional(CONF_BYPASS_ALLOWED, default=self.options.get(CONF_BYPASS_ALLOWED, DEFAULT_BYPASS_ALLOWED)): bool,

@@ -1,6 +1,4 @@
 # Services for Domolink Alarm
-# Standard alarm services (arm, disarm) are handled by the native alarm_control_panel domain.
-
 bypass_sensor:
   name: Ignorer un capteur (Bypass)
   description: Ignore temporairement un capteur de l'alarme (s'il est ouvert ou non joignable).
@@ -25,28 +23,52 @@ unbypass_sensor:
       selector:
         entity:
 
+panic:
+  name: Déclencher l'alerte Panique SOS
+  description: Déclenche immédiatement l'alerte SOS d'urgence avec notifications et sirènes optionnelles.
+  fields:
+    activate_sirens:
+      name: Activer les sirènes
+      description: Activer immédiatement les sirènes sonores.
+      required: false
+      default: true
+      selector:
+        boolean:
+
+start_presence_simulation:
+  name: Démarrer la simulation de présence
+  description: Démarre manuellement le rejeu d'historique des lumières et prises.
+
+stop_presence_simulation:
+  name: Arrêter la simulation de présence
+  description: Arrête manuellement la simulation de présence.
+
+toggle_presence_simulation:
+  name: Basculer la simulation de présence
+  description: Active ou désactive la simulation de présence.
+
 update_settings:
-  name: Mettre à jour les paramètres (Rapide)
+  name: Mettre à jour les paramètres
   description: Met à jour les options de la configuration de l'alarme à la volée.
   fields:
-    presence_simulation_history_days:
-      name: Jours historique simulation
-      description: Nombre de jours en arrière pour la simulation de présence (7, 14, 21, 28, 35, 42).
-      required: false
-      selector:
-        number:
-          min: 7
-          max: 42
-          step: 7
     chime_mode:
       name: Mode Carillon (Chime)
       description: Activer ou désactiver le carillon.
       required: false
       selector:
         boolean:
+    presence_simulation_history_days:
+      name: Jours historique simulation
+      description: Nombre de jours en arrière pour la simulation de présence.
+      required: false
+      selector:
+        number:
+          min: 7
+          max: 42
+          step: 7
     cross_zoning:
-      name: Cross Zoning
-      description: Activer le cross-zoning pour éviter les fausses alarmes.
+      name: Double Détection (Cross-Zoning)
+      description: Activer le cross-zoning pour éviter les fausses alertes mouvements.
       required: false
       selector:
         boolean:
@@ -66,3 +88,11 @@ update_settings:
         number:
           min: 0
           max: 300
+    siren_duration:
+      name: Durée de sirène
+      description: Durée de sonnerie en secondes.
+      required: false
+      selector:
+        number:
+          min: 10
+          max: 1800

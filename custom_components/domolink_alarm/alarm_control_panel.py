@@ -23,7 +23,7 @@ from homeassistant.helpers.event import (
     async_track_time_interval,
 )
 from homeassistant.helpers.restore_state import RestoreEntity
-from homeassistant.util.dt import utcnow
+from homeassistant.util.dt import utcnow, now as dt_now
 
 from .const import (
     DOMAIN,
@@ -127,6 +127,13 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
         """Handle toggle presence simulation service call."""
         await entity.async_toggle_presence_simulation()
 
+    async def async_handle_update_settings(call):
+        """Handle update settings service call."""
+        await entity.async_update_settings(call)
+
+    hass.services.async_register(
+        DOMAIN, "update_settings", async_handle_update_settings
+    )
     hass.services.async_register(
         DOMAIN, "bypass_sensor", async_handle_bypass_sensor
     )
@@ -172,7 +179,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.9.26",
+            sw_version="0.9.27",
         )
 
         self._siren_task = None
@@ -394,9 +401,9 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
     def _get_french_time(self):
         """Retourne la date et l'heure formatée en français."""
-        now = datetime.datetime.now()
+        now_dt = dt_now()
         months = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
-        return f"{now.day} {months[now.month-1]} {now.year} à {now.strftime('%Hh%M')}"
+        return f"{now_dt.day} {months[now_dt.month-1]} {now_dt.year} à {now_dt.strftime('%Hh%M')}"
 
     def _log_event(self, message):
         """Log an event and notify sensor."""
@@ -443,12 +450,15 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 )
             )
 
-        # Health check periodic task
+        # Health check periodic task + initial startup check
         if self._health_check:
             self.async_on_remove(
                 async_track_time_interval(
                     self.hass, self._async_perform_health_check, timedelta(hours=4)
                 )
+            )
+            self.async_on_remove(
+                async_call_later(self.hass, 15, self._async_perform_health_check)
             )
 
         # Geofencing (Auto-Arm or Reminder)
@@ -487,30 +497,34 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 )
             )
 
-        # Time-based Auto-Arming
+        # Time-based Auto-Arming (safe format parsing)
         if getattr(self, "_schedule_enabled", False):
             from homeassistant.helpers.event import async_track_time_change
-            arm_time = self._schedule_arm_time.split(":")
-            disarm_time = self._schedule_disarm_time.split(":")
-            if len(arm_time) == 2 and len(disarm_time) == 2:
-                self.async_on_remove(
-                    async_track_time_change(
-                        self.hass,
-                        self._cb_schedule_arm,
-                        hour=int(arm_time[0]),
-                        minute=int(arm_time[1]),
-                        second=0
+            try:
+                arm_parts = [int(p) for p in str(self._schedule_arm_time).replace("h", ":").replace("H", ":").split(":") if p.strip().isdigit()]
+                disarm_parts = [int(p) for p in str(self._schedule_disarm_time).replace("h", ":").replace("H", ":").split(":") if p.strip().isdigit()]
+                if len(arm_parts) >= 2:
+                    self.async_on_remove(
+                        async_track_time_change(
+                            self.hass,
+                            self._cb_schedule_arm,
+                            hour=arm_parts[0],
+                            minute=arm_parts[1],
+                            second=0
+                        )
                     )
-                )
-                self.async_on_remove(
-                    async_track_time_change(
-                        self.hass,
-                        self._cb_schedule_disarm,
-                        hour=int(disarm_time[0]),
-                        minute=int(disarm_time[1]),
-                        second=0
+                if len(disarm_parts) >= 2:
+                    self.async_on_remove(
+                        async_track_time_change(
+                            self.hass,
+                            self._cb_schedule_disarm,
+                            hour=disarm_parts[0],
+                            minute=disarm_parts[1],
+                            second=0
+                        )
                     )
-                )
+            except Exception as e:
+                _LOGGER.error("Domolink: Erreur configuration planification horaire: %s", e)
 
     # ─── Geofencing ───────────────────────────────────────────────
 
@@ -702,6 +716,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             self._triggered_by = None
             self.async_write_ha_state()
             await self._async_turn_off_siren()
+            self._record_arm_event("disarm", self._last_user)
             self._log_event(f"Alarme Désarmée ({user_name} - Badge)")
             await self._async_send_notification(
                 f"✅ Alarme désarmée par {user_name} (Badge)."
@@ -1200,14 +1215,39 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         await asyncio.sleep(2.5)
 
         for player in self._media_players:
-            try:
-                # 4. Envoyer le TTS
-                await self.hass.services.async_call(
-                    "tts", "google_translate_say",
-                    {"entity_id": player, "message": message},
-                )
-            except Exception as e:
-                _LOGGER.debug("Failed to play TTS on %s: %s", player, e)
+            played = False
+            # Strategy 1: modern tts.speak
+            if self.hass.services.has_service("tts", "speak"):
+                tts_entities = [e for e in self.hass.states.async_entity_ids("tts")]
+                if tts_entities:
+                    try:
+                        await self.hass.services.async_call(
+                            "tts", "speak",
+                            {"entity_id": tts_entities[0], "media_player_entity_id": player, "message": message}
+                        )
+                        played = True
+                    except Exception:
+                        pass
+            # Strategy 2: google_translate_say
+            if not played and self.hass.services.has_service("tts", "google_translate_say"):
+                try:
+                    await self.hass.services.async_call(
+                        "tts", "google_translate_say",
+                        {"entity_id": player, "message": message}
+                    )
+                    played = True
+                except Exception:
+                    pass
+            # Strategy 3: cloud_say
+            if not played and self.hass.services.has_service("tts", "cloud_say"):
+                try:
+                    await self.hass.services.async_call(
+                        "tts", "cloud_say",
+                        {"entity_id": player, "message": message}
+                    )
+                    played = True
+                except Exception:
+                    pass
 
     # ─── Pre-Alarm Feedback ───────────────────────────────────────
 
@@ -1472,7 +1512,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
     async def async_update_settings(self, call):
         """Update settings from frontend."""
-        new_options = dict(self.config_entry.options)
+        new_options = dict(self._entry.options if self._entry.options else self._entry.data)
         
         # Allowed keys to update
         allowed_keys = [
@@ -1487,7 +1527,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 updated = True
                 
         if updated:
-            self.hass.config_entries.async_update_entry(self.config_entry, options=new_options)
+            self.hass.config_entries.async_update_entry(self._entry, options=new_options)
             _LOGGER.info(f"Domolink: Settings updated -> {call.data}")
             self._log_event(f"Paramètres mis à jour")
 
@@ -1908,8 +1948,9 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
     @callback
     def _cb_siren_test(self, now):
         """Run weekly siren test."""
-        # Only run on the configured day
-        if now.weekday() != self._siren_test_day:
+        # Convert 1-7 or 0-6 to Python weekday (0=Monday, 6=Sunday)
+        target_day = (self._siren_test_day - 1) if (1 <= self._siren_test_day <= 7) else self._siren_test_day
+        if now.weekday() != (target_day % 7):
             return
             
         self._log_event("Test automatique des sirènes en cours...")
