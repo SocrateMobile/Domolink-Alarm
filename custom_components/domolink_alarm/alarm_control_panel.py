@@ -301,8 +301,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._lights = get_merged(CONF_LIGHTS, CONF_LIGHTS_LABELS, ["light"])
         self._media_players = get_merged(CONF_MEDIA_PLAYERS, CONF_MEDIA_PLAYERS_LABELS, ["media_player"])
         self._persons = get_merged(CONF_PERSONS, CONF_PERSONS_LABELS, ["person"])
-        self._notify_services = get_merged(CONF_NOTIFY_SERVICES, CONF_NOTIFY_SERVICES_LABELS, ["notify"])
-        self._emergency_contact = get_merged("emergency_contact", "emergency_contact_labels", ["notify"])
+        self._notify_services = get_merged(CONF_NOTIFY_SERVICES, CONF_NOTIFY_SERVICES_LABELS, ["notify", "script"])
+        self._emergency_contact = get_merged("emergency_contact", "emergency_contact_labels", ["notify", "script"])
         self._presence_simulation_entities = get_merged(CONF_PRESENCE_SIMULATION_ENTITIES, CONF_PRESENCE_SIMULATION_LABELS, ["light", "switch", "cover"])
 
     @callback
