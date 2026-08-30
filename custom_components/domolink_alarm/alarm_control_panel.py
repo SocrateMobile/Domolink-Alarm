@@ -1206,16 +1206,35 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 if not os.path.exists(www_dir):
                     os.makedirs(www_dir, exist_ok=True)
 
-                snapshot_path = self.hass.config.path("www/domolink_alarm_alert.jpg")
-                first_cam = self._cameras[0]
-                await self.hass.services.async_call(
-                    "camera", "snapshot",
-                    {"entity_id": first_cam, "filename": snapshot_path},
-                    blocking=True,
-                )
-                self._log_event(f"Photo capturée ({first_cam})")
+                self._log_event(f"Capture photo sur {len(self._cameras)} caméra(s)")
+                for idx, camera in enumerate(self._cameras):
+                    safe_cam = camera.replace(".", "_")
+                    snapshot_path = self.hass.config.path(f"www/domolink_snapshot_{safe_cam}.jpg")
+                    try:
+                        if camera.startswith("camera.aarlo"):
+                            # Specific to Aarlo integration for better reliability
+                            await self.hass.services.async_call(
+                                "aarlo", "camera_request_snapshot_to_file",
+                                {"entity_id": camera, "file_path": snapshot_path},
+                                blocking=True,
+                            )
+                        else:
+                            # Standard camera integration
+                            await self.hass.services.async_call(
+                                "camera", "snapshot",
+                                {"entity_id": camera, "filename": snapshot_path},
+                                blocking=True,
+                            )
+                        
+                        # Link the first camera to the notification attachment
+                        if idx == 0:
+                            alert_path = self.hass.config.path("www/domolink_alarm_alert.jpg")
+                            import shutil
+                            shutil.copy2(snapshot_path, alert_path)
+                    except Exception as e:
+                        _LOGGER.debug("Domolink: Erreur capture photo %s: %s", camera, e)
             except Exception as e:
-                _LOGGER.debug("Domolink: Erreur capture photo caméra: %s", e)
+                _LOGGER.debug("Domolink: Erreur globale capture photo: %s", e)
 
             self._log_event(f"Lancement de l'enregistrement sur {len(self._cameras)} caméra(s)")
             for camera in self._cameras:
