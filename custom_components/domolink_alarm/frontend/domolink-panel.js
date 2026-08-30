@@ -1547,6 +1547,7 @@ class DomolinkPanel extends HTMLElement {
     const alarmEntity = this._getAlarmEntity();
     const attrs = alarmEntity ? alarmEntity.attributes : {};
     const armHistory = attrs.arm_history || [];
+    const systemEvents = attrs.system_events || [];
 
     const html = `
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">

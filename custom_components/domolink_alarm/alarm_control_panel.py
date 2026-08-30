@@ -179,7 +179,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.9.28",
+            sw_version="0.9.29",
         )
 
         self._siren_task = None
@@ -1146,7 +1146,15 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 if entity_id not in self._faults:
                     self._faults.append(entity_id)
                 self.async_write_ha_state()
-                self._log_event(f"Autre détection: {new_state.name}")
+                                # Extend siren duration
+                self._siren_task() # cancel old timer
+                from homeassistant.helpers.event import async_call_later
+                self._siren_task = async_call_later(
+                    self.hass,
+                    self._siren_duration,
+                    self._cb_turn_off_siren,
+                )
+                self._log_event(f"Nouvelle détection: {new_state.name} (Sirène prolongée)")
                 await self._async_send_notification(f"🚨 Nouvelle détection pendant l'alerte : {new_state.name}\n({dt_now().strftime('%H:%M:%S')})", is_alert=True)
             return
 
