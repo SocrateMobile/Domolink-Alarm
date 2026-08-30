@@ -172,7 +172,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.9.15",
+            sw_version="0.9.16",
         )
 
         self._siren_task = None
@@ -308,6 +308,10 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         
         self._free_mobile_user = options.get("free_mobile_user", data.get("free_mobile_user", ""))
         self._free_mobile_pass = options.get("free_mobile_pass", data.get("free_mobile_pass", ""))
+        
+        self._icloud_account = options.get("icloud_account", data.get("icloud_account", ""))
+        icloud_devs_raw = options.get("icloud_devices", data.get("icloud_devices", ""))
+        self._icloud_devices = [d.strip() for d in icloud_devs_raw.split(",")] if icloud_devs_raw else []
 
     @callback
     def async_update_options(self):
@@ -809,6 +813,32 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                     self.hass.async_create_task(_send_sms_task())
                 except Exception as e:
                     _LOGGER.error("Domolink: Impossible de préparer le SMS natif: %s", e)
+        # ───────────────────────────────────────────────────────────────────────
+
+        # ─── NATIVE APPLE ICLOUD FIND MY ALERT ─────────────────────────────────
+        if hasattr(self, "_icloud_account") and self._icloud_account and hasattr(self, "_icloud_devices") and self._icloud_devices:
+            # We trigger Find My alert ONLY for critical intrusions or panic modes, not for arming/disarming.
+            # But the user asked to send the messages too, so we'll do display_message for everything,
+            # and play_sound ONLY for alerts/emergencies.
+            for device in self._icloud_devices:
+                try:
+                    # 1. Always display the message (Arming, Disarming, Triggers)
+                    self.hass.async_create_task(
+                        self.hass.services.async_call(
+                            "icloud", "display_message",
+                            {"account": self._icloud_account, "device_name": device, "message": message, "sound": is_alert or is_emergency}
+                        )
+                    )
+                    # 2. Trigger the extreme 'Find My' sound if it's an alert or panic
+                    if is_alert or is_emergency:
+                        self.hass.async_create_task(
+                            self.hass.services.async_call(
+                                "icloud", "play_sound",
+                                {"account": self._icloud_account, "device_name": device}
+                            )
+                        )
+                except Exception as e:
+                    _LOGGER.error("Domolink: Impossible de déclencher l'alerte iCloud: %s", e)
         # ───────────────────────────────────────────────────────────────────────
 
         targets = []
