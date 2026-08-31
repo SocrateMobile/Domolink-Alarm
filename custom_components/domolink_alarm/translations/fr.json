@@ -80,6 +80,21 @@
                     "mqtt_topic_base": "Topique de base (ex: domolink/alarme)",
                     "mqtt_require_code": "Exiger un code PIN pour désarmer via MQTT"
                 }
+            },
+            "backup": {
+                "title": "Domolink - Sauvegarde Cloud & Externe",
+                "description": "Sauvegarde automatique des photos (snapshots) lors d'une intrusion. Ces paramètres sont optionnels.",
+                "data": {
+                    "telegram_enabled": "Activer l'envoi vers Telegram",
+                    "telegram_token": "Jeton du Bot Telegram (Token)",
+                    "telegram_chat_id": "Chat ID Telegram",
+                    "ftp_enabled": "Activer la sauvegarde FTP",
+                    "ftp_host": "Serveur FTP (Host)",
+                    "ftp_port": "Port FTP (défaut 21)",
+                    "ftp_user": "Utilisateur FTP",
+                    "ftp_pass": "Mot de passe FTP",
+                    "ftp_path": "Chemin FTP (ex: /domolink/)"
+                }
             }
         },
         "error": {
@@ -169,6 +184,21 @@
                     "mqtt_enabled": "Activer la liaison MQTT",
                     "mqtt_topic_base": "Topique de base (ex: domolink/alarme)",
                     "mqtt_require_code": "Exiger un code PIN pour désarmer via MQTT"
+                }
+            },
+            "backup": {
+                "title": "Domolink - Sauvegarde Cloud & Externe",
+                "description": "Sauvegarde automatique des photos (snapshots) lors d'une intrusion. Ces paramètres sont optionnels.",
+                "data": {
+                    "telegram_enabled": "Activer l'envoi vers Telegram",
+                    "telegram_token": "Jeton du Bot Telegram (Token)",
+                    "telegram_chat_id": "Chat ID Telegram",
+                    "ftp_enabled": "Activer la sauvegarde FTP",
+                    "ftp_host": "Serveur FTP (Host)",
+                    "ftp_port": "Port FTP (défaut 21)",
+                    "ftp_user": "Utilisateur FTP",
+                    "ftp_pass": "Mot de passe FTP",
+                    "ftp_path": "Chemin FTP (ex: /domolink/)"
                 }
             }
         }

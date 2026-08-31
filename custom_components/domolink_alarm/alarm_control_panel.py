@@ -179,7 +179,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.9.35",
+            sw_version="0.9.36",
         )
 
         self._siren_task = None
@@ -321,6 +321,15 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._mqtt_topic_base = options.get("mqtt_topic_base", data.get("mqtt_topic_base", "domolink/alarme"))
         self._mqtt_require_code = options.get("mqtt_require_code", data.get("mqtt_require_code", False))
         self._mqtt_unsub = None
+        self._telegram_enabled = options.get("telegram_enabled", data.get("telegram_enabled", False))
+        self._telegram_token = options.get("telegram_token", data.get("telegram_token", ""))
+        self._telegram_chat_id = options.get("telegram_chat_id", data.get("telegram_chat_id", ""))
+        self._ftp_enabled = options.get("ftp_enabled", data.get("ftp_enabled", False))
+        self._ftp_host = options.get("ftp_host", data.get("ftp_host", ""))
+        self._ftp_port = options.get("ftp_port", data.get("ftp_port", 21))
+        self._ftp_user = options.get("ftp_user", data.get("ftp_user", ""))
+        self._ftp_pass = options.get("ftp_pass", data.get("ftp_pass", ""))
+        self._ftp_path = options.get("ftp_path", data.get("ftp_path", "/"))
         
         # Migration & Loading of iCloud devices
         icloud_devs = options.get("icloud_devices", data.get("icloud_devices", []))
