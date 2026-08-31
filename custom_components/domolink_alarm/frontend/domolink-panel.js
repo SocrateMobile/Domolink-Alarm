@@ -1379,6 +1379,10 @@ class DomolinkPanel extends HTMLElement {
     if (this._lastArmKey !== armCacheKey) {
       this._lastArmKey = armCacheKey;
       container.innerHTML = html;
+      
+      // FIX: Restore PIN display immediately after DOM reconstruction
+      // to prevent the yellow dots from disappearing if HA sends a state update!
+      this._updatePinDisplay();
 
       // Keypad Touch Listeners with tactile feedback
       container.querySelectorAll('.keypad-circle-btn').forEach(btn => {
