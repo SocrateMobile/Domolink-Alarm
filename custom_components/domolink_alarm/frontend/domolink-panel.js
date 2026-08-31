@@ -1044,6 +1044,10 @@ class DomolinkPanel extends HTMLElement {
       heroDesc = 'Armement en cours... Sortez du domicile';
     }
 
+    const telegramStatus = attrs.telegram_status || 'Inconnu';
+    const ftpStatus = attrs.ftp_status || 'Inconnu';
+    const camerasArmed = attrs.cameras_armed || false;
+
     // 4. Alert Bottom Encadré
     let alertTitle = 'ALERTE';
     let alertDesc = 'Aucune alerte active (Tout est sécurisé)';
@@ -1282,6 +1286,43 @@ class DomolinkPanel extends HTMLElement {
               <ha-icon icon="mdi:shield-off"></ha-icon> Désarmé
             </button>
           </div>
+          
+          <!-- Cloud & Cameras Status (Red Box Area) -->
+          <div style="display:flex; gap:12px; margin-top:24px;">
+            <!-- Telegram -->
+            <div style="flex:1; background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border); padding:10px 12px; display:flex; align-items:center; gap:10px; box-shadow:0 2px 10px rgba(0,0,0,0.02);">
+              <div style="width:36px; height:36px; border-radius:10px; background:${telegramStatus === 'Désactivé' ? 'var(--d-border)' : (telegramStatus === 'Connecté' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)')}; display:flex; align-items:center; justify-content:center; color:${telegramStatus === 'Désactivé' ? 'var(--d-subtext)' : (telegramStatus === 'Connecté' ? '#10b981' : '#ef4444')};">
+                <ha-icon icon="mdi:send-circle"></ha-icon>
+              </div>
+              <div style="flex-grow:1; min-width:0;">
+                <div style="font-size:10px; font-weight:800; color:var(--d-subtext); text-transform:uppercase; letter-spacing:0.5px;">Telegram</div>
+                <div style="font-size:12px; font-weight:800; color:var(--d-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${telegramStatus}</div>
+              </div>
+            </div>
+            
+            <!-- FTP -->
+            <div style="flex:1; background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border); padding:10px 12px; display:flex; align-items:center; gap:10px; box-shadow:0 2px 10px rgba(0,0,0,0.02);">
+              <div style="width:36px; height:36px; border-radius:10px; background:${ftpStatus === 'Désactivé' ? 'var(--d-border)' : (ftpStatus === 'Connecté' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)')}; display:flex; align-items:center; justify-content:center; color:${ftpStatus === 'Désactivé' ? 'var(--d-subtext)' : (ftpStatus === 'Connecté' ? '#10b981' : '#ef4444')};">
+                <ha-icon icon="mdi:folder-network"></ha-icon>
+              </div>
+              <div style="flex-grow:1; min-width:0;">
+                <div style="font-size:10px; font-weight:800; color:var(--d-subtext); text-transform:uppercase; letter-spacing:0.5px;">Cloud FTP</div>
+                <div style="font-size:12px; font-weight:800; color:var(--d-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${ftpStatus}</div>
+              </div>
+            </div>
+            
+            <!-- Cameras -->
+            <div style="flex:1; background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border); padding:10px 12px; display:flex; align-items:center; gap:10px; box-shadow:0 2px 10px rgba(0,0,0,0.02);">
+              <div style="width:36px; height:36px; border-radius:10px; background:${camerasArmed ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)'}; display:flex; align-items:center; justify-content:center; color:${camerasArmed ? '#ef4444' : '#10b981'};">
+                <ha-icon icon="mdi:cctv"></ha-icon>
+              </div>
+              <div style="flex-grow:1; min-width:0;">
+                <div style="font-size:10px; font-weight:800; color:var(--d-subtext); text-transform:uppercase; letter-spacing:0.5px;">Caméras</div>
+                <div style="font-size:12px; font-weight:800; color:var(--d-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${camerasArmed ? 'Armées' : 'Désactivées'}</div>
+              </div>
+            </div>
+          </div>
+          
         </div>
 
         <!-- ─── Right Column (PIN Keypad) ─────────── -->
