@@ -88,6 +88,19 @@ from .const import (
     DEFAULT_MQTT_ENABLED,
     DEFAULT_MQTT_TOPIC_BASE,
     DEFAULT_MQTT_REQUIRE_CODE,
+    CONF_TELEGRAM_ENABLED,
+    CONF_TELEGRAM_TOKEN,
+    CONF_TELEGRAM_CHAT_ID,
+    CONF_FTP_ENABLED,
+    CONF_FTP_HOST,
+    CONF_FTP_PORT,
+    CONF_FTP_USER,
+    CONF_FTP_PASS,
+    CONF_FTP_PATH,
+    DEFAULT_TELEGRAM_ENABLED,
+    DEFAULT_FTP_ENABLED,
+    DEFAULT_FTP_PORT,
+    DEFAULT_FTP_PATH,
 )
 
 
@@ -259,8 +272,7 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Step 4: Configure MQTT."""
         if user_input is not None:
             self.data.update(user_input)
-            title = self.data.get(CONF_NAME, DEFAULT_NAME)
-            return self.async_create_entry(title=title, data=self.data)
+            return await self.async_step_backup()
 
         return self.async_show_form(
             step_id="mqtt",
@@ -269,6 +281,30 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Optional(CONF_MQTT_ENABLED, default=DEFAULT_MQTT_ENABLED): bool,
                     vol.Optional(CONF_MQTT_TOPIC_BASE, default=DEFAULT_MQTT_TOPIC_BASE): str,
                     vol.Optional(CONF_MQTT_REQUIRE_CODE, default=DEFAULT_MQTT_REQUIRE_CODE): bool,
+                }
+            ),
+        )
+
+    async def async_step_backup(self, user_input=None):
+        """Step 5: Configure external backup."""
+        if user_input is not None:
+            self.data.update(user_input)
+            title = self.data.get(CONF_NAME, DEFAULT_NAME)
+            return self.async_create_entry(title=title, data=self.data)
+
+        return self.async_show_form(
+            step_id="backup",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(CONF_TELEGRAM_ENABLED, default=DEFAULT_TELEGRAM_ENABLED): bool,
+                    vol.Optional(CONF_TELEGRAM_TOKEN, default=""): str,
+                    vol.Optional(CONF_TELEGRAM_CHAT_ID, default=""): str,
+                    vol.Optional(CONF_FTP_ENABLED, default=DEFAULT_FTP_ENABLED): bool,
+                    vol.Optional(CONF_FTP_HOST, default=""): str,
+                    vol.Optional(CONF_FTP_PORT, default=DEFAULT_FTP_PORT): int,
+                    vol.Optional(CONF_FTP_USER, default=""): str,
+                    vol.Optional(CONF_FTP_PASS, default=""): str,
+                    vol.Optional(CONF_FTP_PATH, default=DEFAULT_FTP_PATH): str,
                 }
             ),
         )
@@ -430,7 +466,7 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
         """Step 4: Configure MQTT options."""
         if user_input is not None:
             self.options.update(user_input)
-            return self.async_create_entry(title="", data=self.options)
+            return await self.async_step_backup()
 
         return self.async_show_form(
             step_id="mqtt",
@@ -439,6 +475,30 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
                     vol.Optional(CONF_MQTT_ENABLED, default=self.options.get(CONF_MQTT_ENABLED, DEFAULT_MQTT_ENABLED)): bool,
                     vol.Optional(CONF_MQTT_TOPIC_BASE, default=self.options.get(CONF_MQTT_TOPIC_BASE, DEFAULT_MQTT_TOPIC_BASE)): str,
                     vol.Optional(CONF_MQTT_REQUIRE_CODE, default=self.options.get(CONF_MQTT_REQUIRE_CODE, DEFAULT_MQTT_REQUIRE_CODE)): bool,
+                }
+            ),
+        )
+
+
+    async def async_step_backup(self, user_input=None):
+        """Step 5: Configure external backup options."""
+        if user_input is not None:
+            self.options.update(user_input)
+            return self.async_create_entry(title="", data=self.options)
+
+        return self.async_show_form(
+            step_id="backup",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(CONF_TELEGRAM_ENABLED, default=self.options.get(CONF_TELEGRAM_ENABLED, DEFAULT_TELEGRAM_ENABLED)): bool,
+                    vol.Optional(CONF_TELEGRAM_TOKEN, default=self.options.get(CONF_TELEGRAM_TOKEN, "")): str,
+                    vol.Optional(CONF_TELEGRAM_CHAT_ID, default=self.options.get(CONF_TELEGRAM_CHAT_ID, "")): str,
+                    vol.Optional(CONF_FTP_ENABLED, default=self.options.get(CONF_FTP_ENABLED, DEFAULT_FTP_ENABLED)): bool,
+                    vol.Optional(CONF_FTP_HOST, default=self.options.get(CONF_FTP_HOST, "")): str,
+                    vol.Optional(CONF_FTP_PORT, default=self.options.get(CONF_FTP_PORT, DEFAULT_FTP_PORT)): int,
+                    vol.Optional(CONF_FTP_USER, default=self.options.get(CONF_FTP_USER, "")): str,
+                    vol.Optional(CONF_FTP_PASS, default=self.options.get(CONF_FTP_PASS, "")): str,
+                    vol.Optional(CONF_FTP_PATH, default=self.options.get(CONF_FTP_PATH, DEFAULT_FTP_PATH)): str,
                 }
             ),
         )

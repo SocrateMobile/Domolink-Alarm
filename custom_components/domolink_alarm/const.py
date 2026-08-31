@@ -95,3 +95,20 @@ CONF_MQTT_REQUIRE_CODE = "mqtt_require_code"
 DEFAULT_MQTT_ENABLED = False
 DEFAULT_MQTT_TOPIC_BASE = "domolink/alarme"
 DEFAULT_MQTT_REQUIRE_CODE = False
+
+# Cloud Backup Settings
+CONF_TELEGRAM_ENABLED = "telegram_enabled"
+CONF_TELEGRAM_TOKEN = "telegram_token"
+CONF_TELEGRAM_CHAT_ID = "telegram_chat_id"
+
+CONF_FTP_ENABLED = "ftp_enabled"
+CONF_FTP_HOST = "ftp_host"
+CONF_FTP_PORT = "ftp_port"
+CONF_FTP_USER = "ftp_user"
+CONF_FTP_PASS = "ftp_pass"
+CONF_FTP_PATH = "ftp_path"
+
+DEFAULT_TELEGRAM_ENABLED = False
+DEFAULT_FTP_ENABLED = False
+DEFAULT_FTP_PORT = 21
+DEFAULT_FTP_PATH = "/"
