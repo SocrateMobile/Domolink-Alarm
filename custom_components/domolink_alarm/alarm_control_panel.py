@@ -179,7 +179,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.9.34",
+            sw_version="0.9.35",
         )
 
         self._siren_task = None
@@ -344,6 +344,13 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             self.hass.async_create_task(
                 mqtt.async_publish(self.hass, f"{self._mqtt_topic_base}/state", state_str, retain=True)
             )
+            
+            # Also publish attributes
+            if hasattr(self, "state_attributes") and self.state_attributes:
+                import json
+                self.hass.async_create_task(
+                    mqtt.async_publish(self.hass, f"{self._mqtt_topic_base}/attributes", json.dumps(self.state_attributes), retain=True)
+                )
 
     @property
     def unique_id(self):
@@ -433,6 +440,12 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             self.async_write_ha_state()
         except Exception:
             pass
+        if hasattr(self, "_mqtt_enabled") and self._mqtt_enabled and "mqtt" in self.hass.config.components:
+            from homeassistant.components import mqtt
+            import json
+            self.hass.async_create_task(
+                mqtt.async_publish(self.hass, f"{self._mqtt_topic_base}/event", json.dumps({"time": utcnow().isoformat(), "message": message}), retain=False)
+            )
 
     # ─── Lifecycle ────────────────────────────────────────────────
 
