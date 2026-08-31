@@ -1375,7 +1375,7 @@ class DomolinkPanel extends HTMLElement {
       </div>
     `;
 
-    const armCacheKey = `${state}_${attrs.last_user}_${attrs.triggered_by}_${this._selectedCameraIndex}_${totalSensorsCount}_${activeTriggers.length}_${isArmed}`;
+    const armCacheKey = `${state}_${attrs.last_user}_${attrs.triggered_by}_${this._selectedCameraIndex}_${totalSensorsCount}_${activeTriggers.length}_${isArmed}_${telegramStatus}_${ftpStatus}_${camerasArmed}`;
     if (this._lastArmKey !== armCacheKey) {
       this._lastArmKey = armCacheKey;
       container.innerHTML = html;
