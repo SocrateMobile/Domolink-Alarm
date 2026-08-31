@@ -40,7 +40,8 @@
                     "emergency_contact": "Contact d'urgence",
                     "emergency_contact_labels": "Étiquettes (Contact d'urgence)",
                     "presence_simulation_entities": "Simulation de Présence (Lumières / Prises)",
-                    "presence_simulation_labels": "Étiquettes (Simulation de Présence)"
+                    "presence_simulation_labels": "Étiquettes (Simulation de Présence)",
+                    "cameras_arm_entities": "Caméras à synchroniser (Switch, Alarme)"
                 }
             },
             "logic": {
@@ -145,7 +146,8 @@
                     "emergency_contact": "Contact d'urgence",
                     "emergency_contact_labels": "Étiquettes (Contact d'urgence)",
                     "presence_simulation_entities": "Simulation de Présence (Lumières / Prises)",
-                    "presence_simulation_labels": "Étiquettes (Simulation de Présence)"
+                    "presence_simulation_labels": "Étiquettes (Simulation de Présence)",
+                    "cameras_arm_entities": "Caméras à synchroniser (Switch, Alarme)"
                 }
             },
             "logic": {

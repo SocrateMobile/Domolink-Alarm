@@ -179,7 +179,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.9.36",
+            sw_version="0.9.37",
         )
 
         self._siren_task = None
@@ -330,6 +330,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._ftp_user = options.get("ftp_user", data.get("ftp_user", ""))
         self._ftp_pass = options.get("ftp_pass", data.get("ftp_pass", ""))
         self._ftp_path = options.get("ftp_path", data.get("ftp_path", "/"))
+        self._cameras_arm_entities = options.get("cameras_arm_entities", data.get("cameras_arm_entities", []))
         
         # Migration & Loading of iCloud devices
         icloud_devs = options.get("icloud_devices", data.get("icloud_devices", []))

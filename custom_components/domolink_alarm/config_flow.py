@@ -101,6 +101,7 @@ from .const import (
     DEFAULT_FTP_ENABLED,
     DEFAULT_FTP_PORT,
     DEFAULT_FTP_PATH,
+    CONF_CAMERAS_ARM_ENTITIES,
 )
 
 
@@ -151,6 +152,7 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         )
                     ),
                     vol.Optional(CONF_MOTION_SENSORS_LABELS, default=[]): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
+                    vol.Optional(CONF_CAMERAS_ARM_ENTITIES, default=[]): selector.EntitySelector(selector.EntitySelectorConfig(multiple=True)),
                     vol.Optional(CONF_CAMERAS, default=[]): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain="camera", multiple=True)
                     ),
@@ -351,6 +353,7 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
                         )
                     ),
                     vol.Optional(CONF_MOTION_SENSORS_LABELS, default=self.options.get(CONF_MOTION_SENSORS_LABELS, [])): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
+                    vol.Optional(CONF_CAMERAS_ARM_ENTITIES, default=self.options.get(CONF_CAMERAS_ARM_ENTITIES, [])): selector.EntitySelector(selector.EntitySelectorConfig(multiple=True)),
                     vol.Optional(CONF_CAMERAS, default=self.options.get(CONF_CAMERAS, [])): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain="camera", multiple=True)
                     ),
