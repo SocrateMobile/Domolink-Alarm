@@ -179,7 +179,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.9.39",
+            sw_version="0.9.40",
         )
 
         self._siren_task = None
@@ -208,6 +208,10 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._sensor_health = {}
         self._presence_simulation_events = []
         self._presence_simulation_forced = False
+
+        self._telegram_status = "Désactivé"
+        self._ftp_status = "Désactivé"
+        self._cameras_armed = False
 
         self._load_config()
 
@@ -411,6 +415,10 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             "arm_history": self._arm_history,
             "system_events": self._system_events,
             "sensor_health": self._sensor_health,
+            "telegram_status": self._telegram_status,
+            "ftp_status": self._ftp_status,
+            "cameras_armed": self._cameras_armed,
+            "cameras_arm_entities": self._cameras_arm_entities,
         }
 
     async def async_bypass_sensor(self, entity_id: str):
@@ -486,6 +494,47 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             self.async_on_remove(
                 async_track_state_change_event(
                     self.hass, all_sensors, self._async_sensor_changed
+                )
+            )
+
+        # MQTT Command Subscription
+        if getattr(self, "_mqtt_enabled", False) and "mqtt" in self.hass.config.components:
+            from homeassistant.components import mqtt
+            
+            async def _mqtt_message_received(msg):
+                """Handle incoming MQTT command."""
+                payload = str(msg.payload).strip()
+                _LOGGER.info("Domolink: Commande MQTT reçue sur %s : %s", msg.topic, payload)
+                
+                action = payload
+                code = None
+                
+                if payload.startswith("{") and payload.endswith("}"):
+                    try:
+                        import json
+                        data = json.loads(payload)
+                        action = data.get("action", "")
+                        code = data.get("code")
+                    except Exception:
+                        pass
+                
+                action_upper = action.upper()
+                if action_upper in ("ARM_AWAY", "ARM"):
+                    await self.async_alarm_arm_away(code)
+                elif action_upper in ("ARM_HOME", "HOME"):
+                    await self.async_alarm_arm_home(code)
+                elif action_upper in ("ARM_NIGHT", "NIGHT"):
+                    await self.async_alarm_arm_night(code)
+                elif action_upper in ("DISARM", "OFF"):
+                    await self.async_alarm_disarm(code or "MQTT")
+                elif action_upper in ("PANIC", "SOS"):
+                    await self.async_panic(activate_sirens=True)
+                else:
+                    _LOGGER.warning("Domolink: Commande MQTT inconnue: %s", payload)
+
+            self.async_on_remove(
+                await mqtt.async_subscribe(
+                    self.hass, f"{self._mqtt_topic_base}/set", _mqtt_message_received
                 )
             )
 
@@ -837,6 +886,36 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             elif battery is not None and battery <= 15:
                 warnings.append(f"🪫 {friendly} : pile faible ({int(battery)}%).")
 
+        # Cloud backup health check
+        if getattr(self, "_telegram_enabled", False) and self._telegram_token:
+            try:
+                import aiohttp
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(f"https://api.telegram.org/bot{self._telegram_token}/getMe", timeout=5) as resp:
+                        if resp.status == 200:
+                            self._telegram_status = "Connecté"
+                        else:
+                            self._telegram_status = "Erreur"
+            except Exception:
+                self._telegram_status = "Hors ligne"
+        else:
+            self._telegram_status = "Désactivé"
+
+        if getattr(self, "_ftp_enabled", False) and self._ftp_host:
+            def check_ftp():
+                import ftplib
+                try:
+                    with ftplib.FTP() as ftp:
+                        ftp.connect(self._ftp_host, int(self._ftp_port), timeout=5)
+                        ftp.login(self._ftp_user, self._ftp_pass)
+                        ftp.quit()
+                    return "Connecté"
+                except Exception:
+                    return "Erreur"
+            self._ftp_status = await self.hass.async_add_executor_job(check_ftp)
+        else:
+            self._ftp_status = "Désactivé"
+
         self._sensor_health = health_data
         self.async_write_ha_state()
 
@@ -1180,6 +1259,9 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                     break
 
             self._last_motion_detection[entity_id] = now_loop
+            # Purge expired entries to prevent memory leak
+            cutoff = now_loop - (self._cross_zoning_window * 2)
+            self._last_motion_detection = {k: v for k, v in self._last_motion_detection.items() if v >= cutoff}
 
             if not confirmed:
                 _LOGGER.info(
@@ -1453,6 +1535,91 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         if self._cameras:
             self.hass.async_create_task(self._async_capture_cameras())
 
+    async def _async_sync_cameras(self, arm: bool):
+        """Sync camera motion detection or alarm panels."""
+        if not self._cameras_arm_entities:
+            self._cameras_armed = False
+            return
+            
+        for entity_id in self._cameras_arm_entities:
+            domain = entity_id.split('.')[0]
+            try:
+                if arm:
+                    if domain == "switch":
+                        await self.hass.services.async_call("switch", "turn_on", {"entity_id": entity_id}, blocking=False)
+                    elif domain == "alarm_control_panel":
+                        await self.hass.services.async_call("alarm_control_panel", "alarm_arm_away", {"entity_id": entity_id}, blocking=False)
+                    elif domain == "camera":
+                        await self.hass.services.async_call("camera", "turn_on", {"entity_id": entity_id}, blocking=False)
+                else:
+                    if domain == "switch":
+                        await self.hass.services.async_call("switch", "turn_off", {"entity_id": entity_id}, blocking=False)
+                    elif domain == "alarm_control_panel":
+                        await self.hass.services.async_call("alarm_control_panel", "alarm_disarm", {"entity_id": entity_id}, blocking=False)
+                    elif domain == "camera":
+                        await self.hass.services.async_call("camera", "turn_off", {"entity_id": entity_id}, blocking=False)
+            except Exception as e:
+                _LOGGER.error("Domolink: Erreur synchronisation caméra %s: %s", entity_id, e)
+                    
+        self._cameras_armed = arm
+        self.async_write_ha_state()
+
+    async def _async_upload_to_telegram(self, file_path):
+        """Send photo to Telegram asynchronously."""
+        if not self._telegram_enabled or not self._telegram_token or not self._telegram_chat_id:
+            return
+        
+        try:
+            import aiohttp
+            async with aiohttp.ClientSession() as session:
+                data = aiohttp.FormData()
+                data.add_field('chat_id', str(self._telegram_chat_id))
+                with open(file_path, 'rb') as photo_file:
+                    data.add_field('photo', photo_file, filename=os.path.basename(file_path), content_type='image/jpeg')
+                    async with session.post(f"https://api.telegram.org/bot{self._telegram_token}/sendPhoto", data=data, timeout=10) as resp:
+                        if resp.status == 200:
+                            _LOGGER.info("Domolink: Snapshot envoyé sur Telegram avec succès")
+                            self._log_event("Sauvegarde photo Telegram réussie")
+                            self._telegram_status = "Connecté"
+                        else:
+                            _LOGGER.error("Domolink: Échec envoi Telegram - Code %s", resp.status)
+                            self._telegram_status = "Erreur"
+        except Exception as e:
+            _LOGGER.error("Domolink: Erreur lors de l'envoi Telegram : %s", e)
+            self._telegram_status = "Erreur"
+        self.async_write_ha_state()
+
+    def _upload_to_ftp_sync(self, file_path):
+        """Upload photo to FTP synchronously (to be run in executor)."""
+        import ftplib
+        try:
+            with ftplib.FTP() as ftp:
+                ftp.connect(self._ftp_host, int(self._ftp_port), timeout=10)
+                ftp.login(self._ftp_user, self._ftp_pass)
+                filename = os.path.basename(file_path)
+                remote_dir = self._ftp_path.rstrip('/')
+                remote_full_path = f"{remote_dir}/{filename}" if remote_dir else f"/{filename}"
+                with open(file_path, "rb") as f:
+                    ftp.storbinary(f"STOR {remote_full_path}", f)
+            return True
+        except Exception as e:
+            _LOGGER.error("Domolink: Erreur lors de l'envoi FTP : %s", e)
+            return False
+
+    async def _async_upload_to_ftp(self, file_path):
+        """Handle FTP upload in executor job."""
+        if not self._ftp_enabled or not self._ftp_host:
+            return
+        
+        success = await self.hass.async_add_executor_job(self._upload_to_ftp_sync, file_path)
+        if success:
+            _LOGGER.info("Domolink: Snapshot envoyé sur FTP avec succès")
+            self._log_event("Sauvegarde photo FTP réussie")
+            self._ftp_status = "Connecté"
+        else:
+            self._ftp_status = "Erreur"
+        self.async_write_ha_state()
+
     async def _async_capture_cameras(self):
         """Asynchronously capture photos and trigger recordings with timeout protection."""
         if not self._cameras:
@@ -1500,6 +1667,12 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                         alert_path = self.hass.config.path("www/domolink_alarm_alert.jpg")
                         import shutil
                         shutil.copy2(snapshot_path, alert_path)
+                        
+                    if os.path.exists(snapshot_path):
+                        if getattr(self, "_telegram_enabled", False):
+                            self.hass.async_create_task(self._async_upload_to_telegram(snapshot_path))
+                        if getattr(self, "_ftp_enabled", False):
+                            self.hass.async_create_task(self._async_upload_to_ftp(snapshot_path))
                 except asyncio.TimeoutError:
                     _LOGGER.warning("Domolink: Timeout capture photo sur %s", camera)
                 except Exception as e:
@@ -1816,6 +1989,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._bypassed_sensors.clear()
         self._triggered_by = None
         self._log_event(f"Alarme Désarmée par {user}")
+        self.hass.async_create_task(self._async_sync_cameras(False))
         self.async_write_ha_state()
 
         await self._async_turn_off_siren()
@@ -1925,6 +2099,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._last_user = user or "Dashboard"
         self._record_arm_event("arm", self._last_user, "HOME")
         self._log_event(f"Alarme Armée (Mode: Présent) par {self._last_user}")
+        self.hass.async_create_task(self._async_sync_cameras(True))
         self.async_write_ha_state()
 
     async def async_alarm_arm_away(self, code=None):
@@ -1959,6 +2134,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._pre_trigger_state = AlarmControlPanelState.ARMED_AWAY
         self._log_event(f"Alarme Armée (Mode: Absent) par {self._last_user}")
         self._start_presence_simulation()
+        self.hass.async_create_task(self._async_sync_cameras(True))
         self.async_write_ha_state()
         self._arming_task = None
 
@@ -1977,6 +2153,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._last_user = user or "Dashboard"
         self._record_arm_event("arm", self._last_user, "NIGHT")
         self._log_event(f"Alarme Armée (Mode: Nuit) par {self._last_user}")
+        self.hass.async_create_task(self._async_sync_cameras(True))
         self.async_write_ha_state()
 
     # ─── New Services & Scheduled Actions ─────────────────────────
