@@ -191,13 +191,14 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.9.43",
+            sw_version="0.9.44",
         )
 
         self._siren_task = None
         self._arming_task = None
         self._pending_task = None
         self._post_trigger_active = False
+        self._disarm_cooldown_task = None
         self._geofence_reminder_task = None
         self._presence_simulation_task = None
         self._faults = []
@@ -512,6 +513,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             "zone_labels": self._zone_labels,
             "global_cameras": self._global_cameras,
             "entity_zones": self._get_entity_zones_map(),
+            "disarm_cooldown": self._disarm_cooldown_task is not None,
         }
 
     async def async_bypass_sensor(self, entity_id: str):
@@ -1377,10 +1379,13 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 _LOGGER.info("Domolink Cross-Zoning: Double détection confirmée sur %s !", entity_id)
                 self._log_event(f"Double détection confirmée sur {new_state.name}")
 
-        # Already triggered: if sirens stopped, re-trigger full sequence; otherwise notify additional detection
+        # Already triggered: if sirens stopped (or in 1-min cooldown), re-trigger full sequence; otherwise notify additional detection
         if self._state == AlarmControlPanelState.TRIGGERED:
             if self._siren_task is None:
                 _LOGGER.info("Domolink: Nouveau déclenchement après arrêt sirène sur %s", entity_id)
+                if self._disarm_cooldown_task:
+                    self._disarm_cooldown_task()
+                    self._disarm_cooldown_task = None
                 await self._async_trigger_alarm(entity_id)
             else:
                 if entity_id not in self._faults:
@@ -1414,6 +1419,10 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 is_valid_sensor = (entity_id in self._opening_sensors) or (entity_id in self._motion_sensors)
 
             if is_valid_sensor:
+                # SYSTEMATIC IMMEDIATE CAMERA CAPTURE
+                if self._cameras:
+                    self.hass.async_create_task(self._async_capture_cameras(entity_id))
+
                 # Entry delay only for ARMED_AWAY
                 if self._state == AlarmControlPanelState.ARMED_AWAY and self._entry_delay > 0 and not getattr(self, '_post_trigger_active', False):
                     if self._pending_task is None:
@@ -1433,9 +1442,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                         self._pending_task = async_call_later(
                             self.hass,
                             self._entry_delay,
-                            lambda now: self.hass.async_create_task(
-                                self._async_trigger_alarm(entity_id)
-                            ),
+                            self._cb_entry_delay_expired,
                         )
                 else:
                     await self._async_trigger_alarm(entity_id)
@@ -1534,6 +1541,13 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         )
 
     # ─── Alarm Triggering ─────────────────────────────────────────
+
+    @callback
+    def _cb_entry_delay_expired(self, now=None):
+        """Callback when entry delay timer expires — triggers full alarm."""
+        self._pending_task = None
+        target = self._faults[0] if self._faults else self._last_triggered_by
+        self.hass.async_create_task(self._async_trigger_alarm(target))
 
     async def _async_trigger_alarm(self, triggering_entity):
         """Trigger the alarm — full alert sequence, ultra-fast and non-blocking."""
@@ -1809,94 +1823,95 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self.async_write_ha_state()
 
     async def _async_capture_cameras(self, triggering_entity=None):
-        """Asynchronously capture photos and trigger recordings with targeted zone cameras."""
+        """Asynchronously capture photos and trigger recordings with targeted zone cameras (parallel & robust)."""
         if not self._cameras:
+            _LOGGER.debug("Domolink: Aucune caméra configurée.")
             return
 
         target_cameras, matching_zones = self._get_cameras_for_sensor(triggering_entity)
         if not target_cameras:
             target_cameras = list(self._cameras)
 
-        # 1. Wake up target cameras (turn_on for battery/sleep models like Arlo)
-        for camera in target_cameras:
+        import shutil
+        from datetime import datetime as _dt
+
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        media_dir = self.hass.config.path(f"www/{self._media_path}")
+        try:
+            os.makedirs(media_dir, exist_ok=True)
+        except Exception as e:
+            _LOGGER.error("Domolink: Impossible de créer %s: %s", media_dir, e)
+
+        zone_desc = f" (Zone: {', '.join(matching_zones)})" if matching_zones else ""
+        self._log_event(f"Capture photo & vidéo{zone_desc} sur {len(target_cameras)} caméra(s)")
+
+        async def _capture_single_camera(camera, idx):
+            safe_cam = camera.replace(".", "_")
+            snapshot_filename = f"domolink_{ts}_{safe_cam}.jpg"
+            snapshot_path = os.path.join(media_dir, snapshot_filename)
+            video_filename = f"domolink_{ts}_{safe_cam}.mp4"
+            record_path = os.path.join(media_dir, video_filename)
+
+            # Wake up camera
             try:
-                await self.hass.services.async_call(
-                    "camera", "turn_on", {"entity_id": camera}
-                )
+                await self.hass.services.async_call("camera", "turn_on", {"entity_id": camera})
             except Exception:
                 pass
 
-        import shutil
-        from datetime import datetime as _dt
-        
-        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        media_dir = self.hass.config.path(f"www/{self._media_path}")
-        os.makedirs(media_dir, exist_ok=True)
-        
-        zone_desc = f" (Zone: {', '.join(matching_zones)})" if matching_zones else ""
-        try:
-            self._log_event(f"Capture photo{zone_desc} sur {len(target_cameras)} caméra(s)")
-            for idx, camera in enumerate(target_cameras):
-                safe_cam = camera.replace(".", "_")
-                snapshot_filename = f"domolink_{ts}_{safe_cam}.jpg"
-                snapshot_path = os.path.join(media_dir, snapshot_filename)
-                try:
-                    if camera.startswith("camera.aarlo"):
-                        await asyncio.wait_for(
-                            self.hass.services.async_call(
-                                "aarlo", "camera_request_snapshot_to_file",
-                                {"entity_id": camera, "file_path": snapshot_path},
-                                blocking=True,
-                            ),
-                            timeout=6.0,
-                        )
-                    else:
-                        await asyncio.wait_for(
-                            self.hass.services.async_call(
-                                "camera", "snapshot",
-                                {"entity_id": camera, "filename": snapshot_path},
-                                blocking=True,
-                            ),
-                            timeout=6.0,
-                        )
-                    
-                    # Always keep a "latest alert" copy in www root for push notifications
-                    if idx == 0:
-                        alert_path = self.hass.config.path("www/domolink_alarm_alert.jpg")
-                        if os.path.exists(snapshot_path):
-                            shutil.copy2(snapshot_path, alert_path)
-                        
-                    if os.path.exists(snapshot_path):
-                        if getattr(self, "_telegram_enabled", False):
-                            self.hass.async_create_task(self._async_upload_to_telegram(snapshot_path))
-                        if getattr(self, "_ftp_enabled", False):
-                            self.hass.async_create_task(self._async_upload_to_ftp(snapshot_path))
-                except asyncio.TimeoutError:
-                    _LOGGER.warning("Domolink: Timeout capture photo sur %s", camera)
-                except Exception as e:
-                    _LOGGER.debug("Domolink: Erreur capture photo %s: %s", camera, e)
-        except Exception as e:
-            _LOGGER.debug("Domolink: Erreur globale capture photo: %s", e)
-
-        # Video recording with .mp4.tmp fix
-        self._log_event(f"Lancement de l'enregistrement{zone_desc} sur {len(target_cameras)} caméra(s)")
-        for camera in target_cameras:
+            # 1. Snapshot with generous 12s timeout for Blink/cloud cameras
             try:
-                safe_cam = camera.replace(".", "_")
-                video_filename = f"domolink_{ts}_{safe_cam}.mp4"
-                record_path = os.path.join(media_dir, video_filename)
-                # HA sometimes writes a .mp4.tmp first — we target .mp4 directly
-                # but also watch for the .tmp variant and rename it
+                if camera.startswith("camera.aarlo"):
+                    await asyncio.wait_for(
+                        self.hass.services.async_call(
+                            "aarlo", "camera_request_snapshot_to_file",
+                            {"entity_id": camera, "file_path": snapshot_path},
+                            blocking=True,
+                        ),
+                        timeout=12.0,
+                    )
+                else:
+                    await asyncio.wait_for(
+                        self.hass.services.async_call(
+                            "camera", "snapshot",
+                            {"entity_id": camera, "filename": snapshot_path},
+                            blocking=True,
+                        ),
+                        timeout=12.0,
+                    )
+
+                # Keep latest alert copy for push notifications
+                if idx == 0 and os.path.exists(snapshot_path):
+                    alert_path = self.hass.config.path("www/domolink_alarm_alert.jpg")
+                    try:
+                        shutil.copy2(snapshot_path, alert_path)
+                    except Exception as e:
+                        _LOGGER.debug("Domolink: Erreur copie alert_path: %s", e)
+
+                if os.path.exists(snapshot_path):
+                    if getattr(self, "_telegram_enabled", False):
+                        self.hass.async_create_task(self._async_upload_to_telegram(snapshot_path))
+                    if getattr(self, "_ftp_enabled", False):
+                        self.hass.async_create_task(self._async_upload_to_ftp(snapshot_path))
+            except asyncio.TimeoutError:
+                _LOGGER.warning("Domolink: Timeout photo (12s) sur %s", camera)
+            except Exception as e:
+                _LOGGER.error("Domolink: Erreur photo sur %s: %s", camera, e)
+
+            # 2. Video recording with watcher for .mp4.tmp
+            try:
                 await self.hass.services.async_call(
                     "camera", "record",
                     {"entity_id": camera, "duration": 30, "filename": record_path},
                 )
-                # Schedule a watcher to rename .mp4.tmp → .mp4 if HA writes a temp file
                 self.hass.async_create_task(
                     self._async_watch_and_fix_video(record_path, timeout=90)
                 )
             except Exception as e:
-                _LOGGER.debug("Failed to record camera %s: %s", camera, e)
+                _LOGGER.error("Domolink: Erreur enregistrement vidéo %s: %s", camera, e)
+
+        # Launch all camera captures in parallel
+        tasks = [_capture_single_camera(cam, i) for i, cam in enumerate(target_cameras)]
+        await asyncio.gather(*tasks, return_exceptions=True)
 
     # ─── Siren / Lights Off ───────────────────────────────────────
 
@@ -1926,32 +1941,56 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 _LOGGER.error("Failed to turn off lights: %s", e)
         self._siren_task = None
 
-        # If sirens turned off after cycle and alarm was not disarmed, re-arm to pre-trigger state
-        # so any subsequent detection triggers a full alarm cycle again
+        # If sirens turned off after cycle and alarm was not disarmed:
+        # Enter 1-minute disarm grace period, then auto-rearm
         if self._state == AlarmControlPanelState.TRIGGERED:
-            target_state = (
-                self._pre_trigger_state
-                if self._pre_trigger_state != AlarmControlPanelState.DISARMED
-                else AlarmControlPanelState.ARMED_AWAY
-            )
-            self._state = target_state
-            
-            french_time = self._get_french_time()
-            alarm_name = self.name or "Domolink Alarm"
-            trigger_name = self._triggered_by or "Un capteur"
-            msg = f"Dernier contact : {trigger_name} a déclenché l'alarme {alarm_name} (levé). Plus de contact, maison de nouveau sous alarme ({french_time})."
-            await self._async_send_notification(msg)
-            
-            self._faults.clear()
-            self._log_event(f"Fin de cycle sirène — Système ré-armé ({target_state.value})")
-            self._post_trigger_active = True
+            self._log_event("Fin de sonnerie sirène — Attente de désarmement (1 minute avant réarmement)")
             self.async_write_ha_state()
+            from homeassistant.helpers.event import async_call_later
+            if self._disarm_cooldown_task:
+                self._disarm_cooldown_task()
+            self._disarm_cooldown_task = async_call_later(
+                self.hass,
+                60,
+                self._cb_auto_rearm_after_alarm,
+            )
+
+    @callback
+    def _cb_auto_rearm_after_alarm(self, now=None):
+        """Callback when 60s disarm grace period ends — automatically re-arms the alarm."""
+        self._disarm_cooldown_task = None
+        self.hass.async_create_task(self._async_auto_rearm_after_alarm())
+
+    async def _async_auto_rearm_after_alarm(self):
+        """Finalize automatic re-arm after alarm cycle."""
+        if self._state != AlarmControlPanelState.TRIGGERED:
+            return
+
+        target_state = (
+            self._pre_trigger_state
+            if self._pre_trigger_state not in (AlarmControlPanelState.DISARMED, AlarmControlPanelState.TRIGGERED)
+            else AlarmControlPanelState.ARMED_AWAY
+        )
+        self._state = target_state
+        self._faults.clear()
+        self._post_trigger_active = True
+        self.async_write_ha_state()
+
+        french_time = self._get_french_time()
+        alarm_name = self.name or "Domolink Alarm"
+        trigger_name = self._triggered_by or "Un capteur"
+        msg = f"Fin d'alerte : {trigger_name} a déclenché l'alarme {alarm_name}. Plus de contact, maison de nouveau sous alarme ({french_time})."
+        await self._async_send_notification(msg)
+        self._log_event(f"Système ré-armé automatiquement ({target_state.value})")
 
     # ─── Helper: Cancel All Tasks ─────────────────────────────────
 
     def _cancel_all_tasks(self):
         self._post_trigger_active = False
         """Cancel any pending timers."""
+        if hasattr(self, "_disarm_cooldown_task") and self._disarm_cooldown_task:
+            self._disarm_cooldown_task()
+            self._disarm_cooldown_task = None
         if self._arming_task:
             self._arming_task()
             self._arming_task = None
