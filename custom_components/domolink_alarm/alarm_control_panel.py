@@ -191,7 +191,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.9.44",
+            sw_version="0.9.45",
         )
 
         self._siren_task = None
@@ -1672,30 +1672,35 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             _LOGGER.debug("Domolink: Erreur lecture médias: %s", e)
             return []
 
-    async def _async_watch_and_fix_video(self, expected_mp4_path, timeout=90):
-        """Watch for .mp4.tmp files written by HA and rename them to .mp4."""
+    async def _async_watch_and_fix_video(self, expected_mp4_path, duration=30, timeout=90):
+        """Watch for .mp4.tmp files written by HA and ensure valid finalized .mp4."""
+        # Wait for the recording duration to finish before inspecting or touching files
+        # camera.record takes `duration` seconds + a few seconds for ffmpeg to write moov atom
+        await asyncio.sleep(duration + 4)
+
         tmp_path = expected_mp4_path + ".tmp"
         alt_tmp = expected_mp4_path.replace(".mp4", ".mp4.tmp")
         
-        for _ in range(timeout * 2):  # check every 0.5s
-            # If .mp4 already exists and has content, we're done
+        remaining = max(10, timeout - duration - 4)
+        for _ in range(int(remaining * 2)):  # check every 0.5s
+            # If .mp4 already exists and is finalized, we're done
             if os.path.exists(expected_mp4_path) and os.path.getsize(expected_mp4_path) > 10240:
                 _LOGGER.debug("Domolink: Video OK: %s", expected_mp4_path)
                 return
-            # Rename .mp4.tmp if stable
+            # If HA left a .tmp file after recording finished, check stability and rename
             for tmp in (tmp_path, alt_tmp):
                 if os.path.exists(tmp):
                     try:
                         size1 = os.path.getsize(tmp)
-                        await asyncio.sleep(2.0)
+                        await asyncio.sleep(2.5)
                         size2 = os.path.getsize(tmp)
                         if size1 == size2 and size1 > 10240:
                             os.rename(tmp, expected_mp4_path)
-                            _LOGGER.info("Domolink: .mp4.tmp renommé en .mp4: %s", expected_mp4_path)
+                            _LOGGER.info("Domolink: .mp4.tmp finalisé en .mp4: %s", expected_mp4_path)
                             self._log_event(f"Vidéo sauvegardée: {os.path.basename(expected_mp4_path)}")
                             return
                     except Exception as e:
-                        _LOGGER.debug("Domolink: Erreur renommage tmp: %s", e)
+                        _LOGGER.debug("Domolink: Erreur finalisation tmp: %s", e)
             await asyncio.sleep(0.5)
         _LOGGER.warning("Domolink: Timeout attente vidéo: %s", expected_mp4_path)
 
