@@ -1216,6 +1216,17 @@ class DomolinkPanel extends HTMLElement {
                 <span style="color:var(--d-subtext); font-size:11px;">Non configurée</span>
               `}
             </div>
+
+            <!-- Test d'enregistrement vidéo Button (Widget 1) -->
+            <button class="btn-test-cameras-record" id="btn-test-cameras-record-widget" ${attrs.camera_test_running ? 'disabled' : ''} style="width:100%; margin-top:10px; background:linear-gradient(135deg, rgba(245,158,11,0.12), rgba(217,119,6,0.22)); border:1px solid rgba(245,158,11,0.45); color:#f59e0b; padding:8px 12px; border-radius:10px; font-size:11px; font-weight:800; cursor:${attrs.camera_test_running ? 'not-allowed' : 'pointer'}; display:flex; align-items:center; justify-content:center; gap:6px; transition:all 0.2s ease;">
+              ${attrs.camera_test_running ? `
+                <ha-icon icon="mdi:loading" style="animation:spin 1s linear infinite;--mdc-icon-size:16px;"></ha-icon>
+                <span>TEST EN COURS (30s/cam)...</span>
+              ` : `
+                <ha-icon icon="mdi:video-check" style="--mdc-icon-size:16px;"></ha-icon>
+                <span>TEST ENREGISTREMENT VIDÉO</span>
+              `}
+            </button>
           </div>
 
           <!-- Widget 2: Appareils -->
@@ -1357,6 +1368,19 @@ class DomolinkPanel extends HTMLElement {
                 <div style="font-size:12px; font-weight:800; color:var(--d-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${camerasArmed ? 'Armées' : 'Désactivées'}</div>
               </div>
             </div>
+          </div>
+
+          <!-- Bouton Test d'enregistrement vidéo (Colonne centrale) -->
+          <div style="margin-top:14px;">
+            <button class="btn-test-cameras-record" id="btn-test-cameras-record-center" ${attrs.camera_test_running ? 'disabled' : ''} style="width:100%; background:linear-gradient(135deg, rgba(245,158,11,0.12), rgba(217,119,6,0.22)); border:1px solid rgba(245,158,11,0.45); color:#f59e0b; padding:11px 16px; border-radius:12px; font-size:12px; font-weight:800; cursor:${attrs.camera_test_running ? 'not-allowed' : 'pointer'}; display:flex; align-items:center; justify-content:center; gap:8px; transition:all 0.2s ease; box-shadow:0 4px 14px rgba(245,158,11,0.06);">
+              ${attrs.camera_test_running ? `
+                <ha-icon icon="mdi:loading" style="animation:spin 1s linear infinite;--mdc-icon-size:18px;"></ha-icon>
+                <span>TEST EN COURS (30s PAR CAMÉRA)...</span>
+              ` : `
+                <ha-icon icon="mdi:video-check" style="--mdc-icon-size:18px;"></ha-icon>
+                <span>TEST D'ENREGISTREMENT VIDÉO (TOUTES LES CAMÉRAS)</span>
+              `}
+            </button>
           </div>
           
         </div>
@@ -1526,6 +1550,26 @@ class DomolinkPanel extends HTMLElement {
           }
         });
       }
+
+      // Test Cameras Recording Buttons
+      const triggerTestCameras = async () => {
+        if (attrs.camera_test_running) {
+          alert("Un test d'enregistrement est déjà en cours d'exécution. Veuillez patienter.");
+          return;
+        }
+        const mediaFolder = attrs.media_path || "domolink_media";
+        if (!confirm(`Lancer le test d'enregistrement sur toutes les caméras ?\n\nPour chaque caméra, l'une après l'autre :\n1. Une photo sera capturée et sauvegardée\n2. Une vidéo de 30 secondes sera enregistrée et finalisée\n\nTous les fichiers seront stockés dans /local/${mediaFolder}/.`)) return;
+        try {
+          await this._hass.callService('domolink_alarm', 'test_cameras_recording', {});
+          alert("🎬 Test d'enregistrement lancé avec succès !\n\nChaque caméra est traitée l'une après l'autre (photo + vidéo de 30 secondes).\nSuivez l'avancement en direct dans l'onglet Journal.");
+        } catch (err) {
+          alert("Erreur lors du lancement du test : " + (err.message || err));
+        }
+      };
+
+      container.querySelectorAll('.btn-test-cameras-record').forEach(btn => {
+        btn.addEventListener('click', triggerTestCameras);
+      });
     }
   }
 
