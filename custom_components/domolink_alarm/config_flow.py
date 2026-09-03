@@ -104,6 +104,7 @@ from .const import (
     CONF_MEDIA_PATH,
     DEFAULT_MEDIA_PATH,
     CONF_CAMERAS_ARM_ENTITIES,
+    CONF_CAMERAS_ARM_ENTITIES_LABELS,
     CONF_ZONE_LABELS,
     CONF_GLOBAL_CAMERAS,
     CONF_GLOBAL_CAMERAS_LABELS,
@@ -158,6 +159,7 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ),
                     vol.Optional(CONF_MOTION_SENSORS_LABELS, default=[]): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                     vol.Optional(CONF_CAMERAS_ARM_ENTITIES, default=[]): selector.EntitySelector(selector.EntitySelectorConfig(multiple=True)),
+                    vol.Optional(CONF_CAMERAS_ARM_ENTITIES_LABELS, default=[]): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                     vol.Optional(CONF_CAMERAS, default=[]): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain="camera", multiple=True)
                     ),
@@ -382,6 +384,7 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Optional(CONF_MOTION_SENSORS_LABELS, default=self.options.get(CONF_MOTION_SENSORS_LABELS, [])): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                     vol.Optional(CONF_CAMERAS_ARM_ENTITIES, default=self.options.get(CONF_CAMERAS_ARM_ENTITIES, [])): selector.EntitySelector(selector.EntitySelectorConfig(multiple=True)),
+                    vol.Optional(CONF_CAMERAS_ARM_ENTITIES_LABELS, default=self.options.get(CONF_CAMERAS_ARM_ENTITIES_LABELS, [])): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
                     vol.Optional(CONF_CAMERAS, default=self.options.get(CONF_CAMERAS, [])): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain="camera", multiple=True)
                     ),

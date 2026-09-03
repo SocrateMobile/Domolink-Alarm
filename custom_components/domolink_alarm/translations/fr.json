@@ -20,7 +20,9 @@
                     "cameras": "Caméras",
                     "cameras_labels": "Étiquettes (Caméras)",
                     "safety_sensors": "Capteurs Techniques 24/7 (Fumée, Eau, Gaz, CO)",
-                    "safety_sensors_labels": "Étiquettes (Capteurs Techniques 24/7)"
+                    "safety_sensors_labels": "Étiquettes (Capteurs Techniques 24/7)",
+                    "cameras_arm_entities": "Caméras & Modules à armer/désarmer automatiquement (Blink, Switches, etc.)",
+                    "cameras_arm_entities_labels": "Étiquettes (Caméras & Modules à armer/désarmer)"
                 }
             },
             "actuators": {
@@ -41,7 +43,8 @@
                     "emergency_contact_labels": "Étiquettes (Contact d'urgence)",
                     "presence_simulation_entities": "Simulation de Présence (Lumières / Prises)",
                     "presence_simulation_labels": "Étiquettes (Simulation de Présence)",
-                    "cameras_arm_entities": "Caméras à synchroniser (Switch, Alarme)"
+                    "cameras_arm_entities": "Caméras & Modules à armer/désarmer automatiquement (Blink, Switches, etc.)",
+                    "cameras_arm_entities_labels": "Étiquettes (Caméras & Modules à armer/désarmer)"
                 }
             },
             "logic": {
@@ -136,7 +139,9 @@
                     "cameras": "Caméras",
                     "cameras_labels": "Étiquettes (Caméras)",
                     "safety_sensors": "Capteurs Techniques 24/7 (Fumée, Eau, Gaz, CO)",
-                    "safety_sensors_labels": "Étiquettes (Capteurs Techniques 24/7)"
+                    "safety_sensors_labels": "Étiquettes (Capteurs Techniques 24/7)",
+                    "cameras_arm_entities": "Caméras & Modules à armer/désarmer automatiquement (Blink, Switches, etc.)",
+                    "cameras_arm_entities_labels": "Étiquettes (Caméras & Modules à armer/désarmer)"
                 }
             },
             "actuators": {
@@ -157,7 +162,8 @@
                     "emergency_contact_labels": "Étiquettes (Contact d'urgence)",
                     "presence_simulation_entities": "Simulation de Présence (Lumières / Prises)",
                     "presence_simulation_labels": "Étiquettes (Simulation de Présence)",
-                    "cameras_arm_entities": "Caméras à synchroniser (Switch, Alarme)"
+                    "cameras_arm_entities": "Caméras & Modules à armer/désarmer automatiquement (Blink, Switches, etc.)",
+                    "cameras_arm_entities_labels": "Étiquettes (Caméras & Modules à armer/désarmer)"
                 }
             },
             "logic": {
