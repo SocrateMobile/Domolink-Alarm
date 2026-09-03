@@ -2201,14 +2201,63 @@ class DomolinkPanel extends HTMLElement {
     container.querySelectorAll('[data-lightbox]').forEach(el => {
       el.addEventListener('click', () => {
         const src = el.getAttribute('data-lightbox');
-        const label = el.getAttribute('data-label');
+        const label = el.getAttribute('data-label') || 'Photo';
         const lb = document.createElement('div');
         lb.className = 'media-lightbox';
-        lb.innerHTML = `<span class="media-lightbox-close" id="lb-close">×</span><img src="${src}" alt="${this.escapeHtml(label)}">`;
-        document.body.appendChild(lb);
-        lb.addEventListener('click', (e) => {
-          if (e.target === lb || e.target.id === 'lb-close') lb.remove();
+        lb.style = "position:fixed;inset:0;background:rgba(0,0,0,0.92);backdrop-filter:blur(8px);z-index:999999;display:flex;align-items:center;justify-content:center;padding:20px;cursor:default;";
+        lb.innerHTML = `
+          <div class="video-modal-container" style="background:#18181b;border:1px solid rgba(255,255,255,0.18);border-radius:16px;overflow:hidden;width:92vw;max-width:860px;box-shadow:0 25px 60px rgba(0,0,0,0.85);display:flex;flex-direction:column;">
+            <div class="video-modal-header" style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:#27272a;border-bottom:1px solid rgba(255,255,255,0.1);color:#fff;font-weight:700;font-size:14px;">
+              <div style="display:flex;align-items:center;gap:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                <ha-icon icon="mdi:image" style="color:#f59e0b;--mdc-icon-size:20px;"></ha-icon>
+                <span>${this.escapeHtml(label)}</span>
+              </div>
+              <span class="media-lightbox-close" id="lb-close" style="position:static;font-size:28px;cursor:pointer;line-height:1;">×</span>
+            </div>
+            <div class="video-modal-body" style="position:relative;background:#000;display:flex;align-items:center;justify-content:center;min-height:260px;max-height:68vh;overflow:hidden;">
+              <img id="active-photo-player" src="${src}" style="max-width:100%;max-height:68vh;object-fit:contain;transition:transform 0.3s ease;transform-origin:center;" />
+            </div>
+            <div class="video-modal-footer" style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#27272a;border-top:1px solid rgba(255,255,255,0.1);flex-wrap:wrap;gap:10px;">
+              <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <button class="video-modal-btn secondary" id="photo-btn-zoom" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;background:rgba(255,255,255,0.1);color:#e4e4e7;border:none;cursor:pointer;">
+                  <ha-icon icon="mdi:magnify-plus" style="--mdc-icon-size:16px;"></ha-icon> Zoom x1
+                </button>
+                <button class="video-modal-btn secondary" id="photo-btn-fs" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;background:rgba(255,255,255,0.1);color:#e4e4e7;border:none;cursor:pointer;">
+                  <ha-icon icon="mdi:fullscreen" style="--mdc-icon-size:16px;"></ha-icon> Plein Écran
+                </button>
+                <a class="video-modal-btn primary" href="${src}" download="${this.escapeHtml(label)}" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;background:#f59e0b;color:#fff;text-decoration:none;">
+                  <ha-icon icon="mdi:download" style="--mdc-icon-size:16px;"></ha-icon> Télécharger
+                </a>
+              </div>
+              <button class="video-modal-btn secondary" id="lb-btn-close" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;background:rgba(255,255,255,0.1);color:#e4e4e7;border:none;cursor:pointer;">Fermer</button>
+            </div>
+          </div>
+        `;
+        this.appendChild(lb);
+
+        const imgEl = lb.querySelector('#active-photo-player');
+        let zoomLevel = 1;
+        lb.querySelector('#photo-btn-zoom')?.addEventListener('click', (ev) => {
+          zoomLevel = zoomLevel === 1 ? 2 : (zoomLevel === 2 ? 4 : 1);
+          imgEl.style.transform = `scale(${zoomLevel})`;
+          imgEl.style.cursor = zoomLevel > 1 ? 'grab' : 'default';
+          ev.currentTarget.innerHTML = `<ha-icon icon="${zoomLevel > 1 ? 'mdi:magnify-minus' : 'mdi:magnify-plus'}" style="--mdc-icon-size:16px;"></ha-icon> Zoom x${zoomLevel}`;
         });
+        
+        let isDragging = false, startX, startY, transX = 0, transY = 0;
+        imgEl.addEventListener('mousedown', e => { if (zoomLevel > 1) { isDragging = true; startX = e.clientX - transX; startY = e.clientY - transY; imgEl.style.cursor = 'grabbing'; e.preventDefault(); } });
+        window.addEventListener('mousemove', e => { if (isDragging && zoomLevel > 1) { transX = e.clientX - startX; transY = e.clientY - startY; imgEl.style.transform = `scale(${zoomLevel}) translate(${transX/zoomLevel}px, ${transY/zoomLevel}px)`; } });
+        window.addEventListener('mouseup', () => { isDragging = false; if (zoomLevel > 1) imgEl.style.cursor = 'grab'; });
+        
+        lb.querySelector('#photo-btn-fs')?.addEventListener('click', () => {
+          if (imgEl.requestFullscreen) imgEl.requestFullscreen();
+          else if (imgEl.webkitRequestFullscreen) imgEl.webkitRequestFullscreen();
+        });
+
+        const closeLb = () => lb.remove();
+        lb.querySelector('#lb-close')?.addEventListener('click', closeLb);
+        lb.querySelector('#lb-btn-close')?.addEventListener('click', closeLb);
+        lb.addEventListener('click', (ev) => { if (ev.target === lb) closeLb(); });
       });
     });
 
@@ -2236,6 +2285,12 @@ class DomolinkPanel extends HTMLElement {
             </div>
             <div class="video-modal-footer" style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#27272a;border-top:1px solid rgba(255,255,255,0.1);flex-wrap:wrap;gap:10px;">
               <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <button class="video-modal-btn secondary" id="vid-btn-speed" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;background:rgba(255,255,255,0.1);color:#e4e4e7;border:none;cursor:pointer;">
+                  <ha-icon icon="mdi:fast-forward" style="--mdc-icon-size:16px;"></ha-icon> x1
+                </button>
+                <button class="video-modal-btn secondary" id="vid-btn-fs" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;background:rgba(255,255,255,0.1);color:#e4e4e7;border:none;cursor:pointer;">
+                  <ha-icon icon="mdi:fullscreen" style="--mdc-icon-size:16px;"></ha-icon> Plein Écran
+                </button>
                 <a class="video-modal-btn primary" href="${url}" download="${this.escapeHtml(label)}" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;background:#f59e0b;color:#fff;text-decoration:none;">
                   <ha-icon icon="mdi:download" style="--mdc-icon-size:16px;"></ha-icon> Télécharger le MP4
                 </a>
@@ -2278,6 +2333,18 @@ class DomolinkPanel extends HTMLElement {
             videoEl.parentElement.appendChild(errBox);
           });
         }
+        
+        modal.querySelector('#vid-btn-speed')?.addEventListener('click', (ev) => {
+          let rate = videoEl.playbackRate;
+          rate = rate === 1 ? 2 : (rate === 2 ? 4 : 1);
+          videoEl.playbackRate = rate;
+          ev.currentTarget.innerHTML = `<ha-icon icon="mdi:fast-forward" style="--mdc-icon-size:16px;"></ha-icon> x${rate}`;
+        });
+
+        modal.querySelector('#vid-btn-fs')?.addEventListener('click', () => {
+          if (videoEl.requestFullscreen) videoEl.requestFullscreen();
+          else if (videoEl.webkitRequestFullscreen) videoEl.webkitRequestFullscreen();
+        });
 
         const closeModal = () => {
           if (videoEl) {
