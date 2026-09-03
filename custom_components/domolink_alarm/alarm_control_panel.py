@@ -39,6 +39,8 @@ from .const import (
     CONF_MOTION_SENSORS_LABELS,
     CONF_CAMERAS,
     CONF_CAMERAS_LABELS,
+    CONF_CAMERAS_ARM_ENTITIES,
+    CONF_CAMERAS_ARM_ENTITIES_LABELS,
     CONF_TAMPER_SENSORS,
     CONF_TAMPER_SENSORS_LABELS,
     CONF_SIRENS,
@@ -189,7 +191,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.9.42",
+            sw_version="0.9.43",
         )
 
         self._siren_task = None
@@ -417,7 +419,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._ftp_user = options.get("ftp_user", data.get("ftp_user", ""))
         self._ftp_pass = options.get("ftp_pass", data.get("ftp_pass", ""))
         self._ftp_path = options.get("ftp_path", data.get("ftp_path", "/"))
-        self._cameras_arm_entities = options.get("cameras_arm_entities", data.get("cameras_arm_entities", []))
+        self._cameras_arm_entities = get_merged(CONF_CAMERAS_ARM_ENTITIES, CONF_CAMERAS_ARM_ENTITIES_LABELS, ["switch", "alarm_control_panel", "camera"])
         self._zone_labels = options.get("zone_labels", data.get("zone_labels", [])) or []
         self._global_cameras = get_merged("global_cameras", "global_cameras_labels", ["camera"])
         self._media_path = options.get("media_path", data.get("media_path", "domolink_media")).strip().strip("/")
