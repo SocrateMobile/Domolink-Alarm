@@ -1802,7 +1802,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                     await asyncio.wait_for(
                         self.hass.services.async_call(
                             "aarlo", "camera_request_snapshot_to_file",
-                            {"entity_id": camera, "file_path": snapshot_path},
+                            {"entity_id": camera, "filename": snapshot_path},
                             blocking=True,
                         ),
                         timeout=15.0,
@@ -1986,7 +1986,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                     await asyncio.wait_for(
                         self.hass.services.async_call(
                             "aarlo", "camera_request_snapshot_to_file",
-                            {"entity_id": camera, "file_path": snapshot_path},
+                            {"entity_id": camera, "filename": snapshot_path},
                             blocking=True,
                         ),
                         timeout=12.0,
