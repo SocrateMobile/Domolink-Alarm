@@ -342,8 +342,17 @@ class DomolinkPanel extends HTMLElement {
           animation: pulse 1.5s infinite;
         }
         @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.4; }
+          0% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.7; transform: scale(0.98); }
+          100% { opacity: 1; transform: scale(1); }
+        }
+        @keyframes fillBar {
+          from { width: 0%; }
+          to { width: 100%; }
+        }
+        @keyframes progressIndeterminate {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
         }
         .camera-img-stream {
           width: 100%;
@@ -380,6 +389,9 @@ class DomolinkPanel extends HTMLElement {
           font-size: 11.5px;
           line-height: 1.4;
           color: var(--d-subtext);
+          word-wrap: break-word;
+          overflow-wrap: anywhere;
+          white-space: normal;
         }
         .recent-event-row strong {
           color: var(--d-text);
@@ -1178,6 +1190,57 @@ class DomolinkPanel extends HTMLElement {
       return s && s.state === 'home';
     });
 
+    const testProgressHTML = attrs.camera_test_running && attrs.camera_test_info ? (() => {
+      const info = attrs.camera_test_info;
+      if (!info.total) return `<div style="text-align:center;color:#f59e0b;font-size:12px;font-weight:700;"><ha-icon icon="mdi:loading" style="animation:spin 1s linear infinite;--mdc-icon-size:16px;margin-right:6px;"></ha-icon> INITIALISATION DU TEST...</div>`;
+      
+      const globalPct = ((info.current - 1) / info.total) * 100;
+      let stepHtml = '';
+      if (info.step === 'photo') {
+         stepHtml = `
+           <div style="display:flex; justify-content:space-between; font-size:10px; margin-bottom:4px; opacity:0.8;">
+             <span>Capture Photo...</span>
+             <span>En cours</span>
+           </div>
+           <div style="width:100%; height:4px; background:rgba(255,255,255,0.1); border-radius:2px; overflow:hidden;">
+             <div style="width:100%; height:100%; background:#f59e0b; animation: progressIndeterminate 1.5s infinite linear;"></div>
+           </div>
+         `;
+      } else if (info.step === 'video') {
+         const delay = Math.max(0, (Date.now()/1000) - (info.video_start || 0));
+         stepHtml = `
+           <div style="display:flex; justify-content:space-between; font-size:10px; margin-bottom:4px; opacity:0.8;">
+             <span>Vidéo 30s en cours...</span>
+           </div>
+           <div style="width:100%; height:4px; background:rgba(255,255,255,0.1); border-radius:2px; overflow:hidden;">
+             <div style="width:100%; height:100%; background:#f59e0b; animation: fillBar 34s linear forwards; animation-delay: -${delay}s;"></div>
+           </div>
+         `;
+      }
+      
+      return `
+        <div style="display:flex; flex-direction:column; width:100%; gap:12px; padding: 4px 0; background:rgba(245,158,11,0.05); border-radius:10px; border:1px solid rgba(245,158,11,0.2); padding:12px; margin-top:10px;">
+          <!-- Total Progress -->
+          <div>
+            <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; margin-bottom:4px; color:#10b981;">
+              <span>GLOBAL (${info.current}/${info.total})</span>
+              <span>${Math.round(globalPct)}%</span>
+            </div>
+            <div style="width:100%; height:4px; background:rgba(255,255,255,0.1); border-radius:2px; overflow:hidden;">
+              <div style="width:${globalPct}%; height:100%; background:#10b981; transition:width 0.3s;"></div>
+            </div>
+          </div>
+          <!-- Current Camera Progress -->
+          <div>
+            <div style="font-size:11px; font-weight:800; margin-bottom:6px; color:var(--d-text);">
+              Caméra : <span style="color:#f59e0b;">${this.escapeHtml(info.camera_name || '...')}</span>
+            </div>
+            ${stepHtml}
+          </div>
+        </div>
+      `;
+    })() : '';
+
     const html = `
       <div class="arm-layout-grid">
         <!-- ─── Left Column (Widgets) ─────────────── -->
@@ -1218,15 +1281,12 @@ class DomolinkPanel extends HTMLElement {
             </div>
 
             <!-- Test d'enregistrement vidéo Button (Widget 1) -->
-            <button class="btn-test-cameras-record" id="btn-test-cameras-record-widget" ${attrs.camera_test_running ? 'disabled' : ''} style="width:100%; margin-top:10px; background:linear-gradient(135deg, rgba(245,158,11,0.12), rgba(217,119,6,0.22)); border:1px solid rgba(245,158,11,0.45); color:#f59e0b; padding:8px 12px; border-radius:10px; font-size:11px; font-weight:800; cursor:${attrs.camera_test_running ? 'not-allowed' : 'pointer'}; display:flex; align-items:center; justify-content:center; gap:6px; transition:all 0.2s ease;">
-              ${attrs.camera_test_running ? `
-                <ha-icon icon="mdi:loading" style="animation:spin 1s linear infinite;--mdc-icon-size:16px;"></ha-icon>
-                <span>TEST EN COURS (30s/cam)...</span>
-              ` : `
-                <ha-icon icon="mdi:video-check" style="--mdc-icon-size:16px;"></ha-icon>
-                <span>TEST ENREGISTREMENT VIDÉO</span>
-              `}
+            ${attrs.camera_test_running ? testProgressHTML : `
+            <button class="btn-test-cameras-record" id="btn-test-cameras-record-widget" style="width:100%; margin-top:10px; background:linear-gradient(135deg, rgba(245,158,11,0.12), rgba(217,119,6,0.22)); border:1px solid rgba(245,158,11,0.45); color:#f59e0b; padding:8px 12px; border-radius:10px; font-size:11px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; transition:all 0.2s ease;">
+              <ha-icon icon="mdi:video-check" style="--mdc-icon-size:16px;"></ha-icon>
+              <span>TEST ENREGISTREMENT VIDÉO</span>
             </button>
+            `}
           </div>
 
           <!-- Widget 2: Appareils -->
@@ -1372,15 +1432,12 @@ class DomolinkPanel extends HTMLElement {
 
           <!-- Bouton Test d'enregistrement vidéo (Colonne centrale) -->
           <div style="margin-top:14px;">
-            <button class="btn-test-cameras-record" id="btn-test-cameras-record-center" ${attrs.camera_test_running ? 'disabled' : ''} style="width:100%; background:linear-gradient(135deg, rgba(245,158,11,0.12), rgba(217,119,6,0.22)); border:1px solid rgba(245,158,11,0.45); color:#f59e0b; padding:11px 16px; border-radius:12px; font-size:12px; font-weight:800; cursor:${attrs.camera_test_running ? 'not-allowed' : 'pointer'}; display:flex; align-items:center; justify-content:center; gap:8px; transition:all 0.2s ease; box-shadow:0 4px 14px rgba(245,158,11,0.06);">
-              ${attrs.camera_test_running ? `
-                <ha-icon icon="mdi:loading" style="animation:spin 1s linear infinite;--mdc-icon-size:18px;"></ha-icon>
-                <span>TEST EN COURS (30s PAR CAMÉRA)...</span>
-              ` : `
-                <ha-icon icon="mdi:video-check" style="--mdc-icon-size:18px;"></ha-icon>
-                <span>TEST D'ENREGISTREMENT VIDÉO (TOUTES LES CAMÉRAS)</span>
-              `}
+            ${attrs.camera_test_running ? testProgressHTML : `
+            <button class="btn-test-cameras-record" id="btn-test-cameras-record-center" style="width:100%; background:linear-gradient(135deg, rgba(245,158,11,0.12), rgba(217,119,6,0.22)); border:1px solid rgba(245,158,11,0.45); color:#f59e0b; padding:11px 16px; border-radius:12px; font-size:12px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; transition:all 0.2s ease; box-shadow:0 4px 14px rgba(245,158,11,0.06);">
+              <ha-icon icon="mdi:video-check" style="--mdc-icon-size:18px;"></ha-icon>
+              <span>TEST D'ENREGISTREMENT VIDÉO (TOUTES LES CAMÉRAS)</span>
             </button>
+            `}
           </div>
           
         </div>
