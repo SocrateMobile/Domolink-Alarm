@@ -101,6 +101,8 @@ from .const import (
     DEFAULT_FTP_ENABLED,
     DEFAULT_FTP_PORT,
     DEFAULT_FTP_PATH,
+    CONF_MEDIA_PATH,
+    DEFAULT_MEDIA_PATH,
     CONF_CAMERAS_ARM_ENTITIES,
 )
 
@@ -502,6 +504,7 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
                     vol.Optional(CONF_FTP_USER, default=self.options.get(CONF_FTP_USER, "")): str,
                     vol.Optional(CONF_FTP_PASS, default=self.options.get(CONF_FTP_PASS, "")): str,
                     vol.Optional(CONF_FTP_PATH, default=self.options.get(CONF_FTP_PATH, DEFAULT_FTP_PATH)): str,
+                    vol.Optional(CONF_MEDIA_PATH, default=self.options.get(CONF_MEDIA_PATH, DEFAULT_MEDIA_PATH)): str,
                 }
             ),
         )

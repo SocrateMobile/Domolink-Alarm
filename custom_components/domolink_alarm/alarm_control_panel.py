@@ -131,8 +131,15 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
         """Handle update settings service call."""
         await entity.async_update_settings(call)
 
+    async def async_handle_media_action(call):
+        """Handle media file actions (rename/delete)."""
+        await entity.async_media_action(call)
+
     hass.services.async_register(
         DOMAIN, "update_settings", async_handle_update_settings
+    )
+    hass.services.async_register(
+        DOMAIN, "media_action", async_handle_media_action
     )
     hass.services.async_register(
         DOMAIN, "bypass_sensor", async_handle_bypass_sensor
@@ -179,7 +186,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.9.40",
+            sw_version="0.9.41",
         )
 
         self._siren_task = None
@@ -335,6 +342,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._ftp_pass = options.get("ftp_pass", data.get("ftp_pass", ""))
         self._ftp_path = options.get("ftp_path", data.get("ftp_path", "/"))
         self._cameras_arm_entities = options.get("cameras_arm_entities", data.get("cameras_arm_entities", []))
+        self._media_path = options.get("media_path", data.get("media_path", "domolink_media")).strip().strip("/")
         
         # Migration & Loading of iCloud devices
         icloud_devs = options.get("icloud_devices", data.get("icloud_devices", []))
@@ -419,6 +427,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             "ftp_status": self._ftp_status,
             "cameras_armed": self._cameras_armed,
             "cameras_arm_entities": self._cameras_arm_entities,
+            "media_path": self._media_path,
+            "media_files": self._list_media_files(),
         }
 
     async def async_bypass_sensor(self, entity_id: str):
@@ -480,6 +490,15 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 self._last_user = last_state.attributes.get("last_user")
                 self._arm_history = last_state.attributes.get("arm_history", [])
                 self._system_events = last_state.attributes.get("system_events", [])
+
+        # Create media storage directory
+        try:
+            media_abs = self.hass.config.path(f"www/{self._media_path}")
+            if not os.path.exists(media_abs):
+                os.makedirs(media_abs, exist_ok=True)
+                _LOGGER.info("Domolink: Répertoire médias créé: %s", media_abs)
+        except Exception as e:
+            _LOGGER.error("Domolink: Impossible de créer le répertoire médias: %s", e)
 
         # Track sensor changes
         all_sensors = list(set(
@@ -1535,6 +1554,92 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         if self._cameras:
             self.hass.async_create_task(self._async_capture_cameras())
 
+    def _list_media_files(self):
+        """List all media files in the configured media directory (for the JS gallery)."""
+        try:
+            media_dir = self.hass.config.path(f"www/{self._media_path}")
+            if not os.path.exists(media_dir):
+                return []
+            files = []
+            for fname in sorted(os.listdir(media_dir), reverse=True):
+                if not fname.startswith('.'):
+                    fpath = os.path.join(media_dir, fname)
+                    if os.path.isfile(fpath) and fname.lower().endswith(('.jpg', '.jpeg', '.png', '.mp4', '.webm', '.ogg')):
+                        files.append({
+                            "name": fname,
+                            "size": os.path.getsize(fpath),
+                            "modified": os.path.getmtime(fpath),
+                        })
+            return files[:200]  # Cap at 200 to avoid huge HA state
+        except Exception as e:
+            _LOGGER.debug("Domolink: Erreur lecture médias: %s", e)
+            return []
+
+    async def _async_watch_and_fix_video(self, expected_mp4_path, timeout=90):
+        """Watch for .mp4.tmp files written by HA and rename them to .mp4."""
+        tmp_path = expected_mp4_path + ".tmp"
+        alt_tmp = expected_mp4_path.replace(".mp4", ".mp4.tmp")
+        
+        for _ in range(timeout * 2):  # check every 0.5s
+            # If .mp4 already exists and has content, we're done
+            if os.path.exists(expected_mp4_path) and os.path.getsize(expected_mp4_path) > 10240:
+                _LOGGER.debug("Domolink: Video OK: %s", expected_mp4_path)
+                return
+            # Rename .mp4.tmp if stable
+            for tmp in (tmp_path, alt_tmp):
+                if os.path.exists(tmp):
+                    try:
+                        size1 = os.path.getsize(tmp)
+                        await asyncio.sleep(2.0)
+                        size2 = os.path.getsize(tmp)
+                        if size1 == size2 and size1 > 10240:
+                            os.rename(tmp, expected_mp4_path)
+                            _LOGGER.info("Domolink: .mp4.tmp renommé en .mp4: %s", expected_mp4_path)
+                            self._log_event(f"Vidéo sauvegardée: {os.path.basename(expected_mp4_path)}")
+                            return
+                    except Exception as e:
+                        _LOGGER.debug("Domolink: Erreur renommage tmp: %s", e)
+            await asyncio.sleep(0.5)
+        _LOGGER.warning("Domolink: Timeout attente vidéo: %s", expected_mp4_path)
+
+    async def async_media_action(self, call):
+        """Handle rename or delete of media files."""
+        action = str(call.data.get("action", "")).lower()
+        filename = str(call.data.get("filename", "")).strip()
+        new_name = str(call.data.get("new_name", "")).strip()
+        
+        # Security: reject path traversal
+        if ".." in filename or "/" in filename or "\\" in filename:
+            _LOGGER.error("Domolink: Tentative d'accès hors-répertoire bloquée: %s", filename)
+            raise HomeAssistantError("Accès refusé: nom de fichier invalide.")
+        
+        media_dir = self.hass.config.path(f"www/{self._media_path}")
+        file_path = os.path.join(media_dir, filename)
+        
+        if not os.path.exists(file_path):
+            raise HomeAssistantError(f"Fichier introuvable: {filename}")
+        
+        if action == "delete":
+            try:
+                os.remove(file_path)
+                self._log_event(f"Média supprimé: {filename}")
+                _LOGGER.info("Domolink: Fichier supprimé: %s", file_path)
+            except Exception as e:
+                raise HomeAssistantError(f"Impossible de supprimer: {e}")
+        
+        elif action == "rename":
+            if not new_name or ".." in new_name or "/" in new_name:
+                raise HomeAssistantError("Nouveau nom invalide.")
+            new_path = os.path.join(media_dir, new_name)
+            try:
+                os.rename(file_path, new_path)
+                self._log_event(f"Média renommé: {filename} → {new_name}")
+                _LOGGER.info("Domolink: Fichier renommé: %s → %s", file_path, new_path)
+            except Exception as e:
+                raise HomeAssistantError(f"Impossible de renommer: {e}")
+        else:
+            raise HomeAssistantError(f"Action inconnue: {action}")
+
     async def _async_sync_cameras(self, arm: bool):
         """Sync camera motion detection or alarm panels."""
         if not self._cameras_arm_entities:
@@ -1634,15 +1739,19 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             except Exception:
                 pass
 
+        import shutil
+        from datetime import datetime as _dt
+        
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        media_dir = self.hass.config.path(f"www/{self._media_path}")
+        os.makedirs(media_dir, exist_ok=True)
+        
         try:
-            www_dir = self.hass.config.path("www")
-            if not os.path.exists(www_dir):
-                os.makedirs(www_dir, exist_ok=True)
-
             self._log_event(f"Capture photo sur {len(self._cameras)} caméra(s)")
             for idx, camera in enumerate(self._cameras):
                 safe_cam = camera.replace(".", "_")
-                snapshot_path = self.hass.config.path(f"www/domolink_snapshot_{safe_cam}.jpg")
+                snapshot_filename = f"domolink_{ts}_{safe_cam}.jpg"
+                snapshot_path = os.path.join(media_dir, snapshot_filename)
                 try:
                     if camera.startswith("camera.aarlo"):
                         await asyncio.wait_for(
@@ -1651,7 +1760,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                                 {"entity_id": camera, "file_path": snapshot_path},
                                 blocking=True,
                             ),
-                            timeout=4.0,
+                            timeout=6.0,
                         )
                     else:
                         await asyncio.wait_for(
@@ -1660,13 +1769,14 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                                 {"entity_id": camera, "filename": snapshot_path},
                                 blocking=True,
                             ),
-                            timeout=4.0,
+                            timeout=6.0,
                         )
                     
+                    # Always keep a "latest alert" copy in www root for push notifications
                     if idx == 0:
                         alert_path = self.hass.config.path("www/domolink_alarm_alert.jpg")
-                        import shutil
-                        shutil.copy2(snapshot_path, alert_path)
+                        if os.path.exists(snapshot_path):
+                            shutil.copy2(snapshot_path, alert_path)
                         
                     if os.path.exists(snapshot_path):
                         if getattr(self, "_telegram_enabled", False):
@@ -1680,14 +1790,22 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         except Exception as e:
             _LOGGER.debug("Domolink: Erreur globale capture photo: %s", e)
 
+        # Video recording with .mp4.tmp fix
         self._log_event(f"Lancement de l'enregistrement sur {len(self._cameras)} caméra(s)")
         for camera in self._cameras:
             try:
                 safe_cam = camera.replace(".", "_")
-                record_path = self.hass.config.path(f"www/domolink_record_{safe_cam}.mp4")
+                video_filename = f"domolink_{ts}_{safe_cam}.mp4"
+                record_path = os.path.join(media_dir, video_filename)
+                # HA sometimes writes a .mp4.tmp first — we target .mp4 directly
+                # but also watch for the .tmp variant and rename it
                 await self.hass.services.async_call(
                     "camera", "record",
                     {"entity_id": camera, "duration": 30, "filename": record_path},
+                )
+                # Schedule a watcher to rename .mp4.tmp → .mp4 if HA writes a temp file
+                self.hass.async_create_task(
+                    self._async_watch_and_fix_video(record_path, timeout=90)
                 )
             except Exception as e:
                 _LOGGER.debug("Failed to record camera %s: %s", camera, e)

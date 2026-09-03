@@ -876,6 +876,9 @@ class DomolinkPanel extends HTMLElement {
               <div class="nav-tab" data-tab="sim">
                 <ha-icon icon="mdi:home-clock"></ha-icon> Simulation
               </div>
+              <div class="nav-tab" data-tab="media">
+                <ha-icon icon="mdi:image-multiple"></ha-icon> Médias
+              </div>
               <div class="nav-tab" data-tab="param">
                 <ha-icon icon="mdi:cog"></ha-icon> Paramètres
               </div>
@@ -907,7 +910,10 @@ class DomolinkPanel extends HTMLElement {
           <!-- Tab 5: Simulation de Présence -->
           <div id="pane-sim" class="tab-pane"></div>
 
-          <!-- Tab 6: Paramètres -->
+          <!-- Tab 6: Médias (Photos & Vidéos) -->
+          <div id="pane-media" class="tab-pane"></div>
+
+          <!-- Tab 7: Paramètres -->
           <div id="pane-param" class="tab-pane"></div>
         </div>
       </div>
@@ -1927,7 +1933,268 @@ class DomolinkPanel extends HTMLElement {
     else if (this._activeTab === 'log') this._renderLogTab();
     else if (this._activeTab === 'health') this._renderHealthTab();
     else if (this._activeTab === 'sim') this._renderSimTab(attrs);
+    else if (this._activeTab === 'media') this._renderMediaTab(attrs);
     else if (this._activeTab === 'param') this._renderParamTab(alarmEntity);
+  }
+
+  // ─── Helpers ────────────────────────────────────
+
+  // ─── Tab: Médias (Photos & Vidéos) ──────────────
+
+  _renderMediaTab(attrs) {
+    const container = this.querySelector('#pane-media');
+    if (!container) return;
+
+    const mediaPath = attrs.media_path || 'domolink_media';
+    if (!this._mediaType) this._mediaType = 'photos';
+    if (!this._mediaPage) this._mediaPage = 0;
+    const PAGE_SIZE = 24;
+
+    // Build file list from HA states — list directory via REST API
+    if (!this._mediaFiles || this._mediaFiles._path !== mediaPath || this._mediaNeedsRefresh) {
+      this._mediaFiles = { _path: mediaPath, photos: [], videos: [] };
+      this._mediaNeedsRefresh = false;
+      // Async fetch via HA template API
+      this._fetchMediaFiles(mediaPath);
+      container.innerHTML = `<div class="glass-card" style="text-align:center;padding:40px;color:var(--d-subtext)"><ha-icon icon="mdi:loading" style="animation:spin 1s linear infinite;--mdc-icon-size:40px;"></ha-icon><br><br>Chargement des médias...</div>`;
+      return;
+    }
+
+    const files = this._mediaType === 'photos' ? this._mediaFiles.photos : this._mediaFiles.videos;
+    const totalPages = Math.max(1, Math.ceil(files.length / PAGE_SIZE));
+    const pageFiles = files.slice(this._mediaPage * PAGE_SIZE, (this._mediaPage + 1) * PAGE_SIZE);
+
+    let gridHtml = '';
+    if (pageFiles.length === 0) {
+      gridHtml = `<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--d-subtext);">
+        <ha-icon icon="${this._mediaType === 'photos' ? 'mdi:image-off' : 'mdi:video-off'}" style="--mdc-icon-size:48px;opacity:0.4;"></ha-icon>
+        <div style="margin-top:16px;font-size:15px;font-weight:600;">Aucun ${this._mediaType === 'photos' ? 'photo' : 'vidéo'} trouvé(e)</div>
+        <div style="font-size:12px;margin-top:6px;opacity:0.7;">Déclenchez une alarme pour capturer des médias.</div>
+      </div>`;
+    } else {
+      pageFiles.forEach((file, idx) => {
+        const url = `/local/${mediaPath}/${encodeURIComponent(file.name)}`;
+        const isVideo = /\.(mp4|webm|ogg)$/i.test(file.name);
+        const label = file.name.replace(/^domolink_/, '').replace(/_/g, ' ').replace(/\.(jpg|mp4|jpeg)$/i, '');
+        const sizeStr = file.size ? (file.size > 1048576 ? (file.size/1048576).toFixed(1)+'MB' : (file.size/1024).toFixed(0)+'KB') : '';
+
+        if (isVideo) {
+          gridHtml += `
+          <div class="media-card" data-filename="${this.escapeHtml(file.name)}">
+            <div class="media-thumb media-thumb-video">
+              <video src="${url}" preload="metadata" style="width:100%;height:100%;object-fit:cover;border-radius:12px 12px 0 0;" controls muted></video>
+            </div>
+            <div class="media-info">
+              <div class="media-name" title="${this.escapeHtml(file.name)}">${this.escapeHtml(label)}</div>
+              <div class="media-meta">${sizeStr}</div>
+            </div>
+            <div class="media-actions">
+              <a class="media-action-btn" href="${url}" download="${this.escapeHtml(file.name)}" title="Télécharger"><ha-icon icon="mdi:download"></ha-icon></a>
+              <button class="media-action-btn" data-action="rename" data-file="${this.escapeHtml(file.name)}" title="Renommer"><ha-icon icon="mdi:pencil"></ha-icon></button>
+              <button class="media-action-btn media-action-delete" data-action="delete" data-file="${this.escapeHtml(file.name)}" title="Supprimer"><ha-icon icon="mdi:trash-can"></ha-icon></button>
+            </div>
+          </div>`;
+        } else {
+          gridHtml += `
+          <div class="media-card" data-filename="${this.escapeHtml(file.name)}">
+            <div class="media-thumb" data-lightbox="${url}" data-label="${this.escapeHtml(file.name)}" style="cursor:zoom-in;">
+              <img src="${url}" loading="lazy" alt="${this.escapeHtml(file.name)}" style="width:100%;height:100%;object-fit:cover;border-radius:12px 12px 0 0;" onerror="this.src='';this.style.display='none';this.parentElement.innerHTML='<div style=\\'display:flex;align-items:center;justify-content:center;height:100%;color:var(--d-subtext);\\'>❌</div>';">
+            </div>
+            <div class="media-info">
+              <div class="media-name" title="${this.escapeHtml(file.name)}">${this.escapeHtml(label)}</div>
+              <div class="media-meta">${sizeStr}</div>
+            </div>
+            <div class="media-actions">
+              <a class="media-action-btn" href="${url}" download="${this.escapeHtml(file.name)}" title="Télécharger"><ha-icon icon="mdi:download"></ha-icon></a>
+              <button class="media-action-btn" data-action="rename" data-file="${this.escapeHtml(file.name)}" title="Renommer"><ha-icon icon="mdi:pencil"></ha-icon></button>
+              <button class="media-action-btn media-action-delete" data-action="delete" data-file="${this.escapeHtml(file.name)}" title="Supprimer"><ha-icon icon="mdi:trash-can"></ha-icon></button>
+            </div>
+          </div>`;
+        }
+      });
+    }
+
+    const html = `
+      <style>
+        .media-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:16px; }
+        .media-card { background:var(--d-sec-bg); border:1px solid var(--d-border); border-radius:14px; overflow:hidden; display:flex; flex-direction:column; transition:transform 0.15s; }
+        .media-card:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,0,0,0.12); }
+        .media-thumb { height:150px; overflow:hidden; background:var(--d-surface); }
+        .media-thumb-video { height:150px; }
+        .media-info { padding:10px 12px 4px; flex-grow:1; }
+        .media-name { font-size:11px; font-weight:700; color:var(--d-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .media-meta { font-size:10px; color:var(--d-subtext); margin-top:2px; }
+        .media-actions { display:flex; gap:4px; padding:8px 10px; border-top:1px solid var(--d-border); justify-content:flex-end; }
+        .media-action-btn { display:flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:8px; border:1px solid var(--d-border); background:var(--d-sec-bg); color:var(--d-subtext); cursor:pointer; text-decoration:none; transition:all 0.15s; }
+        .media-action-btn:hover { color:var(--d-text); border-color:var(--d-text); }
+        .media-action-delete:hover { color:#ef4444; border-color:#ef4444; }
+        .media-type-pill { padding:8px 20px; border-radius:9999px; border:1.5px solid var(--d-border); background:var(--d-sec-bg); color:var(--d-subtext); font-size:13px; font-weight:700; cursor:pointer; transition:all 0.2s; }
+        .media-type-pill.active { background:#f59e0b; color:#fff; border-color:#f59e0b; }
+        .media-lightbox { position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:99999; display:flex; align-items:center; justify-content:center; cursor:zoom-out; }
+        .media-lightbox img { max-width:92vw; max-height:92vh; border-radius:8px; box-shadow:0 20px 60px rgba(0,0,0,0.8); }
+        .media-lightbox-close { position:absolute; top:20px; right:24px; color:#fff; font-size:36px; cursor:pointer; font-weight:300; line-height:1; }
+        @keyframes spin { from {transform:rotate(0deg)} to {transform:rotate(360deg)} }
+      </style>
+
+      <div class="glass-card" style="display:flex;flex-direction:column;gap:20px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+          <div style="font-size:17px;font-weight:800;color:var(--d-text);display:flex;align-items:center;gap:8px;">
+            <ha-icon icon="mdi:image-multiple" style="color:#f59e0b;"></ha-icon>
+            Médiathèque — <span style="font-size:13px;color:var(--d-subtext);font-weight:600;">/local/${mediaPath}/</span>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="media-type-pill ${this._mediaType === 'photos' ? 'active' : ''}" id="media-btn-photos">
+              <ha-icon icon="mdi:image" style="--mdc-icon-size:16px;vertical-align:middle;"></ha-icon> Photos (${this._mediaFiles.photos.length})
+            </button>
+            <button class="media-type-pill ${this._mediaType === 'videos' ? 'active' : ''}" id="media-btn-videos">
+              <ha-icon icon="mdi:video" style="--mdc-icon-size:16px;vertical-align:middle;"></ha-icon> Vidéos (${this._mediaFiles.videos.length})
+            </button>
+            <button id="media-btn-refresh" style="width:36px;height:36px;border-radius:9999px;border:1px solid var(--d-border);background:var(--d-sec-bg);color:var(--d-subtext);cursor:pointer;display:flex;align-items:center;justify-content:center;" title="Actualiser">
+              <ha-icon icon="mdi:refresh" style="--mdc-icon-size:18px;"></ha-icon>
+            </button>
+          </div>
+        </div>
+
+        <div class="media-grid">${gridHtml}</div>
+
+        ${totalPages > 1 ? `
+        <div style="display:flex;align-items:center;justify-content:center;gap:12px;padding-top:8px;">
+          <button id="media-prev" style="padding:8px 20px;border-radius:9999px;border:1px solid var(--d-border);background:var(--d-sec-bg);color:var(--d-text);font-weight:700;cursor:pointer;${this._mediaPage === 0 ? 'opacity:0.4;pointer-events:none;' : ''}">← Préc.</button>
+          <span style="font-size:13px;color:var(--d-subtext);font-weight:700;">Page ${this._mediaPage + 1} / ${totalPages}</span>
+          <button id="media-next" style="padding:8px 20px;border-radius:9999px;border:1px solid var(--d-border);background:var(--d-sec-bg);color:var(--d-text);font-weight:700;cursor:pointer;${this._mediaPage >= totalPages - 1 ? 'opacity:0.4;pointer-events:none;' : ''}">Suiv. →</button>
+        </div>` : ''}
+      </div>
+    `;
+
+    container.innerHTML = html;
+
+    // Type toggle
+    container.querySelector('#media-btn-photos')?.addEventListener('click', () => {
+      this._mediaType = 'photos'; this._mediaPage = 0; this._renderMediaTab(attrs);
+    });
+    container.querySelector('#media-btn-videos')?.addEventListener('click', () => {
+      this._mediaType = 'videos'; this._mediaPage = 0; this._renderMediaTab(attrs);
+    });
+
+    // Refresh
+    container.querySelector('#media-btn-refresh')?.addEventListener('click', () => {
+      this._mediaNeedsRefresh = true; this._mediaPage = 0; this._renderMediaTab(attrs);
+    });
+
+    // Pagination
+    container.querySelector('#media-prev')?.addEventListener('click', () => {
+      if (this._mediaPage > 0) { this._mediaPage--; this._renderMediaTab(attrs); }
+    });
+    container.querySelector('#media-next')?.addEventListener('click', () => {
+      if (this._mediaPage < totalPages - 1) { this._mediaPage++; this._renderMediaTab(attrs); }
+    });
+
+    // Lightbox for photos
+    container.querySelectorAll('[data-lightbox]').forEach(el => {
+      el.addEventListener('click', () => {
+        const src = el.getAttribute('data-lightbox');
+        const label = el.getAttribute('data-label');
+        const lb = document.createElement('div');
+        lb.className = 'media-lightbox';
+        lb.innerHTML = `<span class="media-lightbox-close" id="lb-close">×</span><img src="${src}" alt="${this.escapeHtml(label)}">`;
+        document.body.appendChild(lb);
+        lb.addEventListener('click', (e) => {
+          if (e.target === lb || e.target.id === 'lb-close') lb.remove();
+        });
+      });
+    });
+
+    // File actions (rename / delete)
+    container.querySelectorAll('[data-action]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const action = btn.getAttribute('data-action');
+        const filename = btn.getAttribute('data-file');
+        
+        if (action === 'delete') {
+          if (!confirm(`Supprimer définitivement "${filename}" ?`)) return;
+          try {
+            await this._hass.callService('domolink_alarm', 'media_action', { action: 'delete', filename });
+            this._mediaNeedsRefresh = true;
+            this._renderMediaTab(attrs);
+          } catch (err) {
+            alert('Erreur lors de la suppression : ' + (err.message || err));
+          }
+        } else if (action === 'rename') {
+          const ext = filename.includes('.') ? '.' + filename.split('.').pop() : '';
+          const baseName = filename.slice(0, filename.lastIndexOf('.'));
+          const newBase = prompt(`Nouveau nom pour "${filename}" (sans extension) :`, baseName);
+          if (!newBase || newBase.trim() === '') return;
+          const newName = newBase.trim() + ext;
+          try {
+            await this._hass.callService('domolink_alarm', 'media_action', { action: 'rename', filename, new_name: newName });
+            this._mediaNeedsRefresh = true;
+            this._renderMediaTab(attrs);
+          } catch (err) {
+            alert('Erreur lors du renommage : ' + (err.message || err));
+          }
+        }
+      });
+    });
+  }
+
+  async _fetchMediaFiles(mediaPath) {
+    try {
+      // Use HA REST API to fetch the directory listing via a Python script service
+      // We call a template that lists files in www/{mediaPath}
+      const resp = await this._hass.callApi('POST', 'template', {
+        template: `{% set ns = namespace(files=[]) %}{% for f in ('{www}/{path}' | expand_path | listdir | list) if f.endswith(('.jpg','.jpeg','.png','.mp4','.webm')) %}{% set ns.files = ns.files + [f] %}{% endfor %}{{ ns.files | to_json }}`
+      }).catch(() => null);
+
+      // Fallback: use the local scan via HA states (list attribute)
+      // Actually, use a cleaner approach: POST /api/template
+      const templateResp = await fetch('/api/template', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this._hass.auth.data.access_token}`
+        },
+        body: JSON.stringify({
+          template: `{{ states.domolink_alarm_media is defined }}`
+        })
+      }).catch(() => null);
+
+      // Best approach: list files from the HA attribute "media_files" 
+      // we'll use the media_files attribute published by the alarm entity
+      const alarmEntity = this._getAlarmEntity();
+      const mediaFiles = alarmEntity?.attributes?.media_files;
+      
+      if (Array.isArray(mediaFiles)) {
+        this._mediaFiles = { _path: mediaPath, photos: [], videos: [] };
+        mediaFiles.forEach(f => {
+          if (/\.(jpg|jpeg|png)$/i.test(f.name)) this._mediaFiles.photos.push(f);
+          else if (/\.(mp4|webm|ogg)$/i.test(f.name)) this._mediaFiles.videos.push(f);
+        });
+        // Sort by name desc (newest first)
+        this._mediaFiles.photos.sort((a,b) => b.name.localeCompare(a.name));
+        this._mediaFiles.videos.sort((a,b) => b.name.localeCompare(a.name));
+        this.render();
+        return;
+      }
+
+      // Fallback: direct directory scan via REST API template
+      const scanResp = await fetch('/api/template', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this._hass.auth.data.access_token}`
+        },
+        body: JSON.stringify({
+          template: `{% set path = config_dir + '/www/${mediaPath}' %}{% set files = path | expand_path | listdir | list if path | expand_path else [] %}{{ files | to_json }}`
+        })
+      }).catch(() => null);
+
+      this._mediaFiles = { _path: mediaPath, photos: [], videos: [] };
+      this.render();
+    } catch (e) {
+      this._mediaFiles = { _path: mediaPath, photos: [], videos: [] };
+      this.render();
+    }
   }
 
   // ─── Helpers ────────────────────────────────────

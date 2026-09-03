@@ -94,7 +94,8 @@
                     "ftp_port": "Port FTP (défaut 21)",
                     "ftp_user": "Utilisateur FTP",
                     "ftp_pass": "Mot de passe FTP",
-                    "ftp_path": "Chemin FTP (ex: /domolink/)"
+                    "ftp_path": "Chemin FTP (ex: /domolink/)",
+                    "media_path": "Répertoire de stockage des médias (sous www/)"
                 }
             }
         },
@@ -200,7 +201,8 @@
                     "ftp_port": "Port FTP (défaut 21)",
                     "ftp_user": "Utilisateur FTP",
                     "ftp_pass": "Mot de passe FTP",
-                    "ftp_path": "Chemin FTP (ex: /domolink/)"
+                    "ftp_path": "Chemin FTP (ex: /domolink/)",
+                    "media_path": "Répertoire de stockage des médias (sous www/)"
                 }
             }
         }
