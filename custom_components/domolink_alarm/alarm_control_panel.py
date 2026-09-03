@@ -61,6 +61,9 @@ from .const import (
     CONF_CHIME_MODE,
     CONF_SAFETY_SENSORS,
     CONF_SAFETY_SENSORS_LABELS,
+    CONF_ZONE_LABELS,
+    CONF_GLOBAL_CAMERAS,
+    CONF_GLOBAL_CAMERAS_LABELS,
     CONF_PRESENCE_SIMULATION_ENTITIES,
     CONF_PRESENCE_SIMULATION_LABELS,
     CONF_PRESENCE_SIMULATION_HISTORY_DAYS,
@@ -186,7 +189,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.9.41",
+            sw_version="0.9.42",
         )
 
         self._siren_task = None
@@ -221,6 +224,79 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._cameras_armed = False
 
         self._load_config()
+
+    def _get_entity_labels(self, entity_id: str) -> set[str]:
+        """Get all labels attached to an entity or its parent device."""
+        if not entity_id:
+            return set()
+        labels = set()
+        try:
+            entity_reg = er.async_get(self.hass)
+            entry = entity_reg.async_get(entity_id)
+            if entry:
+                if entry.labels:
+                    labels.update(entry.labels)
+                if entry.device_id:
+                    device_reg = dr.async_get(self.hass)
+                    dev = device_reg.async_get(entry.device_id)
+                    if dev and dev.labels:
+                        labels.update(dev.labels)
+        except Exception as e:
+            _LOGGER.debug("Domolink: Erreur lecture labels pour %s: %s", entity_id, e)
+        return labels
+
+    def _get_cameras_for_sensor(self, sensor_entity_id: str = None) -> tuple[list[str], set[str]]:
+        """Return cameras associated with the triggering sensor's zone, plus global cameras."""
+        if not self._cameras:
+            return ([], set())
+        
+        if not sensor_entity_id or not self._zone_labels:
+            return (list(self._cameras), set())
+        
+        sensor_labels = self._get_entity_labels(sensor_entity_id)
+        matching_zones = sensor_labels.intersection(self._zone_labels)
+        
+        if not matching_zones:
+            return (list(self._cameras), set())
+        
+        # Find cameras that share at least one matching zone
+        zone_cameras = []
+        for cam in self._cameras:
+            cam_labels = self._get_entity_labels(cam)
+            if cam_labels.intersection(matching_zones):
+                zone_cameras.append(cam)
+        
+        # Add global cameras
+        combined = list(zone_cameras)
+        for g_cam in self._global_cameras:
+            if g_cam in self._cameras and g_cam not in combined:
+                combined.append(g_cam)
+                
+        # Fallback to all cameras if no camera in this zone
+        if not combined:
+            return (list(self._cameras), matching_zones)
+            
+        return (combined, matching_zones)
+
+    def _get_entity_zones_map(self) -> dict[str, list[str]]:
+        """Return mapping of entity_id -> list of zone label IDs."""
+        if not self._zone_labels:
+            return {}
+        all_monitored = set(
+            self._opening_sensors
+            + self._motion_sensors
+            + self._night_sensors
+            + self._cameras
+            + self._safety_sensors
+            + self._tamper_sensors
+        )
+        zones_map = {}
+        for eid in all_monitored:
+            labels = self._get_entity_labels(eid)
+            matching = list(labels.intersection(self._zone_labels))
+            if matching:
+                zones_map[eid] = matching
+        return zones_map
 
     def _resolve_labels(self, label_ids: list, allowed_domains: list = None) -> list:
         """Find all entities matching the given labels and domains."""
@@ -342,6 +418,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._ftp_pass = options.get("ftp_pass", data.get("ftp_pass", ""))
         self._ftp_path = options.get("ftp_path", data.get("ftp_path", "/"))
         self._cameras_arm_entities = options.get("cameras_arm_entities", data.get("cameras_arm_entities", []))
+        self._zone_labels = options.get("zone_labels", data.get("zone_labels", [])) or []
+        self._global_cameras = get_merged("global_cameras", "global_cameras_labels", ["camera"])
         self._media_path = options.get("media_path", data.get("media_path", "domolink_media")).strip().strip("/")
         
         # Migration & Loading of iCloud devices
@@ -429,6 +507,9 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             "cameras_arm_entities": self._cameras_arm_entities,
             "media_path": self._media_path,
             "media_files": self._list_media_files(),
+            "zone_labels": self._zone_labels,
+            "global_cameras": self._global_cameras,
+            "entity_zones": self._get_entity_zones_map(),
         }
 
     async def async_bypass_sensor(self, entity_id: str):
@@ -1552,7 +1633,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
         # ─── 4. NON-BLOCKING CAMERA SNAPSHOTS & RECORDINGS ────────────────────────
         if self._cameras:
-            self.hass.async_create_task(self._async_capture_cameras())
+            self.hass.async_create_task(self._async_capture_cameras(triggering_entity))
 
     def _list_media_files(self):
         """List all media files in the configured media directory (for the JS gallery)."""
@@ -1725,13 +1806,17 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             self._ftp_status = "Erreur"
         self.async_write_ha_state()
 
-    async def _async_capture_cameras(self):
-        """Asynchronously capture photos and trigger recordings with timeout protection."""
+    async def _async_capture_cameras(self, triggering_entity=None):
+        """Asynchronously capture photos and trigger recordings with targeted zone cameras."""
         if not self._cameras:
             return
 
-        # 1. Wake up cameras (turn_on for battery/sleep models like Arlo)
-        for camera in self._cameras:
+        target_cameras, matching_zones = self._get_cameras_for_sensor(triggering_entity)
+        if not target_cameras:
+            target_cameras = list(self._cameras)
+
+        # 1. Wake up target cameras (turn_on for battery/sleep models like Arlo)
+        for camera in target_cameras:
             try:
                 await self.hass.services.async_call(
                     "camera", "turn_on", {"entity_id": camera}
@@ -1746,9 +1831,10 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         media_dir = self.hass.config.path(f"www/{self._media_path}")
         os.makedirs(media_dir, exist_ok=True)
         
+        zone_desc = f" (Zone: {', '.join(matching_zones)})" if matching_zones else ""
         try:
-            self._log_event(f"Capture photo sur {len(self._cameras)} caméra(s)")
-            for idx, camera in enumerate(self._cameras):
+            self._log_event(f"Capture photo{zone_desc} sur {len(target_cameras)} caméra(s)")
+            for idx, camera in enumerate(target_cameras):
                 safe_cam = camera.replace(".", "_")
                 snapshot_filename = f"domolink_{ts}_{safe_cam}.jpg"
                 snapshot_path = os.path.join(media_dir, snapshot_filename)
@@ -1791,8 +1877,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             _LOGGER.debug("Domolink: Erreur globale capture photo: %s", e)
 
         # Video recording with .mp4.tmp fix
-        self._log_event(f"Lancement de l'enregistrement sur {len(self._cameras)} caméra(s)")
-        for camera in self._cameras:
+        self._log_event(f"Lancement de l'enregistrement{zone_desc} sur {len(target_cameras)} caméra(s)")
+        for camera in target_cameras:
             try:
                 safe_cam = camera.replace(".", "_")
                 video_filename = f"domolink_{ts}_{safe_cam}.mp4"

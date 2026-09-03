@@ -97,6 +97,15 @@
                     "ftp_path": "Chemin FTP (ex: /domolink/)",
                     "media_path": "Répertoire de stockage des médias (sous www/)"
                 }
+            },
+            "zones": {
+                "title": "Zones de surveillance (Association Caméras & Capteurs)",
+                "description": "Sélectionnez les étiquettes définissant vos zones. Les capteurs et caméras portant la même étiquette seront automatiquement associés pour déclencher la vidéo et photo ciblée.",
+                "data": {
+                    "zone_labels": "Étiquettes de Zones (ex: Zone 1, Zone 2, Salon...)",
+                    "global_cameras": "Caméras Globales (filmant toujours, quelle que soit la zone)",
+                    "global_cameras_labels": "Étiquettes (Caméras Globales)"
+                }
             }
         },
         "error": {
@@ -203,6 +212,15 @@
                     "ftp_pass": "Mot de passe FTP",
                     "ftp_path": "Chemin FTP (ex: /domolink/)",
                     "media_path": "Répertoire de stockage des médias (sous www/)"
+                }
+            },
+            "zones": {
+                "title": "Zones de surveillance (Association Caméras & Capteurs)",
+                "description": "Sélectionnez les étiquettes définissant vos zones. Les capteurs et caméras portant la même étiquette seront automatiquement associés pour déclencher la vidéo et photo ciblée.",
+                "data": {
+                    "zone_labels": "Étiquettes de Zones (ex: Zone 1, Zone 2, Salon...)",
+                    "global_cameras": "Caméras Globales (filmant toujours, quelle que soit la zone)",
+                    "global_cameras_labels": "Étiquettes (Caméras Globales)"
                 }
             }
         }

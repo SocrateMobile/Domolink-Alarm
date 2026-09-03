@@ -790,6 +790,25 @@ class DomolinkPanel extends HTMLElement {
         .equip-icon-disc.active { background: rgba(239, 68, 68, 0.15); color: #ef4444; border-color: rgba(239, 68, 68, 0.3); }
         .equip-icon-disc.success { background: rgba(16, 185, 129, 0.15); color: #10b981; border-color: rgba(16, 185, 129, 0.3); }
         .equip-icon-disc.bypassed { background: rgba(245, 158, 11, 0.15); color: #f59e0b; border-color: rgba(245, 158, 11, 0.3); }
+        .zone-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 3px;
+          padding: 2px 7px;
+          border-radius: 9999px;
+          background: rgba(245, 158, 11, 0.12);
+          color: #f59e0b;
+          border: 1px solid rgba(245, 158, 11, 0.28);
+          font-size: 10px;
+          font-weight: 700;
+          margin-left: 6px;
+          vertical-align: middle;
+        }
+        .zone-badge.global {
+          background: rgba(59, 130, 246, 0.12);
+          color: #3b82f6;
+          border-color: rgba(59, 130, 246, 0.28);
+        }
 
         .btn-action-pill {
           padding: 6px 12px;
@@ -1505,6 +1524,8 @@ class DomolinkPanel extends HTMLElement {
     const container = this.querySelector('#pane-equip');
     if (!container) return;
     const bypassedSensors = attrs.bypassed_sensors || [];
+    const entityZones = attrs.entity_zones || {};
+    const globalCameras = attrs.global_cameras || [];
 
     const categories = [
       { key: "opening_sensors", icon: "mdi:door-open", name: "Capteurs d'ouverture" },
@@ -1555,13 +1576,22 @@ class DomolinkPanel extends HTMLElement {
 
         let iconDiscClass = isBypassed ? "bypassed" : (activeClass === "active" ? "active" : (activeClass === "active-success" ? "success" : ""));
 
+        // Zone badges
+        const zones = entityZones[entityId] || [];
+        const zoneBadgeHtml = zones.map(z => `<span class="zone-badge" title="Zone: ${this.escapeHtml(z)}"><ha-icon icon="mdi:map-marker-radius" style="--mdc-icon-size:11px;"></ha-icon> ${this.escapeHtml(z)}</span>`).join('');
+        const globalBadgeHtml = globalCameras.includes(entityId) ? `<span class="zone-badge global" title="Caméra Globale"><ha-icon icon="mdi:earth" style="--mdc-icon-size:11px;"></ha-icon> Globale</span>` : '';
+
         html += `
           <div class="equip-item-card">
             <div class="equip-icon-disc ${iconDiscClass}">
               <ha-icon icon="${isBypassed ? 'mdi:shield-off' : cat.icon}"></ha-icon>
             </div>
             <div style="flex-grow:1; min-width:0;">
-              <div style="font-size:14px; font-weight:700; color:var(--d-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${this.escapeHtml(friendlyName)}</div>
+              <div style="font-size:14px; font-weight:700; color:var(--d-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:center; flex-wrap:wrap; gap:4px;">
+                <span>${this.escapeHtml(friendlyName)}</span>
+                ${zoneBadgeHtml}
+                ${globalBadgeHtml}
+              </div>
               <div style="font-size:12px; color:${isBypassed ? '#f59e0b' : (activeClass === 'active' ? '#ef4444' : 'var(--d-subtext)')}; margin-top:2px; font-weight:600;">
                 ${isBypassed ? '⚠️ Exclu de la surveillance' : this.escapeHtml(stateStr)}
               </div>
