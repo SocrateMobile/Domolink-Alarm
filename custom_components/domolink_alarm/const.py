@@ -117,3 +117,8 @@ CONF_CAMERAS_ARM_ENTITIES = "cameras_arm_entities"
 # Media Storage
 CONF_MEDIA_PATH = "media_path"
 DEFAULT_MEDIA_PATH = "domolink_media"
+
+# Zones & Targeted Cameras
+CONF_ZONE_LABELS = "zone_labels"
+CONF_GLOBAL_CAMERAS = "global_cameras"
+CONF_GLOBAL_CAMERAS_LABELS = "global_cameras_labels"

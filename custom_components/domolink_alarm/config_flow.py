@@ -104,6 +104,9 @@ from .const import (
     CONF_MEDIA_PATH,
     DEFAULT_MEDIA_PATH,
     CONF_CAMERAS_ARM_ENTITIES,
+    CONF_ZONE_LABELS,
+    CONF_GLOBAL_CAMERAS,
+    CONF_GLOBAL_CAMERAS_LABELS,
 )
 
 
@@ -187,7 +190,7 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Step 2: Configure actuators."""
         if user_input is not None:
             self.data.update(user_input)
-            return await self.async_step_logic()
+            return await self.async_step_zones()
 
         return self.async_show_form(
             step_id="actuators",
@@ -221,6 +224,29 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         selector.EntitySelectorConfig(domain=["light", "switch", "cover"], multiple=True)
                     ),
                     vol.Optional(CONF_PRESENCE_SIMULATION_LABELS, default=[]): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
+                }
+            ),
+        )
+
+    async def async_step_zones(self, user_input=None):
+        """Step 3: Configure surveillance zones and targeted cameras."""
+        if user_input is not None:
+            self.data.update(user_input)
+            return await self.async_step_logic()
+
+        return self.async_show_form(
+            step_id="zones",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(CONF_ZONE_LABELS, default=[]): selector.LabelSelector(
+                        selector.LabelSelectorConfig(multiple=True)
+                    ),
+                    vol.Optional(CONF_GLOBAL_CAMERAS, default=[]): selector.EntitySelector(
+                        selector.EntitySelectorConfig(domain="camera", multiple=True)
+                    ),
+                    vol.Optional(CONF_GLOBAL_CAMERAS_LABELS, default=[]): selector.LabelSelector(
+                        selector.LabelSelectorConfig(multiple=True)
+                    ),
                 }
             ),
         )
@@ -388,7 +414,7 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
         """Step 2: Configure actuators."""
         if user_input is not None:
             self.options.update(user_input)
-            return await self.async_step_logic()
+            return await self.async_step_zones()
 
         return self.async_show_form(
             step_id="actuators",
@@ -422,6 +448,29 @@ class DomolinkAlarmOptionsFlow(config_entries.OptionsFlow):
                         selector.EntitySelectorConfig(domain=["light", "switch", "cover"], multiple=True)
                     ),
                     vol.Optional(CONF_PRESENCE_SIMULATION_LABELS, default=self.options.get(CONF_PRESENCE_SIMULATION_LABELS, [])): selector.LabelSelector(selector.LabelSelectorConfig(multiple=True)),
+                }
+            ),
+        )
+
+    async def async_step_zones(self, user_input=None):
+        """Step 3: Configure surveillance zones and targeted cameras."""
+        if user_input is not None:
+            self.options.update(user_input)
+            return await self.async_step_logic()
+
+        return self.async_show_form(
+            step_id="zones",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(CONF_ZONE_LABELS, default=self.options.get(CONF_ZONE_LABELS, [])): selector.LabelSelector(
+                        selector.LabelSelectorConfig(multiple=True)
+                    ),
+                    vol.Optional(CONF_GLOBAL_CAMERAS, default=self.options.get(CONF_GLOBAL_CAMERAS, [])): selector.EntitySelector(
+                        selector.EntitySelectorConfig(domain="camera", multiple=True)
+                    ),
+                    vol.Optional(CONF_GLOBAL_CAMERAS_LABELS, default=self.options.get(CONF_GLOBAL_CAMERAS_LABELS, [])): selector.LabelSelector(
+                        selector.LabelSelectorConfig(multiple=True)
+                    ),
                 }
             ),
         )
