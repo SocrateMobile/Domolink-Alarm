@@ -2177,49 +2177,59 @@ class DomolinkPanel extends HTMLElement {
 
         const modal = document.createElement('div');
         modal.className = 'media-lightbox';
+        modal.style = "position:fixed;inset:0;background:rgba(0,0,0,0.92);backdrop-filter:blur(8px);z-index:999999;display:flex;align-items:center;justify-content:center;padding:20px;cursor:default;";
         modal.innerHTML = `
-          <div class="video-modal-container" id="video-modal-box">
-            <div class="video-modal-header">
+          <div class="video-modal-container" id="video-modal-box" style="background:#18181b;border:1px solid rgba(255,255,255,0.18);border-radius:16px;overflow:hidden;width:92vw;max-width:860px;box-shadow:0 25px 60px rgba(0,0,0,0.85);display:flex;flex-direction:column;">
+            <div class="video-modal-header" style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:#27272a;border-bottom:1px solid rgba(255,255,255,0.1);color:#fff;font-weight:700;font-size:14px;">
               <div style="display:flex;align-items:center;gap:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
                 <ha-icon icon="mdi:video" style="color:#f59e0b;--mdc-icon-size:20px;"></ha-icon>
                 <span>${this.escapeHtml(label)}</span>
               </div>
-              <span class="media-lightbox-close" id="vid-close" style="position:static;font-size:26px;">×</span>
+              <span class="media-lightbox-close" id="vid-close" style="position:static;font-size:28px;cursor:pointer;line-height:1;">×</span>
             </div>
-            <div class="video-modal-body">
-              <video id="active-video-player" controls autoplay playsinline preload="auto">
-                <source src="${url}" type="video/mp4">
-                <p style="color:#ef4444;padding:20px;text-align:center;">Votre navigateur ne supporte pas la lecture directe de ce format vidéo.</p>
-              </video>
+            <div class="video-modal-body" style="position:relative;background:#000;display:flex;align-items:center;justify-content:center;min-height:260px;max-height:68vh;">
+              <video id="active-video-player" src="${url}" controls autoplay playsinline preload="auto" style="width:100%;max-height:68vh;background:#000;display:block;outline:none;"></video>
             </div>
-            <div class="video-modal-footer">
+            <div class="video-modal-footer" style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#27272a;border-top:1px solid rgba(255,255,255,0.1);flex-wrap:wrap;gap:10px;">
               <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                <a class="video-modal-btn primary" href="${url}" download="${this.escapeHtml(label)}">
+                <a class="video-modal-btn primary" href="${url}" download="${this.escapeHtml(label)}" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;background:#f59e0b;color:#fff;text-decoration:none;">
                   <ha-icon icon="mdi:download" style="--mdc-icon-size:16px;"></ha-icon> Télécharger le MP4
                 </a>
-                <a class="video-modal-btn secondary" href="${url}" target="_blank">
+                <a class="video-modal-btn secondary" href="${url}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;background:rgba(255,255,255,0.1);color:#e4e4e7;text-decoration:none;">
                   <ha-icon icon="mdi:open-in-new" style="--mdc-icon-size:16px;"></ha-icon> Ouvrir dans un onglet
                 </a>
               </div>
-              <button class="video-modal-btn secondary" id="vid-btn-close">Fermer</button>
+              <button class="video-modal-btn secondary" id="vid-btn-close" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;background:rgba(255,255,255,0.1);color:#e4e4e7;border:none;cursor:pointer;">Fermer</button>
             </div>
           </div>
         `;
-        document.body.appendChild(modal);
+        this.appendChild(modal);
 
         const videoEl = modal.querySelector('#active-video-player');
         if (videoEl) {
-          videoEl.play().catch(() => {});
+          const playPromise = videoEl.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(() => {
+              // Browser autoplay policy might block sound; mute and retry automatically
+              videoEl.muted = true;
+              videoEl.play().catch(() => {});
+            });
+          }
+
           videoEl.addEventListener('error', () => {
             const errBox = document.createElement('div');
-            errBox.style = "position:absolute;inset:0;background:rgba(0,0,0,0.88);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;color:#fff;";
+            errBox.style = "position:absolute;inset:0;background:rgba(18,18,20,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;color:#fff;z-index:10;";
             errBox.innerHTML = `
-              <ha-icon icon="mdi:alert-circle" style="color:#ef4444;--mdc-icon-size:42px;margin-bottom:12px;"></ha-icon>
-              <div style="font-weight:700;font-size:15px;margin-bottom:6px;">Format vidéo non décodable directement</div>
-              <div style="font-size:12px;opacity:0.8;max-width:440px;margin-bottom:16px;">Ce flux est encodé dans un format caméra que le moteur de rendu de votre navigateur ne peut pas lire en direct. Vous pouvez télécharger le fichier pour le visionner avec votre lecteur habituel (VLC, etc.).</div>
-              <a class="video-modal-btn primary" href="${url}" download="${this.escapeHtml(label)}">
-                <ha-icon icon="mdi:download" style="--mdc-icon-size:16px;"></ha-icon> Télécharger le fichier MP4
-              </a>
+              <ha-icon icon="mdi:alert-circle" style="color:#ef4444;--mdc-icon-size:46px;margin-bottom:12px;"></ha-icon>
+              <div style="font-weight:700;font-size:16px;margin-bottom:8px;">Vidéo incomplète ou non décodable</div>
+              <div style="font-size:13px;opacity:0.85;max-width:440px;line-height:1.5;margin-bottom:18px;">
+                Ce fichier est incomplet (enregistré lors d'un test précédent) ou utilise un codec non supporté en direct par le navigateur. Vous pouvez le supprimer avec l'icône 🗑️ Corbeille et déclencher l'alarme pour créer un nouvel enregistrement valide.
+              </div>
+              <div style="display:flex;gap:10px;">
+                <a class="video-modal-btn primary" href="${url}" download="${this.escapeHtml(label)}" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;background:#f59e0b;color:#fff;text-decoration:none;">
+                  <ha-icon icon="mdi:download" style="--mdc-icon-size:16px;"></ha-icon> Télécharger le fichier MP4
+                </a>
+              </div>
             `;
             videoEl.parentElement.appendChild(errBox);
           });
@@ -2228,7 +2238,8 @@ class DomolinkPanel extends HTMLElement {
         const closeModal = () => {
           if (videoEl) {
             videoEl.pause();
-            videoEl.src = "";
+            videoEl.removeAttribute('src');
+            videoEl.load();
           }
           modal.remove();
         };
