@@ -113,3 +113,7 @@ DEFAULT_FTP_ENABLED = False
 DEFAULT_FTP_PORT = 21
 DEFAULT_FTP_PATH = "/"
 CONF_CAMERAS_ARM_ENTITIES = "cameras_arm_entities"
+
+# Media Storage
+CONF_MEDIA_PATH = "media_path"
+DEFAULT_MEDIA_PATH = "domolink_media"
