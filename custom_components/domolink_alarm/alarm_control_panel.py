@@ -523,6 +523,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             "entity_zones": self._get_entity_zones_map(),
             "disarm_cooldown": self._disarm_cooldown_task is not None,
             "camera_test_running": getattr(self, "_is_testing_cameras", False),
+            "camera_test_info": getattr(self, "_camera_test_info", {}),
         }
 
     async def async_bypass_sensor(self, entity_id: str):
@@ -1767,8 +1768,19 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         """Run sequential snapshot and 30s video recording for each camera."""
         import shutil
         from datetime import datetime as _dt
+        import time
 
         self._is_testing_cameras = True
+        total_cams = len(self._cameras)
+        
+        self._camera_test_info = {
+            "total": total_cams,
+            "current": 0,
+            "camera_name": "",
+            "step": "init",
+            "video_start": 0,
+            "video_duration": 34
+        }
         self.async_write_ha_state()
 
         media_dir = self.hass.config.path(f"www/{self._media_path}")
@@ -1777,7 +1789,6 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         except Exception as e:
             _LOGGER.error("Domolink: Impossible de créer le répertoire média %s: %s", media_dir, e)
 
-        total_cams = len(self._cameras)
         self._log_event(f"🎬 Début du test d'enregistrement sur {total_cams} caméra(s)")
 
         for idx, camera in enumerate(self._cameras):
@@ -1785,6 +1796,11 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             cam_name = st.attributes.get("friendly_name", camera) if st else camera
             safe_cam = camera.replace(".", "_")
             ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+            
+            self._camera_test_info["current"] = idx + 1
+            self._camera_test_info["camera_name"] = cam_name
+            self._camera_test_info["step"] = "photo"
+            self.async_write_ha_state()
 
             # Wake up camera
             try:
@@ -1830,6 +1846,10 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 self._log_event(f"⚠️ Erreur photo sur {cam_name} : {e}")
 
             # 2. 30-second Video Recording
+            self._camera_test_info["step"] = "video"
+            self._camera_test_info["video_start"] = time.time()
+            self.async_write_ha_state()
+            
             self._log_event(f"🎥 Test ({idx+1}/{total_cams}) : Enregistrement 30s sur {cam_name}...")
             video_filename = f"domolink_test_{ts}_{safe_cam}.mp4"
             record_path = os.path.join(media_dir, video_filename)
@@ -1848,6 +1868,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             await asyncio.sleep(1.0)
 
         self._is_testing_cameras = False
+        self._camera_test_info = {}
         self._log_event("🎉 Test d'enregistrement terminé pour toutes les caméras ! Rendez-vous dans la Médiathèque.")
         self.async_write_ha_state()
 
