@@ -1044,7 +1044,8 @@ class DomolinkPanel extends HTMLElement {
     // 3. Status Hero Banner config
     const isDisarmed = state === 'disarmed';
     const isTriggered = state === 'triggered';
-    const isPending = state === 'pending' || state === 'arming';
+    const isArming = state === 'arming';
+    const isPending = state === 'pending';
     const isArmed = state.startsWith('armed');
 
     let heroClass = 'secure';
@@ -1060,13 +1061,23 @@ class DomolinkPanel extends HTMLElement {
     } else if (isTriggered) {
       heroClass = 'alert';
       heroIcon = 'mdi:bell-alert';
-      heroTitle = 'ALERTE INTRUSION';
-      heroDesc = attrs.triggered_by ? `Déclenchée par ${attrs.triggered_by}` : 'Sirènes et alertes actives !';
-    } else if (isPending) {
+      if (attrs.disarm_cooldown) {
+        heroTitle = 'ATTENTE DE DÉSARMEMENT';
+        heroDesc = 'Fin de sonnerie • Réarmement automatique dans 1 minute';
+      } else {
+        heroTitle = 'ALERTE INTRUSION';
+        heroDesc = attrs.triggered_by ? `Déclenchée par ${attrs.triggered_by}` : 'Sirènes et alertes actives !';
+      }
+    } else if (isArming) {
       heroClass = 'pending';
       heroIcon = 'mdi:timer-sand';
-      heroTitle = 'TEMPORISATION';
+      heroTitle = 'TEMPORISATION DE SORTIE';
       heroDesc = 'Armement en cours... Sortez du domicile';
+    } else if (isPending) {
+      heroClass = 'alert';
+      heroIcon = 'mdi:alert-circle';
+      heroTitle = 'INTRUSION EN COURS';
+      heroDesc = attrs.triggered_by ? `Détection par ${attrs.triggered_by} — Veuillez désarmer` : 'Délai d\'entrée — Veuillez désarmer immédiatement';
     }
 
     const telegramStatus = attrs.telegram_status || 'Inconnu';
