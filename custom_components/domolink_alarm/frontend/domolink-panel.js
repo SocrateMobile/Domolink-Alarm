@@ -2022,10 +2022,18 @@ class DomolinkPanel extends HTMLElement {
         if (isVideo) {
           gridHtml += `
           <div class="media-card" data-filename="${this.escapeHtml(file.name)}">
-            <div class="media-thumb media-thumb-video">
-              <video src="${url}" preload="metadata" style="width:100%;height:100%;object-fit:cover;border-radius:12px 12px 0 0;" controls muted></video>
+            <div class="media-thumb media-thumb-video" data-video-player="${url}" data-label="${this.escapeHtml(file.name)}" style="cursor:pointer;position:relative;">
+              <video src="${url}#t=0.5" preload="metadata" playsinline muted style="width:100%;height:100%;object-fit:cover;border-radius:12px 12px 0 0;pointer-events:none;"></video>
+              <div class="media-play-overlay">
+                <div class="media-play-disc">
+                  <ha-icon icon="mdi:play" style="--mdc-icon-size:28px;color:#fff;margin-left:2px;"></ha-icon>
+                </div>
+              </div>
+              <div class="media-badge-video">
+                <ha-icon icon="mdi:video" style="--mdc-icon-size:12px;"></ha-icon> VIDÉO
+              </div>
             </div>
-            <div class="media-info">
+            <div class="media-info" data-video-player="${url}" data-label="${this.escapeHtml(file.name)}" style="cursor:pointer;">
               <div class="media-name" title="${this.escapeHtml(file.name)}">${this.escapeHtml(label)}</div>
               <div class="media-meta">${sizeStr}</div>
             </div>
@@ -2062,6 +2070,11 @@ class DomolinkPanel extends HTMLElement {
         .media-card:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,0,0,0.12); }
         .media-thumb { height:150px; overflow:hidden; background:var(--d-surface); }
         .media-thumb-video { height:150px; }
+        .media-play-overlay { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.35); transition:background 0.2s; }
+        .media-card:hover .media-play-overlay { background:rgba(0,0,0,0.15); }
+        .media-play-disc { width:48px; height:48px; border-radius:50%; background:rgba(245,158,11,0.9); display:flex; align-items:center; justify-content:center; box-shadow:0 4px 16px rgba(0,0,0,0.4); transition:transform 0.2s, background 0.2s; }
+        .media-card:hover .media-play-disc { transform:scale(1.1); background:#f59e0b; }
+        .media-badge-video { position:absolute; top:8px; right:8px; background:rgba(0,0,0,0.75); color:#fff; font-size:10px; font-weight:700; padding:2px 7px; border-radius:6px; display:flex; align-items:center; gap:4px; letter-spacing:0.5px; }
         .media-info { padding:10px 12px 4px; flex-grow:1; }
         .media-name { font-size:11px; font-weight:700; color:var(--d-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         .media-meta { font-size:10px; color:var(--d-subtext); margin-top:2px; }
@@ -2071,9 +2084,19 @@ class DomolinkPanel extends HTMLElement {
         .media-action-delete:hover { color:#ef4444; border-color:#ef4444; }
         .media-type-pill { padding:8px 20px; border-radius:9999px; border:1.5px solid var(--d-border); background:var(--d-sec-bg); color:var(--d-subtext); font-size:13px; font-weight:700; cursor:pointer; transition:all 0.2s; }
         .media-type-pill.active { background:#f59e0b; color:#fff; border-color:#f59e0b; }
-        .media-lightbox { position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:99999; display:flex; align-items:center; justify-content:center; cursor:zoom-out; }
+        .media-lightbox { position:fixed; inset:0; background:rgba(0,0,0,0.92); backdrop-filter:blur(6px); z-index:99999; display:flex; align-items:center; justify-content:center; cursor:zoom-out; padding:20px; }
         .media-lightbox img { max-width:92vw; max-height:92vh; border-radius:8px; box-shadow:0 20px 60px rgba(0,0,0,0.8); }
-        .media-lightbox-close { position:absolute; top:20px; right:24px; color:#fff; font-size:36px; cursor:pointer; font-weight:300; line-height:1; }
+        .media-lightbox-close { position:absolute; top:16px; right:20px; color:#fff; font-size:32px; cursor:pointer; font-weight:300; line-height:1; }
+        .video-modal-container { background:#18181b; border:1px solid rgba(255,255,255,0.15); border-radius:16px; overflow:hidden; width:92vw; max-width:880px; box-shadow:0 25px 60px rgba(0,0,0,0.8); display:flex; flex-direction:column; cursor:default; }
+        .video-modal-header { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; background:#27272a; border-bottom:1px solid rgba(255,255,255,0.1); color:#fff; font-weight:700; font-size:14px; }
+        .video-modal-body { position:relative; background:#000; display:flex; align-items:center; justify-content:center; min-height:260px; max-height:68vh; }
+        .video-modal-body video { width:100%; max-height:68vh; object-fit:contain; outline:none; }
+        .video-modal-footer { display:flex; align-items:center; justify-content:space-between; padding:12px 20px; background:#27272a; border-top:1px solid rgba(255,255,255,0.1); flex-wrap:wrap; gap:10px; }
+        .video-modal-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 16px; border-radius:8px; font-size:12px; font-weight:700; text-decoration:none; cursor:pointer; border:none; transition:all 0.15s; }
+        .video-modal-btn.primary { background:#f59e0b; color:#fff; }
+        .video-modal-btn.primary:hover { background:#d97706; }
+        .video-modal-btn.secondary { background:rgba(255,255,255,0.1); color:#e4e4e7; }
+        .video-modal-btn.secondary:hover { background:rgba(255,255,255,0.2); color:#fff; }
         @keyframes spin { from {transform:rotate(0deg)} to {transform:rotate(360deg)} }
       </style>
 
@@ -2141,6 +2164,79 @@ class DomolinkPanel extends HTMLElement {
         document.body.appendChild(lb);
         lb.addEventListener('click', (e) => {
           if (e.target === lb || e.target.id === 'lb-close') lb.remove();
+        });
+      });
+    });
+
+    // Dedicated Video Player Modal
+    container.querySelectorAll('[data-video-player]').forEach(el => {
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('.media-actions')) return;
+        const url = el.getAttribute('data-video-player');
+        const label = el.getAttribute('data-label') || 'Vidéo';
+
+        const modal = document.createElement('div');
+        modal.className = 'media-lightbox';
+        modal.innerHTML = `
+          <div class="video-modal-container" id="video-modal-box">
+            <div class="video-modal-header">
+              <div style="display:flex;align-items:center;gap:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                <ha-icon icon="mdi:video" style="color:#f59e0b;--mdc-icon-size:20px;"></ha-icon>
+                <span>${this.escapeHtml(label)}</span>
+              </div>
+              <span class="media-lightbox-close" id="vid-close" style="position:static;font-size:26px;">×</span>
+            </div>
+            <div class="video-modal-body">
+              <video id="active-video-player" controls autoplay playsinline preload="auto">
+                <source src="${url}" type="video/mp4">
+                <p style="color:#ef4444;padding:20px;text-align:center;">Votre navigateur ne supporte pas la lecture directe de ce format vidéo.</p>
+              </video>
+            </div>
+            <div class="video-modal-footer">
+              <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <a class="video-modal-btn primary" href="${url}" download="${this.escapeHtml(label)}">
+                  <ha-icon icon="mdi:download" style="--mdc-icon-size:16px;"></ha-icon> Télécharger le MP4
+                </a>
+                <a class="video-modal-btn secondary" href="${url}" target="_blank">
+                  <ha-icon icon="mdi:open-in-new" style="--mdc-icon-size:16px;"></ha-icon> Ouvrir dans un onglet
+                </a>
+              </div>
+              <button class="video-modal-btn secondary" id="vid-btn-close">Fermer</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+
+        const videoEl = modal.querySelector('#active-video-player');
+        if (videoEl) {
+          videoEl.play().catch(() => {});
+          videoEl.addEventListener('error', () => {
+            const errBox = document.createElement('div');
+            errBox.style = "position:absolute;inset:0;background:rgba(0,0,0,0.88);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;color:#fff;";
+            errBox.innerHTML = `
+              <ha-icon icon="mdi:alert-circle" style="color:#ef4444;--mdc-icon-size:42px;margin-bottom:12px;"></ha-icon>
+              <div style="font-weight:700;font-size:15px;margin-bottom:6px;">Format vidéo non décodable directement</div>
+              <div style="font-size:12px;opacity:0.8;max-width:440px;margin-bottom:16px;">Ce flux est encodé dans un format caméra que le moteur de rendu de votre navigateur ne peut pas lire en direct. Vous pouvez télécharger le fichier pour le visionner avec votre lecteur habituel (VLC, etc.).</div>
+              <a class="video-modal-btn primary" href="${url}" download="${this.escapeHtml(label)}">
+                <ha-icon icon="mdi:download" style="--mdc-icon-size:16px;"></ha-icon> Télécharger le fichier MP4
+              </a>
+            `;
+            videoEl.parentElement.appendChild(errBox);
+          });
+        }
+
+        const closeModal = () => {
+          if (videoEl) {
+            videoEl.pause();
+            videoEl.src = "";
+          }
+          modal.remove();
+        };
+
+        modal.querySelector('#vid-close')?.addEventListener('click', closeModal);
+        modal.querySelector('#vid-btn-close')?.addEventListener('click', closeModal);
+        modal.addEventListener('click', (ev) => {
+          if (ev.target === modal) closeModal();
         });
       });
     });
