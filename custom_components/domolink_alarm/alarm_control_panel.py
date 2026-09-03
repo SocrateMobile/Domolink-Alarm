@@ -143,8 +143,15 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
     hass.services.async_register(
         DOMAIN, "update_settings", async_handle_update_settings
     )
+    async def async_handle_test_cameras(call):
+        """Handle camera test recording service call."""
+        await entity.async_test_cameras_recording(call)
+
     hass.services.async_register(
         DOMAIN, "media_action", async_handle_media_action
+    )
+    hass.services.async_register(
+        DOMAIN, "test_cameras_recording", async_handle_test_cameras
     )
     hass.services.async_register(
         DOMAIN, "bypass_sensor", async_handle_bypass_sensor
@@ -191,7 +198,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.9.46",
+            sw_version="0.9.47",
         )
 
         self._siren_task = None
@@ -225,6 +232,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._telegram_status = "Désactivé"
         self._ftp_status = "Désactivé"
         self._cameras_armed = False
+        self._is_testing_cameras = False
 
         self._load_config()
 
@@ -514,6 +522,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             "global_cameras": self._global_cameras,
             "entity_zones": self._get_entity_zones_map(),
             "disarm_cooldown": self._disarm_cooldown_task is not None,
+            "camera_test_running": getattr(self, "_is_testing_cameras", False),
         }
 
     async def async_bypass_sensor(self, entity_id: str):
@@ -1741,6 +1750,114 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 raise HomeAssistantError(f"Impossible de renommer: {e}")
         else:
             raise HomeAssistantError(f"Action inconnue: {action}")
+
+    async def async_test_cameras_recording(self, call=None):
+        """Trigger sequential test of all cameras: photo + 30s video one by one."""
+        if getattr(self, "_is_testing_cameras", False):
+            _LOGGER.warning("Domolink: Un test d'enregistrement caméra est déjà en cours.")
+            return
+
+        if not self._cameras:
+            self._log_event("Test vidéo impossible : Aucune caméra configurée.")
+            return
+
+        self.hass.async_create_task(self._async_run_cameras_test())
+
+    async def _async_run_cameras_test(self):
+        """Run sequential snapshot and 30s video recording for each camera."""
+        import shutil
+        from datetime import datetime as _dt
+
+        self._is_testing_cameras = True
+        self.async_write_ha_state()
+
+        media_dir = self.hass.config.path(f"www/{self._media_path}")
+        try:
+            os.makedirs(media_dir, exist_ok=True)
+        except Exception as e:
+            _LOGGER.error("Domolink: Impossible de créer le répertoire média %s: %s", media_dir, e)
+
+        total_cams = len(self._cameras)
+        self._log_event(f"🎬 Début du test d'enregistrement sur {total_cams} caméra(s)")
+
+        for idx, camera in enumerate(self._cameras):
+            st = self.hass.states.get(camera)
+            cam_name = st.attributes.get("friendly_name", camera) if st else camera
+            safe_cam = camera.replace(".", "_")
+            ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+
+            # Wake up camera
+            try:
+                await self.hass.services.async_call("camera", "turn_on", {"entity_id": camera})
+            except Exception:
+                pass
+
+            # 1. Snapshot
+            self._log_event(f"📸 Test ({idx+1}/{total_cams}) : Capture photo sur {cam_name}")
+            snapshot_filename = f"domolink_test_{ts}_{safe_cam}.jpg"
+            snapshot_path = os.path.join(media_dir, snapshot_filename)
+
+            try:
+                if camera.startswith("camera.aarlo"):
+                    await asyncio.wait_for(
+                        self.hass.services.async_call(
+                            "aarlo", "camera_request_snapshot_to_file",
+                            {"entity_id": camera, "file_path": snapshot_path},
+                            blocking=True,
+                        ),
+                        timeout=15.0,
+                    )
+                else:
+                    await asyncio.wait_for(
+                        self.hass.services.async_call(
+                            "camera", "snapshot",
+                            {"entity_id": camera, "filename": snapshot_path},
+                            blocking=True,
+                        ),
+                        timeout=15.0,
+                    )
+
+                if os.path.exists(snapshot_path):
+                    alert_path = self.hass.config.path("www/domolink_alarm_alert.jpg")
+                    try:
+                        shutil.copy2(snapshot_path, alert_path)
+                    except Exception:
+                        pass
+                self._log_event(f"✅ Photo test enregistrée ({cam_name})")
+            except asyncio.TimeoutError:
+                self._log_event(f"⚠️ Timeout photo (15s) sur {cam_name}")
+            except Exception as e:
+                self._log_event(f"⚠️ Erreur photo sur {cam_name} : {e}")
+
+            # 2. 30-second Video Recording
+            self._log_event(f"🎥 Test ({idx+1}/{total_cams}) : Enregistrement 30s sur {cam_name}...")
+            video_filename = f"domolink_test_{ts}_{safe_cam}.mp4"
+            record_path = os.path.join(media_dir, video_filename)
+
+            try:
+                await self.hass.services.async_call(
+                    "camera", "record",
+                    {"entity_id": camera, "duration": 30, "filename": record_path},
+                )
+                # Wait for 30s recording duration + 4s finalization
+                await self._async_watch_and_fix_video(record_path, duration=30, timeout=60)
+                self._log_event(f"✅ Vidéo 30s test enregistrée ({cam_name})")
+            except Exception as e:
+                self._log_event(f"⚠️ Erreur vidéo sur {cam_name} : {e}")
+
+            await asyncio.sleep(1.0)
+
+        self._is_testing_cameras = False
+        self._log_event("🎉 Test d'enregistrement terminé pour toutes les caméras ! Rendez-vous dans la Médiathèque.")
+        self.async_write_ha_state()
+
+        try:
+            await self._async_send_notification(
+                "🎬 Test caméras terminé avec succès. Les photos et vidéos sont disponibles dans la Médiathèque.",
+                is_alert=False,
+            )
+        except Exception:
+            pass
 
     async def _async_sync_cameras(self, arm: bool):
         """Sync camera motion detection or alarm panels."""

@@ -96,3 +96,7 @@ update_settings:
         number:
           min: 10
           max: 1800
+
+test_cameras_recording:
+  name: Tester l'enregistrement des caméras
+  description: Déclenche un test séquentiel de capture photo et d'enregistrement vidéo de 30 secondes sur toutes les caméras l'une après l'autre.
