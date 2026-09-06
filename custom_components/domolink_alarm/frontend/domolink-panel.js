@@ -954,6 +954,7 @@ class DomolinkPanel extends HTMLElement {
     this.querySelectorAll('.nav-tab').forEach(tab => {
       tab.addEventListener('click', () => {
         this._activeTab = tab.getAttribute('data-tab');
+        this._lastMediaSignature = null; // force fresh render on tab switch
         this.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
         this.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
@@ -2075,7 +2076,15 @@ class DomolinkPanel extends HTMLElement {
     else if (this._activeTab === 'log') this._renderLogTab();
     else if (this._activeTab === 'health') this._renderHealthTab();
     else if (this._activeTab === 'sim') this._renderSimTab(attrs);
-    else if (this._activeTab === 'media') this._renderMediaTab(attrs);
+    else if (this._activeTab === 'media') {
+      // Only re-render media tab when data actually changed (prevents flickering)
+      const mediaSignature = JSON.stringify(attrs.media_files || []) + '|' + (attrs.camera_test_running || false);
+      if (this._lastMediaSignature !== mediaSignature || this._mediaForceRender) {
+        this._lastMediaSignature = mediaSignature;
+        this._mediaForceRender = false;
+        this._renderMediaTab(attrs);
+      }
+    }
     else if (this._activeTab === 'param') this._renderParamTab(alarmEntity);
   }
 
@@ -2235,23 +2244,23 @@ class DomolinkPanel extends HTMLElement {
 
     // Type toggle
     container.querySelector('#media-btn-photos')?.addEventListener('click', () => {
-      this._mediaType = 'photos'; this._mediaPage = 0; this._renderMediaTab(attrs);
+      this._mediaType = 'photos'; this._mediaPage = 0; this._mediaForceRender = true; this._renderMediaTab(attrs);
     });
     container.querySelector('#media-btn-videos')?.addEventListener('click', () => {
-      this._mediaType = 'videos'; this._mediaPage = 0; this._renderMediaTab(attrs);
+      this._mediaType = 'videos'; this._mediaPage = 0; this._mediaForceRender = true; this._renderMediaTab(attrs);
     });
 
     // Refresh
     container.querySelector('#media-btn-refresh')?.addEventListener('click', () => {
-      this._mediaNeedsRefresh = true; this._mediaPage = 0; this._renderMediaTab(attrs);
+      this._mediaNeedsRefresh = true; this._mediaPage = 0; this._mediaForceRender = true; this._renderMediaTab(attrs);
     });
 
     // Pagination
     container.querySelector('#media-prev')?.addEventListener('click', () => {
-      if (this._mediaPage > 0) { this._mediaPage--; this._renderMediaTab(attrs); }
+      if (this._mediaPage > 0) { this._mediaPage--; this._mediaForceRender = true; this._renderMediaTab(attrs); }
     });
     container.querySelector('#media-next')?.addEventListener('click', () => {
-      if (this._mediaPage < totalPages - 1) { this._mediaPage++; this._renderMediaTab(attrs); }
+      if (this._mediaPage < totalPages - 1) { this._mediaPage++; this._mediaForceRender = true; this._renderMediaTab(attrs); }
     });
 
     // Lightbox for photos
@@ -2432,6 +2441,7 @@ class DomolinkPanel extends HTMLElement {
           try {
             await this._hass.callService('domolink_alarm', 'media_action', { action: 'delete', filename });
             this._mediaNeedsRefresh = true;
+            this._mediaForceRender = true;
             this._renderMediaTab(attrs);
           } catch (err) {
             alert('Erreur lors de la suppression : ' + (err.message || err));
@@ -2445,6 +2455,7 @@ class DomolinkPanel extends HTMLElement {
           try {
             await this._hass.callService('domolink_alarm', 'media_action', { action: 'rename', filename, new_name: newName });
             this._mediaNeedsRefresh = true;
+            this._mediaForceRender = true;
             this._renderMediaTab(attrs);
           } catch (err) {
             alert('Erreur lors du renommage : ' + (err.message || err));
@@ -2456,32 +2467,12 @@ class DomolinkPanel extends HTMLElement {
 
   async _fetchMediaFiles(mediaPath) {
     try {
-      // Use HA REST API to fetch the directory listing via a Python script service
-      // We call a template that lists files in www/{mediaPath}
-      const resp = await this._hass.callApi('POST', 'template', {
-        template: `{% set ns = namespace(files=[]) %}{% for f in ('{www}/{path}' | expand_path | listdir | list) if f.endswith(('.jpg','.jpeg','.png','.mp4','.webm')) %}{% set ns.files = ns.files + [f] %}{% endfor %}{{ ns.files | to_json }}`
-      }).catch(() => null);
-
-      // Fallback: use the local scan via HA states (list attribute)
-      // Actually, use a cleaner approach: POST /api/template
-      const templateResp = await fetch('/api/template', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this._hass.auth.data.access_token}`
-        },
-        body: JSON.stringify({
-          template: `{{ states.domolink_alarm_media is defined }}`
-        })
-      }).catch(() => null);
-
-      // Best approach: list files from the HA attribute "media_files" 
-      // we'll use the media_files attribute published by the alarm entity
+      // Read file list from the alarm entity's media_files attribute (populated by Python backend)
       const alarmEntity = this._getAlarmEntity();
       const mediaFiles = alarmEntity?.attributes?.media_files;
       
+      this._mediaFiles = { _path: mediaPath, photos: [], videos: [] };
       if (Array.isArray(mediaFiles)) {
-        this._mediaFiles = { _path: mediaPath, photos: [], videos: [] };
         mediaFiles.forEach(f => {
           if (/\.(jpg|jpeg|png)$/i.test(f.name)) this._mediaFiles.photos.push(f);
           else if (/\.(mp4|webm|ogg)$/i.test(f.name)) this._mediaFiles.videos.push(f);
@@ -2489,26 +2480,12 @@ class DomolinkPanel extends HTMLElement {
         // Sort by name desc (newest first)
         this._mediaFiles.photos.sort((a,b) => b.name.localeCompare(a.name));
         this._mediaFiles.videos.sort((a,b) => b.name.localeCompare(a.name));
-        this.render();
-        return;
       }
-
-      // Fallback: direct directory scan via REST API template
-      const scanResp = await fetch('/api/template', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this._hass.auth.data.access_token}`
-        },
-        body: JSON.stringify({
-          template: `{% set path = config_dir + '/www/${mediaPath}' %}{% set files = path | expand_path | listdir | list if path | expand_path else [] %}{{ files | to_json }}`
-        })
-      }).catch(() => null);
-
-      this._mediaFiles = { _path: mediaPath, photos: [], videos: [] };
+      this._lastMediaSignature = null;
       this.render();
     } catch (e) {
       this._mediaFiles = { _path: mediaPath, photos: [], videos: [] };
+      this._lastMediaSignature = null;
       this.render();
     }
   }
