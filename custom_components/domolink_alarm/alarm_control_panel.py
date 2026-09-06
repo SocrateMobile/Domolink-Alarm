@@ -67,6 +67,8 @@ from .const import (
     CONF_ZONE_LABELS,
     CONF_GLOBAL_CAMERAS,
     CONF_GLOBAL_CAMERAS_LABELS,
+    CONF_KEYPADS,
+    CONF_KEYPADS_LABELS,
     CONF_PRESENCE_SIMULATION_ENTITIES,
     CONF_PRESENCE_SIMULATION_LABELS,
     CONF_PRESENCE_SIMULATION_HISTORY_DAYS,
@@ -74,12 +76,59 @@ from .const import (
     CONF_CROSS_ZONING_WINDOW,
     CONF_GEOFENCE_REMINDER,
     CONF_GEOFENCE_REMINDER_DELAY,
+    CONF_FREE_MOBILE_USER,
+    CONF_FREE_MOBILE_PASS,
+    CONF_ICLOUD_ACCOUNT,
+    CONF_ICLOUD_DEVICES,
+    CONF_EMERGENCY_CONTACT,
+    CONF_EMERGENCY_CONTACT_LABELS,
+    CONF_SIREN_TEST,
+    CONF_SIREN_TEST_DAY,
+    CONF_SIREN_TEST_HOUR,
+    CONF_SCHEDULE_ENABLED,
+    CONF_SCHEDULE_ARM_TIME,
+    CONF_SCHEDULE_DISARM_TIME,
+    CONF_SCHEDULE_MODE,
+    CONF_MQTT_ENABLED,
+    CONF_MQTT_TOPIC_BASE,
+    CONF_MQTT_REQUIRE_CODE,
+    CONF_TELEGRAM_ENABLED,
+    CONF_TELEGRAM_TOKEN,
+    CONF_TELEGRAM_CHAT_ID,
+    CONF_FTP_ENABLED,
+    CONF_FTP_HOST,
+    CONF_FTP_PORT,
+    CONF_FTP_USER,
+    CONF_FTP_PASS,
+    CONF_FTP_PATH,
+    CONF_MEDIA_PATH,
+    DEFAULT_EXIT_DELAY,
+    DEFAULT_ENTRY_DELAY,
+    DEFAULT_SIREN_DURATION,
+    DEFAULT_BYPASS_ALLOWED,
+    DEFAULT_HEALTH_CHECK,
+    DEFAULT_GEOFENCE_AUTO_ARM,
     DEFAULT_CHIME_MODE,
     DEFAULT_CROSS_ZONING,
     DEFAULT_CROSS_ZONING_WINDOW,
     DEFAULT_GEOFENCE_REMINDER,
     DEFAULT_GEOFENCE_REMINDER_DELAY,
     DEFAULT_PRESENCE_SIMULATION_HISTORY_DAYS,
+    DEFAULT_SIREN_TEST,
+    DEFAULT_SIREN_TEST_DAY,
+    DEFAULT_SIREN_TEST_HOUR,
+    DEFAULT_SCHEDULE_ENABLED,
+    DEFAULT_SCHEDULE_ARM_TIME,
+    DEFAULT_SCHEDULE_DISARM_TIME,
+    DEFAULT_SCHEDULE_MODE,
+    DEFAULT_MQTT_ENABLED,
+    DEFAULT_MQTT_TOPIC_BASE,
+    DEFAULT_MQTT_REQUIRE_CODE,
+    DEFAULT_TELEGRAM_ENABLED,
+    DEFAULT_FTP_ENABLED,
+    DEFAULT_FTP_PORT,
+    DEFAULT_FTP_PATH,
+    DEFAULT_MEDIA_PATH,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -561,6 +610,91 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             "ftp_test_running": getattr(self, "_ftp_test_running", False),
             "ftp_test_logs": list(getattr(self, "_ftp_test_logs", [])),
             "ftp_test_result": dict(getattr(self, "_ftp_test_result", {})),
+            "installed_config": self._get_installed_config(),
+        }
+
+    def _get_installed_config(self):
+        """Return the complete dictionary of current configuration settings."""
+        data = self._entry.data or {}
+        options = self._entry.options or {}
+
+        def _val(key, default=None):
+            return options.get(key, data.get(key, default))
+
+        return {
+            CONF_NAME: _val(CONF_NAME, DEFAULT_NAME),
+            CONF_OPENING_SENSORS: list(_val(CONF_OPENING_SENSORS, []) or []),
+            CONF_OPENING_SENSORS_LABELS: list(_val(CONF_OPENING_SENSORS_LABELS, []) or []),
+            CONF_NIGHT_SENSORS: list(_val(CONF_NIGHT_SENSORS, []) or []),
+            CONF_NIGHT_SENSORS_LABELS: list(_val(CONF_NIGHT_SENSORS_LABELS, []) or []),
+            CONF_MOTION_SENSORS: list(_val(CONF_MOTION_SENSORS, []) or []),
+            CONF_MOTION_SENSORS_LABELS: list(_val(CONF_MOTION_SENSORS_LABELS, []) or []),
+            CONF_CAMERAS: list(_val(CONF_CAMERAS, []) or []),
+            CONF_CAMERAS_LABELS: list(_val(CONF_CAMERAS_LABELS, []) or []),
+            CONF_CAMERAS_ARM_ENTITIES: list(_val(CONF_CAMERAS_ARM_ENTITIES, []) or []),
+            CONF_CAMERAS_ARM_ENTITIES_LABELS: list(_val(CONF_CAMERAS_ARM_ENTITIES_LABELS, []) or []),
+            CONF_TAMPER_SENSORS: list(_val(CONF_TAMPER_SENSORS, []) or []),
+            CONF_TAMPER_SENSORS_LABELS: list(_val(CONF_TAMPER_SENSORS_LABELS, []) or []),
+            CONF_KEYPADS: list(_val(CONF_KEYPADS, []) or []),
+            CONF_KEYPADS_LABELS: list(_val(CONF_KEYPADS_LABELS, []) or []),
+            CONF_SAFETY_SENSORS: list(_val(CONF_SAFETY_SENSORS, []) or []),
+            CONF_SAFETY_SENSORS_LABELS: list(_val(CONF_SAFETY_SENSORS_LABELS, []) or []),
+            CONF_SIRENS: list(_val(CONF_SIRENS, []) or []),
+            CONF_SIRENS_LABELS: list(_val(CONF_SIRENS_LABELS, []) or []),
+            CONF_LIGHTS: list(_val(CONF_LIGHTS, []) or []),
+            CONF_LIGHTS_LABELS: list(_val(CONF_LIGHTS_LABELS, []) or []),
+            CONF_MEDIA_PLAYERS: list(_val(CONF_MEDIA_PLAYERS, []) or []),
+            CONF_MEDIA_PLAYERS_LABELS: list(_val(CONF_MEDIA_PLAYERS_LABELS, []) or []),
+            CONF_NOTIFY_SERVICES: list(_val(CONF_NOTIFY_SERVICES, []) or []),
+            CONF_NOTIFY_SERVICES_LABELS: list(_val(CONF_NOTIFY_SERVICES_LABELS, []) or []),
+            CONF_FREE_MOBILE_USER: str(_val(CONF_FREE_MOBILE_USER, "") or ""),
+            CONF_FREE_MOBILE_PASS: str(_val(CONF_FREE_MOBILE_PASS, "") or ""),
+            CONF_ICLOUD_ACCOUNT: str(_val(CONF_ICLOUD_ACCOUNT, "") or ""),
+            CONF_ICLOUD_DEVICES: list(_val(CONF_ICLOUD_DEVICES, []) or []),
+            CONF_EMERGENCY_CONTACT: list(_val(CONF_EMERGENCY_CONTACT, []) or []),
+            CONF_EMERGENCY_CONTACT_LABELS: list(_val(CONF_EMERGENCY_CONTACT_LABELS, []) or []),
+            CONF_PRESENCE_SIMULATION_ENTITIES: list(_val(CONF_PRESENCE_SIMULATION_ENTITIES, []) or []),
+            CONF_PRESENCE_SIMULATION_LABELS: list(_val(CONF_PRESENCE_SIMULATION_LABELS, []) or []),
+            CONF_ZONE_LABELS: list(_val(CONF_ZONE_LABELS, []) or []),
+            CONF_GLOBAL_CAMERAS: list(_val(CONF_GLOBAL_CAMERAS, []) or []),
+            CONF_GLOBAL_CAMERAS_LABELS: list(_val(CONF_GLOBAL_CAMERAS_LABELS, []) or []),
+            CONF_PERSONS: list(_val(CONF_PERSONS, []) or []),
+            CONF_PERSONS_LABELS: list(_val(CONF_PERSONS_LABELS, []) or []),
+            CONF_USERS_CODES: str(_val(CONF_USERS_CODES, "") or ""),
+            CONF_DURESS_CODE: str(_val(CONF_DURESS_CODE, "") or ""),
+            CONF_RFID_TAGS: str(_val(CONF_RFID_TAGS, "") or ""),
+            CONF_EXIT_DELAY: int(_val(CONF_EXIT_DELAY, DEFAULT_EXIT_DELAY) or DEFAULT_EXIT_DELAY),
+            CONF_ENTRY_DELAY: int(_val(CONF_ENTRY_DELAY, DEFAULT_ENTRY_DELAY) or DEFAULT_ENTRY_DELAY),
+            CONF_SIREN_DURATION: int(_val(CONF_SIREN_DURATION, DEFAULT_SIREN_DURATION) or DEFAULT_SIREN_DURATION),
+            CONF_BYPASS_ALLOWED: bool(_val(CONF_BYPASS_ALLOWED, DEFAULT_BYPASS_ALLOWED)),
+            CONF_HEALTH_CHECK: bool(_val(CONF_HEALTH_CHECK, DEFAULT_HEALTH_CHECK)),
+            CONF_GEOFENCE_AUTO_ARM: bool(_val(CONF_GEOFENCE_AUTO_ARM, DEFAULT_GEOFENCE_AUTO_ARM)),
+            CONF_GEOFENCE_REMINDER: bool(_val(CONF_GEOFENCE_REMINDER, DEFAULT_GEOFENCE_REMINDER)),
+            CONF_GEOFENCE_REMINDER_DELAY: int(_val(CONF_GEOFENCE_REMINDER_DELAY, DEFAULT_GEOFENCE_REMINDER_DELAY) or DEFAULT_GEOFENCE_REMINDER_DELAY),
+            CONF_CHIME_MODE: bool(_val(CONF_CHIME_MODE, DEFAULT_CHIME_MODE)),
+            CONF_CROSS_ZONING: bool(_val(CONF_CROSS_ZONING, DEFAULT_CROSS_ZONING)),
+            CONF_CROSS_ZONING_WINDOW: int(_val(CONF_CROSS_ZONING_WINDOW, DEFAULT_CROSS_ZONING_WINDOW) or DEFAULT_CROSS_ZONING_WINDOW),
+            CONF_PRESENCE_SIMULATION_HISTORY_DAYS: int(_val(CONF_PRESENCE_SIMULATION_HISTORY_DAYS, DEFAULT_PRESENCE_SIMULATION_HISTORY_DAYS) or DEFAULT_PRESENCE_SIMULATION_HISTORY_DAYS),
+            CONF_SIREN_TEST: bool(_val(CONF_SIREN_TEST, DEFAULT_SIREN_TEST)),
+            CONF_SIREN_TEST_DAY: int(_val(CONF_SIREN_TEST_DAY, DEFAULT_SIREN_TEST_DAY) or DEFAULT_SIREN_TEST_DAY),
+            CONF_SIREN_TEST_HOUR: int(_val(CONF_SIREN_TEST_HOUR, DEFAULT_SIREN_TEST_HOUR) or DEFAULT_SIREN_TEST_HOUR),
+            CONF_SCHEDULE_ENABLED: bool(_val(CONF_SCHEDULE_ENABLED, DEFAULT_SCHEDULE_ENABLED)),
+            CONF_SCHEDULE_ARM_TIME: str(_val(CONF_SCHEDULE_ARM_TIME, DEFAULT_SCHEDULE_ARM_TIME) or DEFAULT_SCHEDULE_ARM_TIME),
+            CONF_SCHEDULE_DISARM_TIME: str(_val(CONF_SCHEDULE_DISARM_TIME, DEFAULT_SCHEDULE_DISARM_TIME) or DEFAULT_SCHEDULE_DISARM_TIME),
+            CONF_SCHEDULE_MODE: str(_val(CONF_SCHEDULE_MODE, DEFAULT_SCHEDULE_MODE) or DEFAULT_SCHEDULE_MODE),
+            CONF_MQTT_ENABLED: bool(_val(CONF_MQTT_ENABLED, DEFAULT_MQTT_ENABLED)),
+            CONF_MQTT_TOPIC_BASE: str(_val(CONF_MQTT_TOPIC_BASE, DEFAULT_MQTT_TOPIC_BASE) or DEFAULT_MQTT_TOPIC_BASE),
+            CONF_MQTT_REQUIRE_CODE: bool(_val(CONF_MQTT_REQUIRE_CODE, DEFAULT_MQTT_REQUIRE_CODE)),
+            CONF_TELEGRAM_ENABLED: bool(_val(CONF_TELEGRAM_ENABLED, DEFAULT_TELEGRAM_ENABLED)),
+            CONF_TELEGRAM_TOKEN: str(_val(CONF_TELEGRAM_TOKEN, "") or ""),
+            CONF_TELEGRAM_CHAT_ID: str(_val(CONF_TELEGRAM_CHAT_ID, "") or ""),
+            CONF_FTP_ENABLED: bool(_val(CONF_FTP_ENABLED, DEFAULT_FTP_ENABLED)),
+            CONF_FTP_HOST: str(_val(CONF_FTP_HOST, "") or ""),
+            CONF_FTP_PORT: int(_val(CONF_FTP_PORT, DEFAULT_FTP_PORT) or DEFAULT_FTP_PORT),
+            CONF_FTP_USER: str(_val(CONF_FTP_USER, "") or ""),
+            CONF_FTP_PASS: str(_val(CONF_FTP_PASS, "") or ""),
+            CONF_FTP_PATH: str(_val(CONF_FTP_PATH, DEFAULT_FTP_PATH) or DEFAULT_FTP_PATH),
+            CONF_MEDIA_PATH: str(_val(CONF_MEDIA_PATH, DEFAULT_MEDIA_PATH) or DEFAULT_MEDIA_PATH),
         }
 
     async def async_bypass_sensor(self, entity_id: str):
@@ -2462,22 +2596,50 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         """Update settings from frontend."""
         new_options = dict(self._entry.options if self._entry.options else self._entry.data)
         
-        # Allowed keys to update
-        allowed_keys = [
-            "exit_delay", "entry_delay", "siren_duration",
-            "presence_simulation_history_days", "chime_mode", "cross_zoning"
-        ]
+        valid_keys = {
+            CONF_NAME,
+            CONF_OPENING_SENSORS, CONF_OPENING_SENSORS_LABELS,
+            CONF_NIGHT_SENSORS, CONF_NIGHT_SENSORS_LABELS,
+            CONF_MOTION_SENSORS, CONF_MOTION_SENSORS_LABELS,
+            CONF_CAMERAS, CONF_CAMERAS_LABELS,
+            CONF_CAMERAS_ARM_ENTITIES, CONF_CAMERAS_ARM_ENTITIES_LABELS,
+            CONF_TAMPER_SENSORS, CONF_TAMPER_SENSORS_LABELS,
+            CONF_KEYPADS, CONF_KEYPADS_LABELS,
+            CONF_SAFETY_SENSORS, CONF_SAFETY_SENSORS_LABELS,
+            CONF_SIRENS, CONF_SIRENS_LABELS,
+            CONF_LIGHTS, CONF_LIGHTS_LABELS,
+            CONF_MEDIA_PLAYERS, CONF_MEDIA_PLAYERS_LABELS,
+            CONF_NOTIFY_SERVICES, CONF_NOTIFY_SERVICES_LABELS,
+            CONF_FREE_MOBILE_USER, CONF_FREE_MOBILE_PASS,
+            CONF_ICLOUD_ACCOUNT, CONF_ICLOUD_DEVICES,
+            CONF_EMERGENCY_CONTACT, CONF_EMERGENCY_CONTACT_LABELS,
+            CONF_PRESENCE_SIMULATION_ENTITIES, CONF_PRESENCE_SIMULATION_LABELS,
+            CONF_ZONE_LABELS, CONF_GLOBAL_CAMERAS, CONF_GLOBAL_CAMERAS_LABELS,
+            CONF_PERSONS, CONF_PERSONS_LABELS,
+            CONF_USERS_CODES, CONF_DURESS_CODE, CONF_RFID_TAGS,
+            CONF_EXIT_DELAY, CONF_ENTRY_DELAY, CONF_SIREN_DURATION,
+            CONF_BYPASS_ALLOWED, CONF_HEALTH_CHECK, CONF_GEOFENCE_AUTO_ARM,
+            CONF_GEOFENCE_REMINDER, CONF_GEOFENCE_REMINDER_DELAY,
+            CONF_CHIME_MODE, CONF_CROSS_ZONING, CONF_CROSS_ZONING_WINDOW,
+            CONF_PRESENCE_SIMULATION_HISTORY_DAYS,
+            CONF_SIREN_TEST, CONF_SIREN_TEST_DAY, CONF_SIREN_TEST_HOUR,
+            CONF_SCHEDULE_ENABLED, CONF_SCHEDULE_ARM_TIME, CONF_SCHEDULE_DISARM_TIME, CONF_SCHEDULE_MODE,
+            CONF_MQTT_ENABLED, CONF_MQTT_TOPIC_BASE, CONF_MQTT_REQUIRE_CODE,
+            CONF_TELEGRAM_ENABLED, CONF_TELEGRAM_TOKEN, CONF_TELEGRAM_CHAT_ID,
+            CONF_FTP_ENABLED, CONF_FTP_HOST, CONF_FTP_PORT, CONF_FTP_USER, CONF_FTP_PASS, CONF_FTP_PATH,
+            CONF_MEDIA_PATH,
+        }
         
         updated = False
         for key, value in call.data.items():
-            if key in allowed_keys:
+            if key in valid_keys:
                 new_options[key] = value
                 updated = True
                 
         if updated:
             self.hass.config_entries.async_update_entry(self._entry, options=new_options)
-            _LOGGER.info(f"Domolink: Settings updated -> {call.data}")
-            self._log_event(f"Paramètres mis à jour")
+            _LOGGER.info("Domolink: Settings updated -> %s", list(call.data.keys()))
+            self._log_event("Paramètres mis à jour")
 
     async def async_start_presence_simulation(self):
         """Service handler to start presence simulation manually."""

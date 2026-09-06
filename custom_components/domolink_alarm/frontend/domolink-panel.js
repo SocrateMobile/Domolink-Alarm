@@ -1072,6 +1072,248 @@ class DomolinkPanel extends HTMLElement {
           color: var(--d-subtext);
           font-size: 13px;
         }
+
+        /* ─── Configuration Center Styles ─────────── */
+        .config-subnav {
+          display: flex;
+          gap: 6px;
+          padding: 5px;
+          background: var(--d-surface);
+          border-radius: 14px;
+          border: 1px solid var(--d-border);
+          margin-bottom: 20px;
+          overflow-x: auto;
+          scrollbar-width: none;
+        }
+        .config-subnav::-webkit-scrollbar {
+          display: none;
+        }
+        .config-subnav-btn {
+          padding: 9px 18px;
+          border-radius: 10px;
+          border: none;
+          background: transparent;
+          color: var(--d-subtext);
+          font-size: 13px;
+          font-weight: 700;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          white-space: nowrap;
+          transition: all 0.2s ease;
+        }
+        .config-subnav-btn ha-icon {
+          --mdc-icon-size: 18px;
+        }
+        .config-subnav-btn:hover {
+          color: var(--d-text);
+          background: var(--d-sec-bg);
+        }
+        .config-subnav-btn.active {
+          background: var(--d-pill-active-bg);
+          color: var(--d-pill-active-text);
+          box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+
+        .config-card {
+          background: var(--d-surface-card);
+          border: 1px solid var(--d-border);
+          border-radius: 18px;
+          padding: 22px;
+          margin-bottom: 18px;
+          backdrop-filter: var(--d-card-blur);
+        }
+        .config-card-title {
+          font-size: 15.5px;
+          font-weight: 800;
+          color: var(--d-text);
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 16px;
+        }
+        .config-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px 16px;
+          background: var(--d-sec-bg);
+          border: 1px solid var(--d-border-light);
+          border-radius: 12px;
+          margin-bottom: 10px;
+          gap: 16px;
+        }
+        .config-row-stacked {
+          display: flex;
+          flex-direction: column;
+          align-items: stretch;
+          padding: 14px 16px;
+          background: var(--d-sec-bg);
+          border: 1px solid var(--d-border-light);
+          border-radius: 12px;
+          margin-bottom: 12px;
+          gap: 8px;
+        }
+        .config-label {
+          font-size: 13.5px;
+          font-weight: 700;
+          color: var(--d-text);
+          display: flex;
+          align-items: center;
+        }
+        .config-help {
+          font-size: 11.5px;
+          color: var(--d-subtext);
+          margin-top: 2px;
+          line-height: 1.35;
+        }
+        .config-chips-container {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          margin-top: 4px;
+        }
+        .config-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 4px 10px;
+          border-radius: 8px;
+          background: rgba(245, 158, 11, 0.12);
+          border: 1px solid rgba(245, 158, 11, 0.3);
+          color: var(--d-text);
+          font-size: 12px;
+          font-weight: 600;
+        }
+        .config-chip-remove {
+          cursor: pointer;
+          color: #ef4444;
+          font-weight: 800;
+          font-size: 13px;
+          line-height: 1;
+          padding: 0 3px;
+          border-radius: 4px;
+          transition: background 0.15s;
+        }
+        .config-chip-remove:hover {
+          background: rgba(239, 68, 68, 0.2);
+        }
+        .config-input {
+          padding: 8px 12px;
+          border-radius: 8px;
+          border: 1px solid var(--d-border);
+          background: var(--d-surface);
+          color: var(--d-text);
+          font-size: 13px;
+          font-weight: 600;
+          outline: none;
+          transition: border-color 0.2s;
+        }
+        .config-input:focus {
+          border-color: #f59e0b;
+        }
+        .config-select {
+          padding: 7px 12px;
+          border-radius: 8px;
+          border: 1px solid var(--d-border);
+          background: var(--d-surface);
+          color: var(--d-text);
+          font-size: 12.5px;
+          font-weight: 600;
+          outline: none;
+          max-width: 320px;
+        }
+        .config-select:focus {
+          border-color: #f59e0b;
+        }
+        .config-toggle-wrap {
+          position: relative;
+          display: inline-block;
+          width: 44px;
+          height: 24px;
+          flex-shrink: 0;
+        }
+        .config-toggle-wrap input {
+          opacity: 0;
+          width: 0;
+          height: 0;
+        }
+        .config-toggle-slider {
+          position: absolute;
+          cursor: pointer;
+          top: 0; left: 0; right: 0; bottom: 0;
+          background-color: rgba(156, 163, 175, 0.3);
+          transition: .25s;
+          border-radius: 24px;
+        }
+        .config-toggle-slider:before {
+          position: absolute;
+          content: "";
+          height: 18px;
+          width: 18px;
+          left: 3px;
+          bottom: 3px;
+          background-color: white;
+          transition: .25s;
+          border-radius: 50%;
+        }
+        input:checked + .config-toggle-slider {
+          background-color: #10b981;
+        }
+        input:checked + .config-toggle-slider:before {
+          transform: translateX(20px);
+        }
+        .config-actions-bar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          flex-wrap: wrap;
+          gap: 12px;
+          padding: 16px 22px;
+          background: var(--d-surface);
+          border: 1px solid var(--d-border);
+          border-radius: 16px;
+          margin-top: 20px;
+          box-shadow: var(--d-shadow);
+        }
+        .btn-config-save {
+          padding: 12px 28px;
+          border-radius: 9999px;
+          border: none;
+          background: #f59e0b;
+          color: #ffffff;
+          font-weight: 800;
+          font-size: 13.5px;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          box-shadow: 0 4px 14px rgba(245,158,11,0.35);
+          transition: all 0.2s ease;
+        }
+        .btn-config-save:hover {
+          background: #d97706;
+          transform: translateY(-1px);
+        }
+        .btn-config-reset {
+          padding: 10px 20px;
+          border-radius: 9999px;
+          border: 1px solid var(--d-border);
+          background: transparent;
+          color: var(--d-subtext);
+          font-weight: 700;
+          font-size: 13px;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          transition: all 0.2s ease;
+        }
+        .btn-config-reset:hover {
+          color: var(--d-text);
+          background: var(--d-sec-bg);
+        }
       </style>
 
       <div class="panel-wrap theme-${this._theme}">
@@ -2352,74 +2594,636 @@ class DomolinkPanel extends HTMLElement {
     }
   }
 
-  // ─── Tab 6: Paramètres ──────────────────────────
+  // ─── Tab 7: Centre de Configuration ─────────────
+
+  _initParamDraft(attrs) {
+    if (this._configDraft) return;
+    const c = (attrs && attrs.installed_config) ? attrs.installed_config : {};
+    this._configDraft = {
+      name: c.name || "Domolink Alarm",
+      opening_sensors: Array.isArray(c.opening_sensors) ? [...c.opening_sensors] : [],
+      opening_sensors_labels: Array.isArray(c.opening_sensors_labels) ? [...c.opening_sensors_labels] : [],
+      night_sensors: Array.isArray(c.night_sensors) ? [...c.night_sensors] : [],
+      night_sensors_labels: Array.isArray(c.night_sensors_labels) ? [...c.night_sensors_labels] : [],
+      motion_sensors: Array.isArray(c.motion_sensors) ? [...c.motion_sensors] : [],
+      motion_sensors_labels: Array.isArray(c.motion_sensors_labels) ? [...c.motion_sensors_labels] : [],
+      cameras: Array.isArray(c.cameras) ? [...c.cameras] : [],
+      cameras_labels: Array.isArray(c.cameras_labels) ? [...c.cameras_labels] : [],
+      cameras_arm_entities: Array.isArray(c.cameras_arm_entities) ? [...c.cameras_arm_entities] : [],
+      cameras_arm_entities_labels: Array.isArray(c.cameras_arm_entities_labels) ? [...c.cameras_arm_entities_labels] : [],
+      tamper_sensors: Array.isArray(c.tamper_sensors) ? [...c.tamper_sensors] : [],
+      tamper_sensors_labels: Array.isArray(c.tamper_sensors_labels) ? [...c.tamper_sensors_labels] : [],
+      keypads: Array.isArray(c.keypads) ? [...c.keypads] : [],
+      keypads_labels: Array.isArray(c.keypads_labels) ? [...c.keypads_labels] : [],
+      safety_sensors: Array.isArray(c.safety_sensors) ? [...c.safety_sensors] : [],
+      safety_sensors_labels: Array.isArray(c.safety_sensors_labels) ? [...c.safety_sensors_labels] : [],
+      sirens: Array.isArray(c.sirens) ? [...c.sirens] : [],
+      sirens_labels: Array.isArray(c.sirens_labels) ? [...c.sirens_labels] : [],
+      lights: Array.isArray(c.lights) ? [...c.lights] : [],
+      lights_labels: Array.isArray(c.lights_labels) ? [...c.lights_labels] : [],
+      media_players: Array.isArray(c.media_players) ? [...c.media_players] : [],
+      media_players_labels: Array.isArray(c.media_players_labels) ? [...c.media_players_labels] : [],
+      notify_services: Array.isArray(c.notify_services) ? [...c.notify_services] : [],
+      notify_services_labels: Array.isArray(c.notify_services_labels) ? [...c.notify_services_labels] : [],
+      free_mobile_user: c.free_mobile_user || "",
+      free_mobile_pass: c.free_mobile_pass || "",
+      icloud_account: c.icloud_account || "",
+      icloud_devices: Array.isArray(c.icloud_devices) ? [...c.icloud_devices] : [],
+      emergency_contact: Array.isArray(c.emergency_contact) ? [...c.emergency_contact] : [],
+      emergency_contact_labels: Array.isArray(c.emergency_contact_labels) ? [...c.emergency_contact_labels] : [],
+      presence_simulation_entities: Array.isArray(c.presence_simulation_entities) ? [...c.presence_simulation_entities] : [],
+      presence_simulation_labels: Array.isArray(c.presence_simulation_labels) ? [...c.presence_simulation_labels] : [],
+      zone_labels: Array.isArray(c.zone_labels) ? [...c.zone_labels] : [],
+      global_cameras: Array.isArray(c.global_cameras) ? [...c.global_cameras] : [],
+      global_cameras_labels: Array.isArray(c.global_cameras_labels) ? [...c.global_cameras_labels] : [],
+      persons: Array.isArray(c.persons) ? [...c.persons] : [],
+      persons_labels: Array.isArray(c.persons_labels) ? [...c.persons_labels] : [],
+      users_codes: c.users_codes || "",
+      duress_code: c.duress_code || "",
+      rfid_tags: c.rfid_tags || "",
+      exit_delay: c.exit_delay !== undefined ? c.exit_delay : 30,
+      entry_delay: c.entry_delay !== undefined ? c.entry_delay : 30,
+      siren_duration: c.siren_duration !== undefined ? c.siren_duration : 180,
+      bypass_allowed: Boolean(c.bypass_allowed),
+      health_check: c.health_check !== undefined ? Boolean(c.health_check) : true,
+      geofence_auto_arm: Boolean(c.geofence_auto_arm),
+      geofence_reminder: Boolean(c.geofence_reminder),
+      geofence_reminder_delay: c.geofence_reminder_delay !== undefined ? c.geofence_reminder_delay : 15,
+      chime_mode: Boolean(c.chime_mode),
+      cross_zoning: Boolean(c.cross_zoning),
+      cross_zoning_window: c.cross_zoning_window !== undefined ? c.cross_zoning_window : 60,
+      presence_simulation_history_days: c.presence_simulation_history_days !== undefined ? c.presence_simulation_history_days : 7,
+      siren_test: Boolean(c.siren_test),
+      siren_test_day: c.siren_test_day !== undefined ? c.siren_test_day : 5,
+      siren_test_hour: c.siren_test_hour !== undefined ? c.siren_test_hour : 12,
+      schedule_enabled: Boolean(c.schedule_enabled),
+      schedule_arm_time: c.schedule_arm_time || "23:00",
+      schedule_disarm_time: c.schedule_disarm_time || "06:00",
+      schedule_mode: c.schedule_mode || "night",
+      mqtt_enabled: Boolean(c.mqtt_enabled),
+      mqtt_topic_base: c.mqtt_topic_base || "domolink/alarme",
+      mqtt_require_code: Boolean(c.mqtt_require_code),
+      telegram_enabled: Boolean(c.telegram_enabled),
+      telegram_token: c.telegram_token || "",
+      telegram_chat_id: c.telegram_chat_id || "",
+      ftp_enabled: Boolean(c.ftp_enabled),
+      ftp_host: c.ftp_host || "",
+      ftp_port: c.ftp_port !== undefined ? c.ftp_port : 21,
+      ftp_user: c.ftp_user || "",
+      ftp_pass: c.ftp_pass || "",
+      ftp_path: c.ftp_path || "/",
+      media_path: c.media_path || "domolink_media",
+    };
+  }
+
+  _renderEntityListField(title, help, fieldName, allowedDomains, icon) {
+    const selectedList = Array.isArray(this._configDraft[fieldName]) ? this._configDraft[fieldName] : [];
+    
+    let chipsHtml = '';
+    if (selectedList.length === 0) {
+      chipsHtml = `<span style="font-size:12px; color:var(--d-subtext); font-style:italic;">Aucun équipement sélectionné.</span>`;
+    } else {
+      chipsHtml = selectedList.map(entId => {
+        const stateObj = this._hass && this._hass.states ? this._hass.states[entId] : null;
+        const name = stateObj ? (stateObj.attributes.friendly_name || entId) : entId;
+        return `
+          <span class="config-chip" title="${this.escapeHtml(entId)}">
+            <span>${this.escapeHtml(name)}</span>
+            <span class="config-chip-remove" data-field="${fieldName}" data-entity="${this.escapeHtml(entId)}" title="Supprimer">✕</span>
+          </span>
+        `;
+      }).join('');
+    }
+
+    const availableEntities = [];
+    if (this._hass && this._hass.states) {
+      Object.keys(this._hass.states).forEach(entId => {
+        const domain = entId.split('.')[0];
+        if (allowedDomains.includes(domain) && !selectedList.includes(entId)) {
+          const stateObj = this._hass.states[entId];
+          const name = stateObj && stateObj.attributes && stateObj.attributes.friendly_name ? `${stateObj.attributes.friendly_name} (${entId})` : entId;
+          availableEntities.push({ id: entId, name });
+        }
+      });
+      availableEntities.sort((a,b) => a.name.localeCompare(b.name));
+    }
+
+    const selectHtml = `
+      <select class="config-select config-entity-picker" data-field="${fieldName}">
+        <option value="">+ Ajouter un équipement...</option>
+        ${availableEntities.map(e => `<option value="${this.escapeHtml(e.id)}">${this.escapeHtml(e.name)}</option>`).join('')}
+      </select>
+    `;
+
+    return `
+      <div class="config-row-stacked">
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+          <div>
+            <div class="config-label"><ha-icon icon="${icon}" style="--mdc-icon-size:18px; margin-right:6px; color:#f59e0b;"></ha-icon> ${title}</div>
+            <div class="config-help">${help}</div>
+          </div>
+          ${selectHtml}
+        </div>
+        <div class="config-chips-container">${chipsHtml}</div>
+      </div>
+    `;
+  }
+
+  _renderLabelsField(title, help, fieldName, icon) {
+    const selectedList = Array.isArray(this._configDraft[fieldName]) ? this._configDraft[fieldName] : [];
+    let chipsHtml = '';
+    if (selectedList.length === 0) {
+      chipsHtml = `<span style="font-size:12px; color:var(--d-subtext); font-style:italic;">Aucun élément configuré.</span>`;
+    } else {
+      chipsHtml = selectedList.map(label => `
+        <span class="config-chip">
+          <span>${this.escapeHtml(label)}</span>
+          <span class="config-chip-remove" data-field="${fieldName}" data-entity="${this.escapeHtml(label)}" title="Supprimer">✕</span>
+        </span>
+      `).join('');
+    }
+
+    return `
+      <div class="config-row-stacked">
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+          <div>
+            <div class="config-label"><ha-icon icon="${icon}" style="--mdc-icon-size:18px; margin-right:6px; color:#f59e0b;"></ha-icon> ${title}</div>
+            <div class="config-help">${help}</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <input type="text" class="config-input config-label-input" data-field="${fieldName}" placeholder="Nom..." style="width:140px;" />
+            <button type="button" class="btn-add-label btn-action-pill" data-field="${fieldName}" style="padding:6px 12px; font-weight:700;">Ajouter</button>
+          </div>
+        </div>
+        <div class="config-chips-container">${chipsHtml}</div>
+      </div>
+    `;
+  }
+
+  _renderToggleField(title, help, fieldName, icon) {
+    const val = Boolean(this._configDraft[fieldName]);
+    return `
+      <div class="config-row">
+        <div>
+          <div class="config-label"><ha-icon icon="${icon}" style="--mdc-icon-size:18px; margin-right:6px; color:#f59e0b;"></ha-icon> ${title}</div>
+          <div class="config-help">${help}</div>
+        </div>
+        <label class="config-toggle-wrap">
+          <input type="checkbox" class="config-toggle" data-field="${fieldName}" ${val ? 'checked' : ''}>
+          <span class="config-toggle-slider"></span>
+        </label>
+      </div>
+    `;
+  }
+
+  _renderTextField(title, help, fieldName, icon, type = "text", placeholder = "") {
+    const val = this._configDraft[fieldName] !== undefined ? this._configDraft[fieldName] : "";
+    return `
+      <div class="config-row">
+        <div>
+          <div class="config-label"><ha-icon icon="${icon}" style="--mdc-icon-size:18px; margin-right:6px; color:#f59e0b;"></ha-icon> ${title}</div>
+          <div class="config-help">${help}</div>
+        </div>
+        <input type="${type}" class="config-input" data-field="${fieldName}" value="${this.escapeHtml(val)}" placeholder="${placeholder}" style="min-width:240px;" />
+      </div>
+    `;
+  }
+
+  _renderPasswordField(title, help, fieldName, icon) {
+    const val = this._configDraft[fieldName] !== undefined ? this._configDraft[fieldName] : "";
+    return `
+      <div class="config-row">
+        <div>
+          <div class="config-label"><ha-icon icon="${icon}" style="--mdc-icon-size:18px; margin-right:6px; color:#f59e0b;"></ha-icon> ${title}</div>
+          <div class="config-help">${help}</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <input type="password" class="config-input config-pwd-field" data-field="${fieldName}" value="${this.escapeHtml(val)}" style="min-width:200px;" />
+          <button type="button" class="btn-pwd-toggle" title="Afficher/Masquer le mot de passe" style="background:transparent; border:none; color:var(--d-subtext); cursor:pointer; padding:4px;">
+            <ha-icon icon="mdi:eye" style="--mdc-icon-size:20px;"></ha-icon>
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  _renderNumberField(title, help, fieldName, icon, min, max, step, unit) {
+    const val = this._configDraft[fieldName] !== undefined ? this._configDraft[fieldName] : min;
+    return `
+      <div class="config-row">
+        <div>
+          <div class="config-label"><ha-icon icon="${icon}" style="--mdc-icon-size:18px; margin-right:6px; color:#f59e0b;"></ha-icon> ${title}</div>
+          <div class="config-help">${help}</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <input type="number" class="config-input" min="${min}" max="${max}" step="${step}" data-field="${fieldName}" value="${val}" style="width:90px; text-align:right;" />
+          <span style="font-size:13px; font-weight:700; color:var(--d-subtext);">${unit}</span>
+        </div>
+      </div>
+    `;
+  }
+
+  _renderSelectField(title, help, fieldName, icon, options) {
+    const val = this._configDraft[fieldName];
+    return `
+      <div class="config-row">
+        <div>
+          <div class="config-label"><ha-icon icon="${icon}" style="--mdc-icon-size:18px; margin-right:6px; color:#f59e0b;"></ha-icon> ${title}</div>
+          <div class="config-help">${help}</div>
+        </div>
+        <select class="config-select" data-field="${fieldName}">
+          ${options.map(opt => `<option value="${this.escapeHtml(opt.value)}" ${opt.value == val ? 'selected' : ''}>${this.escapeHtml(opt.label)}</option>`).join('')}
+        </select>
+      </div>
+    `;
+  }
 
   _renderParamTab(alarmEntity) {
     const container = this.querySelector('#pane-param');
     if (!container) return;
 
     const attrs = alarmEntity ? alarmEntity.attributes : {};
-    const chime = attrs.chime_active || false;
-    const history_days = attrs.presence_simulation_history_days || 7;
+    this._initParamDraft(attrs);
+    if (!this._configSubTab) this._configSubTab = 'sensors';
+
+    // Sub-navigation buttons
+    const subnavItems = [
+      { key: "sensors", label: "Capteurs", icon: "mdi:shield-check" },
+      { key: "actuators", label: "Actionneurs", icon: "mdi:bullhorn" },
+      { key: "zones", label: "Zones", icon: "mdi:map-marker-radius" },
+      { key: "logic", label: "Logique & Codes", icon: "mdi:tune" },
+      { key: "mqtt", label: "MQTT", icon: "mdi:access-point-network" },
+      { key: "backup", label: "Sauvegardes & Médias", icon: "mdi:cloud-sync" },
+    ];
+
+    let contentHtml = '';
+
+    if (this._configSubTab === 'sensors') {
+      contentHtml = `
+        <div class="config-card">
+          <div class="config-card-title"><ha-icon icon="mdi:shield-home" style="color:#f59e0b;"></ha-icon> Identification du Système</div>
+          ${this._renderTextField("Nom du Système", "Nom affiché dans les notifications et le tableau de bord", "name", "mdi:rename-box")}
+        </div>
+
+        <div class="config-card">
+          <div class="config-card-title"><ha-icon icon="mdi:radar" style="color:#3b82f6;"></ha-icon> Capteurs d'Intrusion & Sécurité</div>
+          ${this._renderEntityListField("Capteurs d'Ouverture", "Portes, fenêtres, baies vitrées et garages déclenchant l'alarme", "opening_sensors", ["binary_sensor", "sensor"], "mdi:door-open")}
+          ${this._renderEntityListField("Capteurs Mode Nuit", "Capteurs périmétriques surveillés pendant le sommeil", "night_sensors", ["binary_sensor", "sensor"], "mdi:weather-night")}
+          ${this._renderEntityListField("Capteurs de Mouvement", "Radars et détecteurs volumétriques intérieurs", "motion_sensors", ["binary_sensor", "sensor"], "mdi:motion-sensor")}
+          ${this._renderEntityListField("Capteurs de Sabotage (Tamper)", "Protection anti-arrachement active 24h/24", "tamper_sensors", ["binary_sensor", "sensor"], "mdi:shield-alert")}
+          ${this._renderEntityListField("Capteurs Techniques", "Fumée, monoxyde de carbone, gaz, fuite d'eau", "safety_sensors", ["binary_sensor", "sensor"], "mdi:fire-alert")}
+        </div>
+
+        <div class="config-card">
+          <div class="config-card-title"><ha-icon icon="mdi:cctv" style="color:#10b981;"></ha-icon> Vidéosurveillance & Claviers</div>
+          ${this._renderEntityListField("Caméras de Sécurité", "Caméras enregistrant des clichés et vidéos en cas d'intrusion", "cameras", ["camera"], "mdi:cctv")}
+          ${this._renderEntityListField("Activation Caméras à l'Armement", "Interrupteurs ou entités activant l'alimentation des caméras", "cameras_arm_entities", ["switch", "camera", "alarm_control_panel"], "mdi:camera-switch")}
+          ${this._renderEntityListField("Claviers Physiques / Déportés", "Claviers muraux ou panneaux tiers synchronisés", "keypads", ["alarm_control_panel", "sensor"], "mdi:dialpad")}
+        </div>
+      `;
+    } else if (this._configSubTab === 'actuators') {
+      contentHtml = `
+        <div class="config-card">
+          <div class="config-card-title"><ha-icon icon="mdi:bullhorn" style="color:#ef4444;"></ha-icon> Dissuasion & Sirènes</div>
+          ${this._renderEntityListField("Sirènes d'Alarme", "Sirènes intérieures et extérieures à déclencher", "sirens", ["switch", "siren"], "mdi:bullhorn")}
+          ${this._renderEntityListField("Éclairages d'Urgence", "Lumières à faire clignoter ou allumer en continu lors d'une intrusion", "lights", ["light"], "mdi:alarm-light")}
+          ${this._renderEntityListField("Haut-parleurs & Annonces Vocales", "Enceintes diffusant des messages dissuasifs TTS", "media_players", ["media_player"], "mdi:speaker")}
+        </div>
+
+        <div class="config-card">
+          <div class="config-card-title"><ha-icon icon="mdi:bell-badge" style="color:#f59e0b;"></ha-icon> Notifications & Alertes Mobiles</div>
+          ${this._renderEntityListField("Services de Notification", "Services d'envoi de notifications push (HA Companion, etc.)", "notify_services", ["notify", "script"], "mdi:bell-ring")}
+          ${this._renderEntityListField("Contacts d'Urgence", "Destinataires secondaires prévenus en cas de confirmation d'intrusion", "emergency_contact", ["notify", "script"], "mdi:account-alert")}
+          ${this._renderTextField("Free Mobile — Utilisateur", "Identifiant abonné Free Mobile pour alertes SMS directes (Optionnel)", "free_mobile_user", "mdi:cellphone-message")}
+          ${this._renderPasswordField("Free Mobile — Clé API", "Clé d'accès API notifications SMS Free Mobile", "free_mobile_pass", "mdi:key")}
+          ${this._renderLabelsField("iCloud — Noms des Appareils", "Noms des appareils Apple à faire sonner en urgence (Find My)", "icloud_devices", "mdi:apple")}
+        </div>
+
+        <div class="config-card">
+          <div class="config-card-title"><ha-icon icon="mdi:home-clock" style="color:#8b5cf6;"></ha-icon> Simulation de Présence</div>
+          ${this._renderEntityListField("Appareils Rejoués", "Lumières, volets et prises rejouant vos habitudes passées", "presence_simulation_entities", ["light", "switch", "cover"], "mdi:lightbulb-multiple")}
+        </div>
+      `;
+    } else if (this._configSubTab === 'zones') {
+      contentHtml = `
+        <div class="config-card">
+          <div class="config-card-title"><ha-icon icon="mdi:map-marker-radius" style="color:#f59e0b;"></ha-icon> Zones de Surveillance Ciblée</div>
+          ${this._renderLabelsField("Étiquettes des Zones (Labels)", "Noms des zones créées dans Home Assistant (ex: Jardin, Étage, Salon)", "zone_labels", "mdi:tag-multiple")}
+          ${this._renderEntityListField("Caméras Globales", "Caméras capturant des clichés quelle que soit la zone déclenchée", "global_cameras", ["camera"], "mdi:earth")}
+        </div>
+      `;
+    } else if (this._configSubTab === 'logic') {
+      contentHtml = `
+        <div class="config-card">
+          <div class="config-card-title"><ha-icon icon="mdi:account-lock" style="color:#10b981;"></ha-icon> Utilisateurs, Codes PIN & Badges</div>
+          ${this._renderEntityListField("Personnes & Présence", "Membres du foyer pour l'armement/désarmement géolocalisé", "persons", ["person"], "mdi:account-group")}
+          ${this._renderTextField("Utilisateurs & Codes PIN", "Format : Prénom:CodePIN séparés par des virgules (ex: Jean:1234, Marie:5678)", "users_codes", "mdi:account-key")}
+          ${this._renderTextField("Code sous contrainte (Duress)", "Code secret désarmant l'alarme tout en envoyant une alerte silencieuse", "duress_code", "mdi:shield-alert-outline")}
+          ${this._renderTextField("Badges RFID", "Format : IdentifiantBadge:Nom séparés par des virgules (ex: 04-7A-5B:Jean, 8F-B2:Marie)", "rfid_tags", "mdi:nfc-variant")}
+        </div>
+
+        <div class="config-card">
+          <div class="config-card-title"><ha-icon icon="mdi:timer-outline" style="color:#3b82f6;"></ha-icon> Délais Système</div>
+          ${this._renderNumberField("Délai de sortie", "Temps alloué pour quitter les lieux après armement", "exit_delay", "mdi:exit-run", 0, 300, 5, "secondes")}
+          ${this._renderNumberField("Délai d'entrée", "Temps accordé pour taper le code PIN avant déclenchement sirène", "entry_delay", "mdi:door-open", 0, 300, 5, "secondes")}
+          ${this._renderNumberField("Durée de la sirène", "Durée maximale de retentissement sonore continu", "siren_duration", "mdi:volume-high", 30, 900, 15, "secondes")}
+        </div>
+
+        <div class="config-card">
+          <div class="config-card-title"><ha-icon icon="mdi:cog-outline" style="color:#f59e0b;"></ha-icon> Comportement & Détection</div>
+          ${this._renderToggleField("Mode Carillon (Chime)", "Bip sonore bref à l'ouverture d'une porte lorsque l'alarme est désarmée", "chime_mode", "mdi:bell-outline")}
+          ${this._renderToggleField("Autoriser le contournement (Bypass)", "Permettre d'armer même si un capteur reste ouvert", "bypass_allowed", "mdi:shield-off")}
+          ${this._renderToggleField("Surveillance de santé automatique", "Vérifie régulièrement l'état de ligne et de batterie des équipements", "health_check", "mdi:heart-pulse")}
+          ${this._renderToggleField("Double Détection (Cross-Zoning)", "Exige deux détections successives pour confirmer une intrusion", "cross_zoning", "mdi:filter-check")}
+          ${this._renderNumberField("Fenêtre de double détection", "Délai maximal entre les deux détections pour valider l'intrusion", "cross_zoning_window", "mdi:clock-fast", 10, 300, 5, "secondes")}
+          ${this._renderSelectField("Historique de simulation", "Profondeur de rejeu des habitudes passées", "presence_simulation_history_days", "mdi:history", [
+            { value: 7, label: "7 jours d'historique" },
+            { value: 14, label: "14 jours d'historique" },
+            { value: 21, label: "21 jours d'historique" },
+            { value: 28, label: "28 jours d'historique" },
+          ])}
+        </div>
+
+        <div class="config-card">
+          <div class="config-card-title"><ha-icon icon="mdi:crosshairs-gps" style="color:#06b6d4;"></ha-icon> Géolocalisation & Rappels</div>
+          ${this._renderToggleField("Armement Automatique Géolocalisé", "Arme l'alarme quand toutes les personnes ont quitté le domicile", "geofence_auto_arm", "mdi:home-export-outline")}
+          ${this._renderToggleField("Rappel d'armement", "Envoie une notification push si vous partez sans armer l'alarme", "geofence_reminder", "mdi:cellphone-message")}
+          ${this._renderNumberField("Délai avant rappel", "Délai après départ du domicile avant d'envoyer le rappel", "geofence_reminder_delay", "mdi:timer-sand", 1, 60, 1, "minutes")}
+        </div>
+
+        <div class="config-card">
+          <div class="config-card-title"><ha-icon icon="mdi:calendar-clock" style="color:#a855f7;"></ha-icon> Tests & Planification Automatique</div>
+          ${this._renderToggleField("Test Mensuel Automatique de Sirène", "Déclenche un bref bip sonore mensuel de vérification fonctionnelle", "siren_test", "mdi:bullhorn-outline")}
+          ${this._renderSelectField("Jour du test mensuel", "Jour de la semaine pour le test automatique", "siren_test_day", "mdi:calendar-today", [
+            { value: 1, label: "Lundi" },
+            { value: 2, label: "Mardi" },
+            { value: 3, label: "Mercredi" },
+            { value: 4, label: "Jeudi" },
+            { value: 5, label: "Vendredi" },
+            { value: 6, label: "Samedi" },
+            { value: 7, label: "Dimanche" },
+          ])}
+          ${this._renderNumberField("Heure du test mensuel", "Heure d'exécution du test", "siren_test_hour", "mdi:clock-outline", 0, 23, 1, "h00")}
+          ${this._renderToggleField("Armement & Désarmement Programmé", "Active le calendrier automatique quotidien", "schedule_enabled", "mdi:clock-check")}
+          ${this._renderTextField("Heure d'armement programmé", "Heure d'activation automatique quotidienne (Format HH:MM)", "schedule_arm_time", "mdi:clock-start", "time")}
+          ${this._renderTextField("Heure de désarmement programmé", "Heure de désactivation automatique quotidienne (Format HH:MM)", "schedule_disarm_time", "mdi:clock-end", "time")}
+          ${this._renderSelectField("Mode d'armement programmé", "Mode appliqué automatiquement à l'heure définie", "schedule_mode", "mdi:shield-check", [
+            { value: "night", label: "Mode Nuit (Périmètre)" },
+            { value: "away", label: "Mode Absent (Total)" },
+            { value: "home", label: "Mode Maison" },
+          ])}
+        </div>
+      `;
+    } else if (this._configSubTab === 'mqtt') {
+      contentHtml = `
+        <div class="config-card">
+          <div class="config-card-title"><ha-icon icon="mdi:access-point-network" style="color:#f59e0b;"></ha-icon> Intégration MQTT & Domotique Tierce</div>
+          ${this._renderToggleField("Activer la passerelle MQTT", "Publie l'état de l'alarme et écoute les commandes sur votre broker MQTT", "mqtt_enabled", "mdi:checkbox-marked-circle-outline")}
+          ${this._renderTextField("Topic de base MQTT", "Préfixe des topics MQTT pour Domolink Alarm", "mqtt_topic_base", "mdi:pound", "text", "domolink/alarme")}
+          ${this._renderToggleField("Exiger le code PIN sur MQTT", "Oblige à fournir le code PIN dans le payload MQTT pour désarmer", "mqtt_require_code", "mdi:lock-alert")}
+        </div>
+      `;
+    } else if (this._configSubTab === 'backup') {
+      contentHtml = `
+        <div class="config-card">
+          <div class="config-card-title"><ha-icon icon="mdi:send" style="color:#0088cc;"></ha-icon> Sauvegarde & Alertes Telegram</div>
+          ${this._renderToggleField("Activer l'envoi Telegram", "Envoie les clichés photos et alertes dans votre canal/bot Telegram", "telegram_enabled", "mdi:telegram")}
+          ${this._renderPasswordField("Token du Bot Telegram", "Token fourni par BotFather (ex: 123456:ABC-DEF1234...)", "telegram_token", "mdi:key")}
+          ${this._renderTextField("Chat ID Telegram", "Identifiant du groupe ou canal de réception des alertes", "telegram_chat_id", "mdi:message-badge")}
+        </div>
+
+        <div class="config-card">
+          <div class="config-card-title"><ha-icon icon="mdi:server-network" style="color:#10b981;"></ha-icon> Serveur FTP (NAS Asustor / Synology / Cloud)</div>
+          ${this._renderToggleField("Activer le transfert FTP", "Téléverse automatiquement photos et vidéos lors des déclenchements", "ftp_enabled", "mdi:upload-network")}
+          ${this._renderTextField("Hôte FTP", "Adresse IP locale ou nom de domaine du NAS", "ftp_host", "mdi:ip-network", "text", "192.168.1.50")}
+          ${this._renderNumberField("Port FTP", "Port de connexion FTP standard", "ftp_port", "mdi:numeric", 1, 65535, 1, "")}
+          ${this._renderTextField("Identifiant FTP", "Nom d'utilisateur du compte NAS", "ftp_user", "mdi:account")}
+          ${this._renderPasswordField("Mot de passe FTP", "Mot de passe du compte FTP", "ftp_pass", "mdi:lock")}
+          ${this._renderTextField("Répertoire distant", "Chemin distant (créera automatiquement domolink/alarm/...) ", "ftp_path", "mdi:folder-network", "text", "/")}
+        </div>
+
+        <div class="config-card">
+          <div class="config-card-title"><ha-icon icon="mdi:folder-image" style="color:#f59e0b;"></ha-icon> Médias Locaux Home Assistant</div>
+          ${this._renderTextField("Sous-dossier de stockage local", "Dossier dans /config/www/ où sont stockées les photos et vidéos", "media_path", "mdi:folder", "text", "domolink_media")}
+        </div>
+      `;
+    }
 
     const html = `
-      <div class="glass-card" style="display:flex; flex-direction:column; gap:20px;">
-        <div style="font-size:17px; font-weight:800; color:var(--d-text); display:flex; align-items:center; gap:8px;">
-          <ha-icon icon="mdi:tune" style="color:#f59e0b;"></ha-icon> Paramètres Rapides
-        </div>
-
-        <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 16px; background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border);">
-          <div>
-            <div style="font-size:14px; font-weight:700; color:var(--d-text);">Mode Carillon (Chime)</div>
-            <div style="font-size:12px; color:var(--d-subtext); margin-top:2px;">Bip court à l'ouverture d'une porte quand l'alarme est désarmée</div>
+      <div style="max-width:960px; margin:0 auto;">
+        <!-- Header Info -->
+        <div class="glass-card" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; margin-bottom:20px;">
+          <div style="display:flex; align-items:center; gap:14px;">
+            <div style="width:48px; height:48px; border-radius:14px; background:linear-gradient(135deg,#f59e0b,#d97706); display:flex; align-items:center; justify-content:center; color:#fff; box-shadow:0 4px 14px rgba(245,158,11,0.35);">
+              <ha-icon icon="mdi:cog" style="--mdc-icon-size:28px;"></ha-icon>
+            </div>
+            <div>
+              <div style="font-size:18px; font-weight:800; color:var(--d-text); display:flex; align-items:center; gap:8px;">
+                Centre de Configuration
+                <span class="nav-badge-pill badge-version">v0.9.59</span>
+              </div>
+              <div style="font-size:12px; color:var(--d-subtext); margin-top:3px;">
+                Modifiez vos équipements, délais, notifications et sauvegardes en toute simplicité
+              </div>
+            </div>
           </div>
-          <input type="checkbox" id="param-chime" ${chime ? 'checked' : ''} style="width:20px; height:20px; cursor:pointer;" />
-        </div>
 
-        <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 16px; background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border);">
-          <div>
-            <div style="font-size:14px; font-weight:700; color:var(--d-text);">Jours d'historique de simulation</div>
-            <div style="font-size:12px; color:var(--d-subtext); margin-top:2px;">Plage de rejeu des habitudes de présence</div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <button class="btn-config-reset" id="btn-config-reset-top" title="Recharger les valeurs enregistrées">
+              <ha-icon icon="mdi:restore" style="--mdc-icon-size:16px;"></ha-icon> Réinitialiser
+            </button>
+            <button class="btn-config-save" id="btn-config-save-top">
+              <ha-icon icon="mdi:content-save-check" style="--mdc-icon-size:18px;"></ha-icon> Enregistrer
+            </button>
           </div>
-          <select id="param-history" style="padding:8px 12px; border-radius:8px; background:var(--d-surface); color:var(--d-text); border:1px solid var(--d-border); font-weight:700;">
-            <option value="7" ${history_days==7?"selected":""}>7 jours</option>
-            <option value="14" ${history_days==14?"selected":""}>14 jours</option>
-            <option value="21" ${history_days==21?"selected":""}>21 jours</option>
-            <option value="28" ${history_days==28?"selected":""}>28 jours</option>
-          </select>
         </div>
 
-        <div style="text-align:center; padding-top:10px;">
-          <button id="btn-save-params" style="padding:12px 32px; border-radius:9999px; border:none; background:#f59e0b; color:#ffffff; font-weight:800; font-size:13px; cursor:pointer; box-shadow:0 4px 16px rgba(245,158,11,0.4);">
-            Sauvegarder les Paramètres
-          </button>
+        <!-- Sub-Navigation Pills -->
+        <div class="config-subnav">
+          ${subnavItems.map(item => `
+            <button class="config-subnav-btn ${this._configSubTab === item.key ? 'active' : ''}" data-subtab="${item.key}">
+              <ha-icon icon="${item.icon}"></ha-icon> ${item.label}
+            </button>
+          `).join('')}
+        </div>
+
+        <!-- Subtab Content -->
+        <div class="config-content-pane">
+          ${contentHtml}
+        </div>
+
+        <!-- Bottom Action Bar -->
+        <div class="config-actions-bar">
+          <div style="font-size:12px; color:var(--d-subtext); font-weight:600;">
+            Les modifications sont immédiatement appliquées et sauvegardées dans Home Assistant.
+          </div>
+          <div style="display:flex; align-items:center; gap:12px;">
+            <button class="btn-config-reset" id="btn-config-reset-bottom">
+              <ha-icon icon="mdi:restore" style="--mdc-icon-size:16px;"></ha-icon> Annuler les changements
+            </button>
+            <button class="btn-config-save" id="btn-config-save-bottom">
+              <ha-icon icon="mdi:content-save-check" style="--mdc-icon-size:18px;"></ha-icon> Enregistrer la Configuration
+            </button>
+          </div>
         </div>
       </div>
     `;
 
-    if (this._lastParamHtml !== html) {
-      container.innerHTML = html;
-      this._lastParamHtml = html;
+    container.innerHTML = html;
 
-      const btnSave = container.querySelector('#btn-save-params');
-      if (btnSave) {
-        btnSave.addEventListener('click', () => {
-          const chimeVal = container.querySelector('#param-chime').checked;
-          const historyVal = parseInt(container.querySelector('#param-history').value, 10);
-          this._hass.callService('domolink_alarm', 'update_settings', {
-            chime_mode: chimeVal,
-            presence_simulation_history_days: historyVal
-          }).then(() => {
-            btnSave.innerText = "✓ Sauvegardé !";
-            btnSave.style.backgroundColor = "#10b981";
-            setTimeout(() => {
-              btnSave.innerText = "Sauvegarder les Paramètres";
-              btnSave.style.backgroundColor = "#f59e0b";
-            }, 2000);
-          }).catch(e => alert("Erreur: " + e.message));
-        });
+    // ─── Bind Events ──────────────────────────────
+
+    // Subtab switching
+    container.querySelectorAll('.config-subnav-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this._configSubTab = btn.getAttribute('data-subtab');
+        this._renderParamTab(alarmEntity);
+      });
+    });
+
+    // Inputs: text, number, select, time
+    container.querySelectorAll('.config-input, .config-select:not(.config-entity-picker)').forEach(input => {
+      input.addEventListener('change', (e) => {
+        const field = e.target.getAttribute('data-field');
+        if (!field) return;
+        let val = e.target.value;
+        if (e.target.type === 'number') val = parseFloat(val) || 0;
+        this._configDraft[field] = val;
+      });
+      input.addEventListener('input', (e) => {
+        const field = e.target.getAttribute('data-field');
+        if (!field) return;
+        let val = e.target.value;
+        if (e.target.type === 'number') val = parseFloat(val) || 0;
+        this._configDraft[field] = val;
+      });
+    });
+
+    // Toggles
+    container.querySelectorAll('.config-toggle').forEach(chk => {
+      chk.addEventListener('change', (e) => {
+        const field = e.target.getAttribute('data-field');
+        if (field) {
+          this._configDraft[field] = Boolean(e.target.checked);
+        }
+      });
+    });
+
+    // Password show/hide toggle
+    container.querySelectorAll('.btn-pwd-toggle').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const row = btn.closest('.config-row');
+        if (!row) return;
+        const input = row.querySelector('.config-pwd-field');
+        const icon = btn.querySelector('ha-icon');
+        if (input) {
+          const isPwd = input.type === 'password';
+          input.type = isPwd ? 'text' : 'password';
+          if (icon) icon.setAttribute('icon', isPwd ? 'mdi:eye-off' : 'mdi:eye');
+        }
+      });
+    });
+
+    // Entity Picker Select
+    container.querySelectorAll('.config-entity-picker').forEach(select => {
+      select.addEventListener('change', (e) => {
+        const field = select.getAttribute('data-field');
+        const chosen = select.value;
+        if (field && chosen) {
+          if (!Array.isArray(this._configDraft[field])) this._configDraft[field] = [];
+          if (!this._configDraft[field].includes(chosen)) {
+            this._configDraft[field].push(chosen);
+          }
+          this._renderParamTab(alarmEntity);
+        }
+      });
+    });
+
+    // Chip remove
+    container.querySelectorAll('.config-chip-remove').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const field = btn.getAttribute('data-field');
+        const entity = btn.getAttribute('data-entity');
+        if (field && entity && Array.isArray(this._configDraft[field])) {
+          this._configDraft[field] = this._configDraft[field].filter(item => item !== entity);
+          this._renderParamTab(alarmEntity);
+        }
+      });
+    });
+
+    // Add Label Button
+    container.querySelectorAll('.btn-add-label').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const field = btn.getAttribute('data-field');
+        const row = btn.closest('.config-row-stacked');
+        const input = row ? row.querySelector('.config-label-input') : null;
+        if (field && input && input.value.trim()) {
+          const val = input.value.trim();
+          if (!Array.isArray(this._configDraft[field])) this._configDraft[field] = [];
+          if (!this._configDraft[field].includes(val)) {
+            this._configDraft[field].push(val);
+          }
+          input.value = '';
+          this._renderParamTab(alarmEntity);
+        }
+      });
+    });
+
+    // Reset Buttons
+    const handleReset = () => {
+      if (confirm("Voulez-vous annuler toutes les modifications non enregistrées ?")) {
+        this._configDraft = null;
+        this._renderParamTab(alarmEntity);
       }
-    }
+    };
+    const resetTop = container.querySelector('#btn-config-reset-top');
+    const resetBottom = container.querySelector('#btn-config-reset-bottom');
+    if (resetTop) resetTop.addEventListener('click', handleReset);
+    if (resetBottom) resetBottom.addEventListener('click', handleReset);
+
+    // Save Buttons
+    const handleSave = (btn) => {
+      // Capture any unblurred input values first
+      container.querySelectorAll('.config-input, .config-select:not(.config-entity-picker)').forEach(input => {
+        const field = input.getAttribute('data-field');
+        if (field) {
+          let val = input.value;
+          if (input.type === 'number') val = parseFloat(val) || 0;
+          this._configDraft[field] = val;
+        }
+      });
+      container.querySelectorAll('.config-toggle').forEach(chk => {
+        const field = chk.getAttribute('data-field');
+        if (field) this._configDraft[field] = Boolean(chk.checked);
+      });
+
+      const oldText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = `<ha-icon icon="mdi:loading" class="spin-icon" style="--mdc-icon-size:18px;"></ha-icon> Enregistrement...`;
+
+      this._hass.callService('domolink_alarm', 'update_settings', this._configDraft).then(() => {
+        btn.innerHTML = `✓ Configuration Enregistrée !`;
+        btn.style.backgroundColor = '#10b981';
+        setTimeout(() => {
+          btn.innerHTML = oldText;
+          btn.style.backgroundColor = '#f59e0b';
+          btn.disabled = false;
+          // Invalidate draft so it reloads fresh from HA
+          this._configDraft = null;
+          this.render();
+        }, 2200);
+      }).catch(err => {
+        btn.innerHTML = oldText;
+        btn.disabled = false;
+        alert("Erreur lors de la sauvegarde: " + (err && err.message ? err.message : String(err)));
+      });
+    };
+
+    const saveTop = container.querySelector('#btn-config-save-top');
+    const saveBottom = container.querySelector('#btn-config-save-bottom');
+    if (saveTop) saveTop.addEventListener('click', () => handleSave(saveTop));
+    if (saveBottom) saveBottom.addEventListener('click', () => handleSave(saveBottom));
   }
 
   // ─── Dynamic Navigation Badges ──────────────────
@@ -2608,7 +3412,7 @@ class DomolinkPanel extends HTMLElement {
       const isFtp = Boolean(attrs.ftp_enabled);
       elParam.innerHTML = `
         <div class="nav-badge-stack">
-          <span class="nav-badge-pill badge-version">v0.9.58</span>
+          <span class="nav-badge-pill badge-version">v0.9.59</span>
           <span class="nav-badge-pill badge-neutral">${isFtp ? 'FTP' : 'LOCAL'}</span>
         </div>
       `;
