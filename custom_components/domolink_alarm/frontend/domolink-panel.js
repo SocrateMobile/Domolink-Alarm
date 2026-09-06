@@ -1201,9 +1201,24 @@ class DomolinkPanel extends HTMLElement {
 
     const testProgressHTML = attrs.camera_test_running && attrs.camera_test_info ? (() => {
       const info = attrs.camera_test_info;
-      if (!info.total) return `<div style="text-align:center;color:#f59e0b;font-size:12px;font-weight:700;"><ha-icon icon="mdi:loading" style="animation:spin 1s linear infinite;--mdc-icon-size:16px;margin-right:6px;"></ha-icon> INITIALISATION DU TEST...</div>`;
-      
-      const globalPct = ((info.current - 1) / info.total) * 100;
+      const total = Math.max(1, info.total || 1);
+      const current = Math.max(0, info.current || 0);
+
+      // Compute realistic, monotonic global percentage
+      let cameraFraction = 0;
+      if (info.step === 'photo') cameraFraction = 0.15;
+      else if (info.step === 'video') {
+        const elapsed = Math.max(0, (Date.now()/1000) - (info.video_start || 0));
+        const duration = info.video_duration || 34;
+        const videoRatio = Math.min(1, elapsed / duration);
+        cameraFraction = 0.15 + (0.85 * videoRatio);
+      }
+
+      let globalPct = 0;
+      if (current > 0) {
+        globalPct = Math.min(100, Math.max(0, (((current - 1) + cameraFraction) / total) * 100));
+      }
+
       let stepHtml = '';
       if (info.step === 'photo') {
          stepHtml = `
@@ -1225,14 +1240,26 @@ class DomolinkPanel extends HTMLElement {
              <div style="width:100%; height:100%; background:#f59e0b; animation: fillBar 34s linear forwards; animation-delay: -${delay}s;"></div>
            </div>
          `;
+      } else {
+         stepHtml = `
+           <div style="display:flex; justify-content:space-between; font-size:10px; margin-bottom:4px; opacity:0.8;">
+             <span>Préparation du test...</span>
+             <span>En cours</span>
+           </div>
+           <div style="width:100%; height:4px; background:rgba(255,255,255,0.1); border-radius:2px; overflow:hidden;">
+             <div style="width:100%; height:100%; background:#f59e0b; animation: progressIndeterminate 1.5s infinite linear;"></div>
+           </div>
+         `;
       }
       
+      const cameraLabel = info.camera_name && info.camera_name !== '...' ? info.camera_name : (current > 0 ? `Caméra ${current}/${total}` : 'Démarrage...');
+
       return `
         <div style="display:flex; flex-direction:column; width:100%; gap:12px; padding: 4px 0; background:rgba(245,158,11,0.05); border-radius:10px; border:1px solid rgba(245,158,11,0.2); padding:12px; margin-top:10px;">
           <!-- Total Progress -->
           <div>
             <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; margin-bottom:4px; color:#10b981;">
-              <span>GLOBAL (${info.current}/${info.total})</span>
+              <span>GLOBAL (${current}/${total})</span>
               <span>${Math.round(globalPct)}%</span>
             </div>
             <div style="width:100%; height:4px; background:rgba(255,255,255,0.1); border-radius:2px; overflow:hidden;">
@@ -1242,7 +1269,7 @@ class DomolinkPanel extends HTMLElement {
           <!-- Current Camera Progress -->
           <div>
             <div style="font-size:11px; font-weight:800; margin-bottom:6px; color:var(--d-text);">
-              Caméra : <span style="color:#f59e0b;">${this.escapeHtml(info.camera_name || '...')}</span>
+              Caméra : <span style="color:#f59e0b;">${this.escapeHtml(cameraLabel)}</span>
             </div>
             ${stepHtml}
           </div>
