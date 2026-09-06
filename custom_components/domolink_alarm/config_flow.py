@@ -337,6 +337,7 @@ class DomolinkAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Optional(CONF_FTP_USER, default=""): str,
                     vol.Optional(CONF_FTP_PASS, default=""): str,
                     vol.Optional(CONF_FTP_PATH, default=DEFAULT_FTP_PATH): str,
+                    vol.Optional(CONF_MEDIA_PATH, default=DEFAULT_MEDIA_PATH): str,
                 }
             ),
         )

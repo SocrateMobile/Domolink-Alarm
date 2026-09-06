@@ -193,12 +193,22 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._state = AlarmControlPanelState.DISARMED
         self._pre_trigger_state = AlarmControlPanelState.DISARMED
         self._unique_id = f"domolink_alarm_{entry.entry_id}"
+        # Read version from manifest.json
+        _sw_version = "0.9.51"
+        try:
+            import json as _json
+            _manifest_path = os.path.join(os.path.dirname(__file__), "manifest.json")
+            with open(_manifest_path) as _mf:
+                _sw_version = _json.load(_mf).get("version", _sw_version)
+        except Exception:
+            pass
+
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, self._unique_id)},
             name=self._attr_name,
             manufacturer="Domolink",
             model="Domolink Smart Alarm",
-            sw_version="0.9.47",
+            sw_version=_sw_version,
         )
 
         self._siren_task = None
@@ -437,6 +447,12 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         icloud_devs = options.get("icloud_devices", data.get("icloud_devices", []))
         self._icloud_devices = icloud_devs if isinstance(icloud_devs, list) else []
 
+        # Pre-compute entity zones map (only changes on config reload)
+        self._entity_zones_cache = self._get_entity_zones_map()
+        # Initialize media files cache
+        self._media_files_cache = []
+        self._media_files_cache_ts = 0
+
     @callback
     def async_update_options(self):
         """Reload config when options change (called from __init__.py listener)."""
@@ -481,6 +497,12 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
     @property
     def extra_state_attributes(self):
         """Expose extra attributes for Lovelace and automations."""
+        # Use cached media files (30s TTL) to avoid repeated disk I/O
+        now_ts = self.hass.loop.time()
+        if not hasattr(self, '_media_files_cache') or (now_ts - getattr(self, '_media_files_cache_ts', 0)) > 30:
+            self._media_files_cache = self._list_media_files()
+            self._media_files_cache_ts = now_ts
+
         return {
             "domolink_alarm": True,
             "faults": self._faults,
@@ -517,10 +539,10 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             "cameras_armed": self._cameras_armed,
             "cameras_arm_entities": self._cameras_arm_entities,
             "media_path": self._media_path,
-            "media_files": self._list_media_files(),
+            "media_files": self._media_files_cache,
             "zone_labels": self._zone_labels,
             "global_cameras": self._global_cameras,
-            "entity_zones": self._get_entity_zones_map(),
+            "entity_zones": self._entity_zones_cache,
             "disarm_cooldown": self._disarm_cooldown_task is not None,
             "camera_test_running": getattr(self, "_is_testing_cameras", False),
             "camera_test_info": getattr(self, "_camera_test_info", {}),
@@ -561,8 +583,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             self._event_sensor.async_add_event(utcnow().isoformat(), message)
         try:
             self.async_write_ha_state()
-        except Exception:
-            pass
+        except Exception as err:
+            _LOGGER.debug("Domolink: Échec async_write_ha_state dans _log_event: %s", err)
         if hasattr(self, "_mqtt_enabled") and self._mqtt_enabled and "mqtt" in self.hass.config.components:
             from homeassistant.components import mqtt
             import json
@@ -1003,13 +1025,13 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         # Cloud backup health check
         if getattr(self, "_telegram_enabled", False) and self._telegram_token:
             try:
-                import aiohttp
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(f"https://api.telegram.org/bot{self._telegram_token}/getMe", timeout=5) as resp:
-                        if resp.status == 200:
-                            self._telegram_status = "Connecté"
-                        else:
-                            self._telegram_status = "Erreur"
+                from homeassistant.helpers.aiohttp_client import async_get_clientsession
+                session = async_get_clientsession(self.hass)
+                async with session.get(f"https://api.telegram.org/bot{self._telegram_token}/getMe", timeout=5) as resp:
+                    if resp.status == 200:
+                        self._telegram_status = "Connecté"
+                    else:
+                        self._telegram_status = "Erreur"
             except Exception:
                 self._telegram_status = "Hors ligne"
         else:
@@ -1695,6 +1717,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         for _ in range(int(remaining * 2)):  # check every 0.5s
             # If .mp4 already exists and is finalized, we're done
             if os.path.exists(expected_mp4_path) and os.path.getsize(expected_mp4_path) > 10240:
+                self._media_files_cache_ts = 0
                 _LOGGER.debug("Domolink: Video OK: %s", expected_mp4_path)
                 return
             # If HA left a .tmp file after recording finished, check stability and rename
@@ -1706,6 +1729,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                         size2 = os.path.getsize(tmp)
                         if size1 == size2 and size1 > 10240:
                             os.rename(tmp, expected_mp4_path)
+                            self._media_files_cache_ts = 0
                             _LOGGER.info("Domolink: .mp4.tmp finalisé en .mp4: %s", expected_mp4_path)
                             self._log_event(f"Vidéo sauvegardée: {os.path.basename(expected_mp4_path)}")
                             return
@@ -1734,6 +1758,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         if action == "delete":
             try:
                 os.remove(file_path)
+                self._media_files_cache_ts = 0  # Invalidate cache
                 self._log_event(f"Média supprimé: {filename}")
                 _LOGGER.info("Domolink: Fichier supprimé: %s", file_path)
             except Exception as e:
@@ -1745,6 +1770,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             new_path = os.path.join(media_dir, new_name)
             try:
                 os.rename(file_path, new_path)
+                self._media_files_cache_ts = 0  # Invalidate cache
                 self._log_event(f"Média renommé: {filename} → {new_name}")
                 _LOGGER.info("Domolink: Fichier renommé: %s → %s", file_path, new_path)
             except Exception as e:
@@ -1834,6 +1860,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                     )
 
                 if os.path.exists(snapshot_path):
+                    self._media_files_cache_ts = 0
                     alert_path = self.hass.config.path("www/domolink_alarm_alert.jpg")
                     try:
                         shutil.copy2(snapshot_path, alert_path)
@@ -1916,19 +1943,25 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         
         try:
             import aiohttp
-            async with aiohttp.ClientSession() as session:
-                data = aiohttp.FormData()
-                data.add_field('chat_id', str(self._telegram_chat_id))
-                with open(file_path, 'rb') as photo_file:
-                    data.add_field('photo', photo_file, filename=os.path.basename(file_path), content_type='image/jpeg')
-                    async with session.post(f"https://api.telegram.org/bot{self._telegram_token}/sendPhoto", data=data, timeout=10) as resp:
-                        if resp.status == 200:
-                            _LOGGER.info("Domolink: Snapshot envoyé sur Telegram avec succès")
-                            self._log_event("Sauvegarde photo Telegram réussie")
-                            self._telegram_status = "Connecté"
-                        else:
-                            _LOGGER.error("Domolink: Échec envoi Telegram - Code %s", resp.status)
-                            self._telegram_status = "Erreur"
+            from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+            def _read_file():
+                with open(file_path, 'rb') as pf:
+                    return pf.read()
+
+            photo_bytes = await self.hass.async_add_executor_job(_read_file)
+            session = async_get_clientsession(self.hass)
+            data = aiohttp.FormData()
+            data.add_field('chat_id', str(self._telegram_chat_id))
+            data.add_field('photo', photo_bytes, filename=os.path.basename(file_path), content_type='image/jpeg')
+            async with session.post(f"https://api.telegram.org/bot{self._telegram_token}/sendPhoto", data=data, timeout=10) as resp:
+                if resp.status == 200:
+                    _LOGGER.info("Domolink: Snapshot envoyé sur Telegram avec succès")
+                    self._log_event("Sauvegarde photo Telegram réussie")
+                    self._telegram_status = "Connecté"
+                else:
+                    _LOGGER.error("Domolink: Échec envoi Telegram - Code %s", resp.status)
+                    self._telegram_status = "Erreur"
         except Exception as e:
             _LOGGER.error("Domolink: Erreur lors de l'envoi Telegram : %s", e)
             self._telegram_status = "Erreur"
@@ -2031,6 +2064,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                         _LOGGER.debug("Domolink: Erreur copie alert_path: %s", e)
 
                 if os.path.exists(snapshot_path):
+                    self._media_files_cache_ts = 0
                     if getattr(self, "_telegram_enabled", False):
                         self.hass.async_create_task(self._async_upload_to_telegram(snapshot_path))
                     if getattr(self, "_ftp_enabled", False):
@@ -2129,8 +2163,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
     # ─── Helper: Cancel All Tasks ─────────────────────────────────
 
     def _cancel_all_tasks(self):
-        self._post_trigger_active = False
         """Cancel any pending timers."""
+        self._post_trigger_active = False
         if hasattr(self, "_disarm_cooldown_task") and self._disarm_cooldown_task:
             self._disarm_cooldown_task()
             self._disarm_cooldown_task = None
@@ -2146,7 +2180,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         if self._geofence_reminder_task:
             self._geofence_reminder_task()
             self._geofence_reminder_task = None
-        if self._presence_simulation_task:
+        # Only cancel presence simulation if it was NOT forced manually
+        if self._presence_simulation_task and not self._presence_simulation_forced:
             self._presence_simulation_task()
             self._presence_simulation_task = None
 
