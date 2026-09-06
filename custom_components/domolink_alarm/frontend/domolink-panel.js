@@ -1770,6 +1770,9 @@ class DomolinkPanel extends HTMLElement {
       tab.addEventListener('click', () => {
         this._activeTab = tab.getAttribute('data-tab');
         this._lastMediaSignature = null; // force fresh render on tab switch
+        if (this._activeTab === 'param') {
+          this._paramRendered = false;
+        }
         this.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
         this.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
@@ -3271,6 +3274,53 @@ class DomolinkPanel extends HTMLElement {
   _initParamDraft(attrs) {
     if (this._configDraft) return;
     const c = (attrs && attrs.installed_config) ? attrs.installed_config : {};
+    
+    const defaultNasConfigs = {
+      asustor: { ftp_enabled: true, ftp_host: "", ftp_port: 21, ftp_user: "", ftp_pass: "", ftp_path: "/", webdav_enabled: false, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" },
+      synology: { ftp_enabled: true, ftp_host: "", ftp_port: 21, ftp_user: "", ftp_pass: "", ftp_path: "/", webdav_enabled: false, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" },
+      qnap: { ftp_enabled: true, ftp_host: "", ftp_port: 21, ftp_user: "", ftp_pass: "", ftp_path: "/", webdav_enabled: false, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" },
+      truenas: { ftp_enabled: false, ftp_host: "", ftp_port: 21, ftp_user: "", ftp_pass: "", ftp_path: "/", webdav_enabled: true, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" },
+      freebox: { ftp_enabled: true, ftp_host: "mafreebox.freebox.fr", ftp_port: 21, ftp_user: "freebox", ftp_pass: "", ftp_path: "/", webdav_enabled: false, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" },
+      unraid: { ftp_enabled: true, ftp_host: "", ftp_port: 21, ftp_user: "", ftp_pass: "", ftp_path: "/", webdav_enabled: false, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" },
+      generic: { ftp_enabled: true, ftp_host: "", ftp_port: 21, ftp_user: "", ftp_pass: "", ftp_path: "/", webdav_enabled: false, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" }
+    };
+
+    const savedNasConfigs = (c && c.nas_configs) || (attrs && attrs.nas_configs) || {};
+    const mergedNasConfigs = {};
+    Object.keys(defaultNasConfigs).forEach(brand => {
+      mergedNasConfigs[brand] = Object.assign({}, defaultNasConfigs[brand], (savedNasConfigs && savedNasConfigs[brand]) || {});
+    });
+
+    const activeNas = (c.nas_type || (attrs && attrs.nas_type) || "asustor").toLowerCase();
+    if (!mergedNasConfigs[activeNas]) {
+      mergedNasConfigs[activeNas] = Object.assign({}, defaultNasConfigs.asustor);
+    }
+
+    // If activeNas has legacy top-level credentials in c, ensure they're populated into active profile
+    if (c.ftp_host && (!savedNasConfigs[activeNas] || !savedNasConfigs[activeNas].ftp_host)) {
+      mergedNasConfigs[activeNas].ftp_enabled = Boolean(c.ftp_enabled);
+      mergedNasConfigs[activeNas].ftp_host = c.ftp_host || "";
+      mergedNasConfigs[activeNas].ftp_port = c.ftp_port !== undefined ? c.ftp_port : 21;
+      mergedNasConfigs[activeNas].ftp_user = c.ftp_user || "";
+      mergedNasConfigs[activeNas].ftp_pass = c.ftp_pass || "";
+      mergedNasConfigs[activeNas].ftp_path = c.ftp_path || "/";
+    }
+    if (c.webdav_url && (!savedNasConfigs[activeNas] || !savedNasConfigs[activeNas].webdav_url)) {
+      mergedNasConfigs[activeNas].webdav_enabled = Boolean(c.webdav_enabled);
+      mergedNasConfigs[activeNas].webdav_url = c.webdav_url || "";
+      mergedNasConfigs[activeNas].webdav_user = c.webdav_user || "";
+      mergedNasConfigs[activeNas].webdav_pass = c.webdav_pass || "";
+      mergedNasConfigs[activeNas].webdav_path = c.webdav_path || "domolink/alarm";
+    }
+
+    // Freebox guarantee defaults if empty
+    if (!mergedNasConfigs.freebox.ftp_host) mergedNasConfigs.freebox.ftp_host = "mafreebox.freebox.fr";
+    if (!mergedNasConfigs.freebox.ftp_user) mergedNasConfigs.freebox.ftp_user = "freebox";
+    if (mergedNasConfigs.freebox.ftp_port === undefined) mergedNasConfigs.freebox.ftp_port = 21;
+    if (mergedNasConfigs.freebox.ftp_enabled === undefined) mergedNasConfigs.freebox.ftp_enabled = true;
+
+    const curNasCfg = mergedNasConfigs[activeNas] || mergedNasConfigs.asustor;
+
     this._configDraft = {
       name: c.name || "Domolink Alarm",
       opening_sensors: Array.isArray(c.opening_sensors) ? [...c.opening_sensors] : [],
@@ -3338,18 +3388,19 @@ class DomolinkPanel extends HTMLElement {
       telegram_enabled: Boolean(c.telegram_enabled),
       telegram_token: c.telegram_token || "",
       telegram_chat_id: c.telegram_chat_id || "",
-      ftp_enabled: Boolean(c.ftp_enabled),
-      ftp_host: c.ftp_host || "",
-      ftp_port: c.ftp_port !== undefined ? c.ftp_port : 21,
-      ftp_user: c.ftp_user || "",
-      ftp_pass: c.ftp_pass || "",
-      ftp_path: c.ftp_path || "/",
-      webdav_enabled: Boolean(c.webdav_enabled),
-      webdav_url: c.webdav_url || "",
-      webdav_user: c.webdav_user || "",
-      webdav_pass: c.webdav_pass || "",
-      webdav_path: c.webdav_path || "domolink/alarm",
-      nas_type: c.nas_type || "asustor",
+      nas_type: activeNas,
+      nas_configs: mergedNasConfigs,
+      ftp_enabled: Boolean(curNasCfg.ftp_enabled),
+      ftp_host: curNasCfg.ftp_host !== undefined ? curNasCfg.ftp_host : "",
+      ftp_port: curNasCfg.ftp_port !== undefined ? curNasCfg.ftp_port : 21,
+      ftp_user: curNasCfg.ftp_user !== undefined ? curNasCfg.ftp_user : "",
+      ftp_pass: curNasCfg.ftp_pass !== undefined ? curNasCfg.ftp_pass : "",
+      ftp_path: curNasCfg.ftp_path !== undefined ? curNasCfg.ftp_path : "/",
+      webdav_enabled: Boolean(curNasCfg.webdav_enabled),
+      webdav_url: curNasCfg.webdav_url !== undefined ? curNasCfg.webdav_url : "",
+      webdav_user: curNasCfg.webdav_user !== undefined ? curNasCfg.webdav_user : "",
+      webdav_pass: curNasCfg.webdav_pass !== undefined ? curNasCfg.webdav_pass : "",
+      webdav_path: curNasCfg.webdav_path !== undefined ? curNasCfg.webdav_path : "domolink/alarm",
       google_drive_enabled: Boolean(c.google_drive_enabled),
       google_drive_method: c.google_drive_method || "webhook",
       google_drive_webhook_url: c.google_drive_webhook_url || "",
@@ -3361,6 +3412,18 @@ class DomolinkPanel extends HTMLElement {
       media_max_size_mb: c.media_max_size_mb !== undefined ? c.media_max_size_mb : 1024,
       media_path: c.media_path || "domolink_media",
     };
+  }
+
+  _syncDraftToNasConfig(field, val) {
+    if (!this._configDraft || !this._configDraft.nas_configs) return;
+    const nasFields = ['ftp_enabled', 'ftp_host', 'ftp_port', 'ftp_user', 'ftp_pass', 'ftp_path', 'webdav_enabled', 'webdav_url', 'webdav_user', 'webdav_pass', 'webdav_path'];
+    if (nasFields.includes(field)) {
+      const curNas = this._configDraft.nas_type || 'asustor';
+      if (!this._configDraft.nas_configs[curNas]) {
+        this._configDraft.nas_configs[curNas] = {};
+      }
+      this._configDraft.nas_configs[curNas][field] = val;
+    }
   }
 
   _renderEntityListField(title, help, fieldName, allowedDomains, icon) {
@@ -3528,6 +3591,7 @@ class DomolinkPanel extends HTMLElement {
   _renderParamTab(alarmEntity) {
     const container = this.querySelector('#pane-param');
     if (!container) return;
+    this._paramRendered = true;
 
     const attrs = alarmEntity ? alarmEntity.attributes : {};
     this._initParamDraft(attrs);
@@ -3815,7 +3879,7 @@ class DomolinkPanel extends HTMLElement {
             <div>
               <div style="font-size:18px; font-weight:800; color:var(--d-text); display:flex; align-items:center; gap:8px;">
                 Centre de Configuration
-                <span class="nav-badge-pill badge-version">v0.9.61</span>
+                <span class="nav-badge-pill badge-version">v0.9.62</span>
               </div>
               <div style="font-size:12px; color:var(--d-subtext); margin-top:3px;">
                 Modifiez vos équipements, délais, notifications et sauvegardes en toute simplicité
@@ -3884,22 +3948,28 @@ class DomolinkPanel extends HTMLElement {
         let val = e.target.value;
         if (e.target.type === 'number') val = parseFloat(val) || 0;
         this._configDraft[field] = val;
+        this._syncDraftToNasConfig(field, val);
       });
       input.addEventListener('input', (e) => {
         const field = e.target.getAttribute('data-field');
         if (!field) return;
         let val = e.target.value;
-        if (e.target.type === 'number') val = parseFloat(val) || 0;
+        if (e.target.type === 'number') {
+          val = val === '' ? '' : (parseFloat(val) || 0);
+        }
         this._configDraft[field] = val;
+        this._syncDraftToNasConfig(field, val);
       });
     });
 
     // Toggles
     container.querySelectorAll('.config-toggle').forEach(chk => {
       chk.addEventListener('change', (e) => {
-        const field = e.target.getAttribute('data-field');
+        const field = chk.getAttribute('data-field');
         if (field) {
-          this._configDraft[field] = Boolean(e.target.checked);
+          const val = Boolean(chk.checked);
+          this._configDraft[field] = val;
+          this._syncDraftToNasConfig(field, val);
         }
       });
     });
@@ -3969,6 +4039,7 @@ class DomolinkPanel extends HTMLElement {
     const handleReset = () => {
       if (confirm("Voulez-vous annuler toutes les modifications non enregistrées ?")) {
         this._configDraft = null;
+        this._paramRendered = false;
         this._renderParamTab(alarmEntity);
       }
     };
@@ -3986,11 +4057,16 @@ class DomolinkPanel extends HTMLElement {
           let val = input.value;
           if (input.type === 'number') val = parseFloat(val) || 0;
           this._configDraft[field] = val;
+          this._syncDraftToNasConfig(field, val);
         }
       });
       container.querySelectorAll('.config-toggle').forEach(chk => {
         const field = chk.getAttribute('data-field');
-        if (field) this._configDraft[field] = Boolean(chk.checked);
+        if (field) {
+          const val = Boolean(chk.checked);
+          this._configDraft[field] = val;
+          this._syncDraftToNasConfig(field, val);
+        }
       });
 
       const oldText = btn.innerHTML;
@@ -4006,6 +4082,7 @@ class DomolinkPanel extends HTMLElement {
           btn.disabled = false;
           // Invalidate draft so it reloads fresh from HA
           this._configDraft = null;
+          this._paramRendered = false;
           this.render();
         }, 2200);
       }).catch(err => {
@@ -4026,6 +4103,7 @@ class DomolinkPanel extends HTMLElement {
       webdavCfgBtn.addEventListener('click', () => {
         this._showWebdavTestConsole = true;
         this._activeTab = 'arm';
+        this._paramRendered = false;
         this.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.getAttribute('data-tab') === 'arm'));
         this.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'pane-arm'));
         this._lastArmKey = '';
@@ -4040,6 +4118,7 @@ class DomolinkPanel extends HTMLElement {
       gdriveCfgBtn.addEventListener('click', () => {
         this._showGoogleDriveTestConsole = true;
         this._activeTab = 'arm';
+        this._paramRendered = false;
         this.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.getAttribute('data-tab') === 'arm'));
         this.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'pane-arm'));
         this._lastArmKey = '';
@@ -4051,20 +4130,72 @@ class DomolinkPanel extends HTMLElement {
     // Multi-NAS Profile Cards Selection
     container.querySelectorAll('.nas-profile-card').forEach(card => {
       card.addEventListener('click', () => {
-        const nas = card.getAttribute('data-nas');
-        if (!nas) return;
-        this._configDraft.nas_type = nas;
-        if (nas === 'freebox' && (!this._configDraft.ftp_host || this._configDraft.ftp_host === '192.168.1.50')) {
-          this._configDraft.ftp_host = 'mafreebox.freebox.fr';
-          this._configDraft.ftp_port = 21;
-          this._configDraft.ftp_user = 'freebox';
-        } else if (nas === 'synology') {
-          if (!this._configDraft.ftp_port) this._configDraft.ftp_port = 21;
-        } else if (nas === 'asustor') {
-          if (!this._configDraft.ftp_port) this._configDraft.ftp_port = 21;
-        } else if (nas === 'qnap') {
-          if (!this._configDraft.ftp_port) this._configDraft.ftp_port = 21;
+        const newNas = card.getAttribute('data-nas');
+        if (!newNas) return;
+
+        // 1. Harvest current form inputs into current NAS config before switching
+        container.querySelectorAll('.config-input, .config-select:not(.config-entity-picker)').forEach(input => {
+          const field = input.getAttribute('data-field');
+          if (field) {
+            let val = input.value;
+            if (input.type === 'number') val = parseFloat(val) || 0;
+            this._configDraft[field] = val;
+            this._syncDraftToNasConfig(field, val);
+          }
+        });
+        container.querySelectorAll('.config-toggle').forEach(chk => {
+          const field = chk.getAttribute('data-field');
+          if (field) {
+            const val = Boolean(chk.checked);
+            this._configDraft[field] = val;
+            this._syncDraftToNasConfig(field, val);
+          }
+        });
+
+        // 2. Switch active NAS
+        this._configDraft.nas_type = newNas;
+
+        // 3. Ensure newNas config exists in nas_configs
+        if (!this._configDraft.nas_configs) this._configDraft.nas_configs = {};
+        if (!this._configDraft.nas_configs[newNas]) {
+          this._configDraft.nas_configs[newNas] = {
+            ftp_enabled: newNas !== 'truenas',
+            ftp_host: newNas === 'freebox' ? 'mafreebox.freebox.fr' : '',
+            ftp_port: 21,
+            ftp_user: newNas === 'freebox' ? 'freebox' : '',
+            ftp_pass: '',
+            ftp_path: '/',
+            webdav_enabled: newNas === 'truenas',
+            webdav_url: '',
+            webdav_user: '',
+            webdav_pass: '',
+            webdav_path: 'domolink/alarm'
+          };
         }
+
+        // Freebox guarantee defaults if empty
+        if (newNas === 'freebox') {
+          if (!this._configDraft.nas_configs.freebox.ftp_host) this._configDraft.nas_configs.freebox.ftp_host = 'mafreebox.freebox.fr';
+          if (!this._configDraft.nas_configs.freebox.ftp_user) this._configDraft.nas_configs.freebox.ftp_user = 'freebox';
+          if (this._configDraft.nas_configs.freebox.ftp_port === undefined) this._configDraft.nas_configs.freebox.ftp_port = 21;
+          if (this._configDraft.nas_configs.freebox.ftp_enabled === undefined) this._configDraft.nas_configs.freebox.ftp_enabled = true;
+        }
+
+        const targetCfg = this._configDraft.nas_configs[newNas];
+
+        // 4. Populate top-level fields for display in form
+        this._configDraft.ftp_enabled = Boolean(targetCfg.ftp_enabled);
+        this._configDraft.ftp_host = targetCfg.ftp_host !== undefined ? targetCfg.ftp_host : (newNas === 'freebox' ? 'mafreebox.freebox.fr' : '');
+        this._configDraft.ftp_port = targetCfg.ftp_port !== undefined ? targetCfg.ftp_port : 21;
+        this._configDraft.ftp_user = targetCfg.ftp_user !== undefined ? targetCfg.ftp_user : (newNas === 'freebox' ? 'freebox' : '');
+        this._configDraft.ftp_pass = targetCfg.ftp_pass !== undefined ? targetCfg.ftp_pass : '';
+        this._configDraft.ftp_path = targetCfg.ftp_path !== undefined ? targetCfg.ftp_path : '/';
+        this._configDraft.webdav_enabled = Boolean(targetCfg.webdav_enabled);
+        this._configDraft.webdav_url = targetCfg.webdav_url !== undefined ? targetCfg.webdav_url : '';
+        this._configDraft.webdav_user = targetCfg.webdav_user !== undefined ? targetCfg.webdav_user : '';
+        this._configDraft.webdav_pass = targetCfg.webdav_pass !== undefined ? targetCfg.webdav_pass : '';
+        this._configDraft.webdav_path = targetCfg.webdav_path !== undefined ? targetCfg.webdav_path : 'domolink/alarm';
+
         this._renderParamTab(alarmEntity);
       });
     });
@@ -4260,7 +4391,7 @@ class DomolinkPanel extends HTMLElement {
       const cloudLabel = countCloud > 1 ? 'MULTI-CLOUD' : (isGdrive ? 'G-DRIVE' : (isDav ? 'WEBDAV' : (isFtp ? 'FTP' : 'LOCAL')));
       elParam.innerHTML = `
         <div class="nav-badge-stack">
-          <span class="nav-badge-pill badge-version">v0.9.61</span>
+          <span class="nav-badge-pill badge-version">v0.9.62</span>
           <span class="nav-badge-pill badge-neutral">${cloudLabel}</span>
         </div>
       `;
@@ -4289,7 +4420,14 @@ class DomolinkPanel extends HTMLElement {
         this._renderMediaTab(attrs);
       }
     }
-    else if (this._activeTab === 'param') this._renderParamTab(alarmEntity);
+    else if (this._activeTab === 'param') {
+      const pane = this.querySelector('#pane-param');
+      const hasFocus = pane && pane.contains(document.activeElement);
+      if (!this._paramRendered && !hasFocus) {
+        this._paramRendered = true;
+        this._renderParamTab(alarmEntity);
+      }
+    }
   }
 
   // ─── Helpers ────────────────────────────────────

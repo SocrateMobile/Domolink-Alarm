@@ -115,6 +115,8 @@ from .const import (
     DEFAULT_MEDIA_MAX_SIZE_MB,
     CONF_NAS_TYPE,
     DEFAULT_NAS_TYPE,
+    CONF_NAS_CONFIGS,
+    DEFAULT_NAS_CONFIGS,
     CONF_GOOGLE_DRIVE_ENABLED,
     CONF_GOOGLE_DRIVE_METHOD,
     CONF_GOOGLE_DRIVE_WEBHOOK_URL,
@@ -344,6 +346,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._webdav_status = "Désactivé"
         self._google_drive_status = "Désactivé"
         self._nas_type = DEFAULT_NAS_TYPE
+        self._nas_configs = {k: dict(v) for k, v in DEFAULT_NAS_CONFIGS.items()}
         self._cameras_armed = False
         self._is_testing_cameras = False
         self._ftp_test_running = False
@@ -552,25 +555,56 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._telegram_enabled = options.get("telegram_enabled", data.get("telegram_enabled", False))
         self._telegram_token = options.get("telegram_token", data.get("telegram_token", ""))
         self._telegram_chat_id = options.get("telegram_chat_id", data.get("telegram_chat_id", ""))
-        self._ftp_enabled = options.get("ftp_enabled", data.get("ftp_enabled", False))
-        self._ftp_host = options.get("ftp_host", data.get("ftp_host", ""))
-        self._ftp_port = options.get("ftp_port", data.get("ftp_port", 21))
-        self._ftp_user = options.get("ftp_user", data.get("ftp_user", ""))
-        self._ftp_pass = options.get("ftp_pass", data.get("ftp_pass", ""))
-        self._ftp_path = options.get("ftp_path", data.get("ftp_path", "/"))
         self._cameras_arm_entities = get_merged(CONF_CAMERAS_ARM_ENTITIES, CONF_CAMERAS_ARM_ENTITIES_LABELS, ["switch", "alarm_control_panel", "camera"])
         self._zone_labels = options.get("zone_labels", data.get("zone_labels", [])) or []
         self._global_cameras = get_merged("global_cameras", "global_cameras_labels", ["camera"])
         self._media_path = options.get("media_path", data.get("media_path", "domolink_media")).strip().strip("/")
-        
-        self._webdav_enabled = bool(options.get(CONF_WEBDAV_ENABLED, data.get(CONF_WEBDAV_ENABLED, DEFAULT_WEBDAV_ENABLED)))
-        self._webdav_url = str(options.get(CONF_WEBDAV_URL, data.get(CONF_WEBDAV_URL, "")) or "").strip()
-        self._webdav_user = str(options.get(CONF_WEBDAV_USER, data.get(CONF_WEBDAV_USER, "")) or "").strip()
-        self._webdav_pass = str(options.get(CONF_WEBDAV_PASS, data.get(CONF_WEBDAV_PASS, "")) or "").strip()
-        self._webdav_path = str(options.get(CONF_WEBDAV_PATH, data.get(CONF_WEBDAV_PATH, DEFAULT_WEBDAV_PATH)) or DEFAULT_WEBDAV_PATH).strip().strip("/")
-        self._webdav_status = "Connecté" if (self._webdav_enabled and self._webdav_url) else "Désactivé"
+
+        # Multi-NAS Configurations
+        raw_nas_configs = options.get(CONF_NAS_CONFIGS, data.get(CONF_NAS_CONFIGS, {})) or {}
+        self._nas_configs = {}
+        for brand, defaults in DEFAULT_NAS_CONFIGS.items():
+            self._nas_configs[brand] = dict(defaults)
+            if isinstance(raw_nas_configs, dict) and brand in raw_nas_configs and isinstance(raw_nas_configs[brand], dict):
+                self._nas_configs[brand].update(raw_nas_configs[brand])
 
         self._nas_type = str(options.get(CONF_NAS_TYPE, data.get(CONF_NAS_TYPE, DEFAULT_NAS_TYPE)) or DEFAULT_NAS_TYPE).lower()
+        if self._nas_type not in self._nas_configs:
+            self._nas_configs[self._nas_type] = dict(DEFAULT_NAS_CONFIGS.get("asustor", {}))
+
+        # Backward compatibility / fallback migration: if raw_nas_configs was empty or missing active brand, migrate from top-level options
+        if not raw_nas_configs or self._nas_type not in raw_nas_configs:
+            top_level_ftp_host = options.get("ftp_host", data.get("ftp_host", ""))
+            if top_level_ftp_host:
+                self._nas_configs[self._nas_type]["ftp_enabled"] = bool(options.get("ftp_enabled", data.get("ftp_enabled", True)))
+                self._nas_configs[self._nas_type]["ftp_host"] = top_level_ftp_host
+                self._nas_configs[self._nas_type]["ftp_port"] = int(options.get("ftp_port", data.get("ftp_port", 21)) or 21)
+                self._nas_configs[self._nas_type]["ftp_user"] = str(options.get("ftp_user", data.get("ftp_user", "")) or "")
+                self._nas_configs[self._nas_type]["ftp_pass"] = str(options.get("ftp_pass", data.get("ftp_pass", "")) or "")
+                self._nas_configs[self._nas_type]["ftp_path"] = str(options.get("ftp_path", data.get("ftp_path", "/")) or "/")
+            top_level_webdav_url = options.get("webdav_url", data.get("webdav_url", ""))
+            if top_level_webdav_url:
+                self._nas_configs[self._nas_type]["webdav_enabled"] = bool(options.get("webdav_enabled", data.get("webdav_enabled", True)))
+                self._nas_configs[self._nas_type]["webdav_url"] = top_level_webdav_url
+                self._nas_configs[self._nas_type]["webdav_user"] = str(options.get("webdav_user", data.get("webdav_user", "")) or "")
+                self._nas_configs[self._nas_type]["webdav_pass"] = str(options.get("webdav_pass", data.get("webdav_pass", "")) or "")
+                self._nas_configs[self._nas_type]["webdav_path"] = str(options.get("webdav_path", data.get("webdav_path", DEFAULT_WEBDAV_PATH)) or DEFAULT_WEBDAV_PATH)
+
+        active_nas_cfg = self._nas_configs.get(self._nas_type, self._nas_configs["asustor"])
+        self._ftp_enabled = bool(active_nas_cfg.get("ftp_enabled", False))
+        self._ftp_host = str(active_nas_cfg.get("ftp_host", "") or "").strip()
+        self._ftp_port = int(active_nas_cfg.get("ftp_port", 21) or 21)
+        self._ftp_user = str(active_nas_cfg.get("ftp_user", "") or "").strip()
+        self._ftp_pass = str(active_nas_cfg.get("ftp_pass", "") or "").strip()
+        self._ftp_path = str(active_nas_cfg.get("ftp_path", "/") or "/").strip()
+        self._ftp_status = "Connecté" if (self._ftp_enabled and self._ftp_host) else "Désactivé"
+
+        self._webdav_enabled = bool(active_nas_cfg.get("webdav_enabled", False))
+        self._webdav_url = str(active_nas_cfg.get("webdav_url", "") or "").strip()
+        self._webdav_user = str(active_nas_cfg.get("webdav_user", "") or "").strip()
+        self._webdav_pass = str(active_nas_cfg.get("webdav_pass", "") or "").strip()
+        self._webdav_path = str(active_nas_cfg.get("webdav_path", DEFAULT_WEBDAV_PATH) or DEFAULT_WEBDAV_PATH).strip().strip("/")
+        self._webdav_status = "Connecté" if (self._webdav_enabled and self._webdav_url) else "Désactivé"
         self._google_drive_enabled = bool(options.get(CONF_GOOGLE_DRIVE_ENABLED, data.get(CONF_GOOGLE_DRIVE_ENABLED, DEFAULT_GOOGLE_DRIVE_ENABLED)))
         self._google_drive_method = str(options.get(CONF_GOOGLE_DRIVE_METHOD, data.get(CONF_GOOGLE_DRIVE_METHOD, DEFAULT_GOOGLE_DRIVE_METHOD)) or DEFAULT_GOOGLE_DRIVE_METHOD).lower()
         self._google_drive_webhook_url = str(options.get(CONF_GOOGLE_DRIVE_WEBHOOK_URL, data.get(CONF_GOOGLE_DRIVE_WEBHOOK_URL, "")) or "").strip()
@@ -699,6 +733,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             "webdav_test_logs": list(getattr(self, "_webdav_test_logs", [])),
             "webdav_test_result": dict(getattr(self, "_webdav_test_result", {})),
             "nas_type": getattr(self, "_nas_type", "asustor"),
+            "nas_configs": dict(getattr(self, "_nas_configs", {})),
             "google_drive_status": getattr(self, "_google_drive_status", "Désactivé"),
             "google_drive_method": getattr(self, "_google_drive_method", "webhook"),
             "google_drive_test_running": getattr(self, "_google_drive_test_running", False),
@@ -800,6 +835,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             CONF_WEBDAV_PASS: str(_val(CONF_WEBDAV_PASS, "") or ""),
             CONF_WEBDAV_PATH: str(_val(CONF_WEBDAV_PATH, DEFAULT_WEBDAV_PATH) or DEFAULT_WEBDAV_PATH),
             CONF_NAS_TYPE: str(_val(CONF_NAS_TYPE, DEFAULT_NAS_TYPE) or DEFAULT_NAS_TYPE),
+            CONF_NAS_CONFIGS: dict(_val(CONF_NAS_CONFIGS, getattr(self, "_nas_configs", DEFAULT_NAS_CONFIGS)) or getattr(self, "_nas_configs", DEFAULT_NAS_CONFIGS)),
             CONF_GOOGLE_DRIVE_ENABLED: bool(_val(CONF_GOOGLE_DRIVE_ENABLED, DEFAULT_GOOGLE_DRIVE_ENABLED)),
             CONF_GOOGLE_DRIVE_METHOD: str(_val(CONF_GOOGLE_DRIVE_METHOD, DEFAULT_GOOGLE_DRIVE_METHOD) or DEFAULT_GOOGLE_DRIVE_METHOD),
             CONF_GOOGLE_DRIVE_WEBHOOK_URL: str(_val(CONF_GOOGLE_DRIVE_WEBHOOK_URL, "") or ""),
@@ -3453,6 +3489,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             CONF_FTP_ENABLED, CONF_FTP_HOST, CONF_FTP_PORT, CONF_FTP_USER, CONF_FTP_PASS, CONF_FTP_PATH,
             CONF_WEBDAV_ENABLED, CONF_WEBDAV_URL, CONF_WEBDAV_USER, CONF_WEBDAV_PASS, CONF_WEBDAV_PATH,
             CONF_NAS_TYPE,
+            CONF_NAS_CONFIGS,
             CONF_GOOGLE_DRIVE_ENABLED, CONF_GOOGLE_DRIVE_METHOD, CONF_GOOGLE_DRIVE_WEBHOOK_URL,
             CONF_GOOGLE_DRIVE_CLIENT_ID, CONF_GOOGLE_DRIVE_CLIENT_SECRET, CONF_GOOGLE_DRIVE_REFRESH_TOKEN,
             CONF_GOOGLE_DRIVE_FOLDER_ID,
@@ -3464,6 +3501,27 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             if key in valid_keys:
                 new_options[key] = value
                 updated = True
+
+        if CONF_NAS_CONFIGS in call.data:
+            nas_cfgs = call.data[CONF_NAS_CONFIGS]
+            if isinstance(nas_cfgs, dict):
+                new_options[CONF_NAS_CONFIGS] = nas_cfgs
+                cur_nas = str(new_options.get(CONF_NAS_TYPE, getattr(self, "_nas_type", DEFAULT_NAS_TYPE))).lower()
+                if cur_nas in nas_cfgs and isinstance(nas_cfgs[cur_nas], dict):
+                    cur_cfg = nas_cfgs[cur_nas]
+                    for k in ["ftp_enabled", "ftp_host", "ftp_port", "ftp_user", "ftp_pass", "ftp_path",
+                              "webdav_enabled", "webdav_url", "webdav_user", "webdav_pass", "webdav_path"]:
+                        if k in cur_cfg:
+                            new_options[k] = cur_cfg[k]
+        elif CONF_NAS_TYPE in call.data:
+            cur_nas = str(call.data[CONF_NAS_TYPE]).lower()
+            nas_cfgs = new_options.get(CONF_NAS_CONFIGS, getattr(self, "_nas_configs", {}))
+            if cur_nas in nas_cfgs and isinstance(nas_cfgs[cur_nas], dict):
+                cur_cfg = nas_cfgs[cur_nas]
+                for k in ["ftp_enabled", "ftp_host", "ftp_port", "ftp_user", "ftp_pass", "ftp_path",
+                          "webdav_enabled", "webdav_url", "webdav_user", "webdav_pass", "webdav_path"]:
+                    if k in cur_cfg:
+                        new_options[k] = cur_cfg[k]
                 
         if updated:
             self.hass.config_entries.async_update_entry(self._entry, options=new_options)
