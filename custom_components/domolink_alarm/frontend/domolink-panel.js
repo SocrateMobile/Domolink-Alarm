@@ -1468,17 +1468,124 @@ class DomolinkPanel extends HTMLElement {
           border: 1px solid var(--d-border);
           border-radius: 18px;
           padding: 22px;
-          margin-bottom: 18px;
+          margin-bottom: 16px;
           backdrop-filter: var(--d-card-blur);
+          transition: border-color 0.2s ease, box-shadow 0.2s ease, padding 0.2s ease, background 0.2s ease;
+        }
+        .config-card.accordion-card {
+          padding: 16px 20px;
+        }
+        .config-card.accordion-card.open {
+          padding: 18px 20px 22px 20px;
+          border-color: rgba(245,158,11,0.3);
+          box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+        }
+        .config-card.accordion-card.collapsed {
+          padding: 14px 18px;
+        }
+        .config-card.accordion-card.collapsed:hover {
+          border-color: rgba(245,158,11,0.45);
+          background: rgba(255,255,255,0.025);
+        }
+        .config-card-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          cursor: pointer;
+          user-select: none;
+          gap: 12px;
+          border-radius: 10px;
+          transition: background 0.15s ease;
         }
         .config-card-title {
-          font-size: 15.5px;
+          font-size: 15px;
           font-weight: 800;
           color: var(--d-text);
           display: flex;
           align-items: center;
+          gap: 10px;
+          margin-bottom: 0;
+          flex-wrap: wrap;
+        }
+        .config-card-chevron-wrap {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 32px;
+          height: 32px;
+          border-radius: 10px;
+          background: rgba(255,255,255,0.04);
+          border: 1px solid var(--d-border-light);
+          color: var(--d-subtext);
+          transition: all 0.25s ease;
+          flex-shrink: 0;
+        }
+        .config-card-header:hover .config-card-chevron-wrap {
+          color: #f59e0b;
+          border-color: rgba(245,158,11,0.4);
+          background: rgba(245,158,11,0.12);
+        }
+        .config-card-chevron {
+          transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+          --mdc-icon-size: 20px;
+        }
+        .config-card.collapsed .config-card-chevron {
+          transform: rotate(-90deg);
+        }
+        .config-card.open .config-card-chevron {
+          transform: rotate(0deg);
+          color: #f59e0b;
+        }
+        .config-card-body {
+          margin-top: 16px;
+          padding-top: 16px;
+          border-top: 1px solid var(--d-border-light);
+          animation: fadeIn 0.2s ease-in-out;
+        }
+        .config-card.collapsed .config-card-body {
+          display: none;
+        }
+
+        .config-accordion-toolbar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 14px;
+          padding: 4px 6px;
+          flex-wrap: wrap;
           gap: 8px;
-          margin-bottom: 16px;
+        }
+        .config-accordion-toolbar-hint {
+          font-size: 12px;
+          color: var(--d-subtext);
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-weight: 500;
+        }
+        .config-accordion-toolbar-actions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .btn-accordion-action {
+          padding: 6px 12px;
+          border-radius: 9px;
+          background: var(--d-sec-bg);
+          border: 1px solid var(--d-border-light);
+          color: var(--d-subtext);
+          font-size: 11.5px;
+          font-weight: 700;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          transition: all 0.2s ease;
+        }
+        .btn-accordion-action:hover {
+          color: var(--d-text);
+          border-color: rgba(245,158,11,0.35);
+          background: rgba(245,158,11,0.08);
         }
         .config-row {
           display: flex;
@@ -3541,6 +3648,31 @@ class DomolinkPanel extends HTMLElement {
     return `<span style="display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:800; background:rgba(239,68,68,0.16); color:#ef4444; border:1px solid rgba(239,68,68,0.35);" title="${msg}"><ha-icon icon="mdi:alert-circle" style="--mdc-icon-size:13px;"></ha-icon> ${this.escapeHtml(label)}</span>`;
   }
 
+  _renderAccordionCard(id, icon, iconColor, title, bodyHtml, defaultOpen = false, badgeText = '') {
+    if (!this._openAccordions) this._openAccordions = new Set();
+    if (!this._closedAccordions) this._closedAccordions = new Set();
+
+    const isOpen = this._openAccordions.has(id) ? true : (this._closedAccordions.has(id) ? false : defaultOpen);
+
+    return `
+      <div class="config-card accordion-card ${isOpen ? 'open' : 'collapsed'}" data-accordion-id="${id}">
+        <div class="config-card-header" data-toggle-accordion="${id}">
+          <div class="config-card-title">
+            <ha-icon icon="${icon}" style="color:${iconColor}; --mdc-icon-size:20px;"></ha-icon>
+            <span>${title}</span>
+            ${badgeText ? `<span class="nav-badge-pill" style="font-size:10.5px; padding:2px 8px; background:rgba(255,255,255,0.06); border:1px solid var(--d-border-light); color:var(--d-subtext);">${badgeText}</span>` : ''}
+          </div>
+          <div class="config-card-chevron-wrap">
+            <ha-icon icon="mdi:chevron-down" class="config-card-chevron"></ha-icon>
+          </div>
+        </div>
+        <div class="config-card-body">
+          ${bodyHtml}
+        </div>
+      </div>
+    `;
+  }
+
   _renderTextField(title, help, fieldName, icon, type = "text", placeholder = "") {
     const val = this._configDraft[fieldName] !== undefined ? this._configDraft[fieldName] : "";
     return `
@@ -3626,13 +3758,11 @@ class DomolinkPanel extends HTMLElement {
 
     if (this._configSubTab === 'sensors') {
       contentHtml = `
-        <div class="config-card">
-          <div class="config-card-title"><ha-icon icon="mdi:shield-home" style="color:#f59e0b;"></ha-icon> Identification du Système</div>
+        ${this._renderAccordionCard("sys_id", "mdi:shield-home", "#f59e0b", "Identification du Système", `
           ${this._renderTextField("Nom du Système", "Nom affiché dans les notifications et le tableau de bord", "name", "mdi:rename-box")}
-        </div>
+        `)}
 
-        <div class="config-card">
-          <div class="config-card-title"><ha-icon icon="mdi:radar" style="color:#3b82f6;"></ha-icon> Capteurs d'Intrusion & Sécurité</div>
+        ${this._renderAccordionCard("intrusion", "mdi:radar", "#3b82f6", "Capteurs d'Intrusion & Sécurité", `
           ${this._renderEntityListField("Capteurs d'Ouverture", "Portes, fenêtres, baies vitrées et garages déclenchant l'alarme", "opening_sensors", ["binary_sensor", "sensor"], "mdi:door-open")}
           ${this._renderLabelsField("Étiquettes Capteurs d'Ouverture", "Sélection automatique par étiquette HA (ex: fenetre, porte)", "opening_sensors_labels", "mdi:tag-outline")}
 
@@ -3647,10 +3777,9 @@ class DomolinkPanel extends HTMLElement {
 
           ${this._renderEntityListField("Capteurs Techniques", "Fumée, monoxyde de carbone, gaz, fuite d'eau", "safety_sensors", ["binary_sensor", "sensor"], "mdi:fire-alert")}
           ${this._renderLabelsField("Étiquettes Capteurs Techniques", "Sélection automatique par étiquette HA (ex: technique, fumee)", "safety_sensors_labels", "mdi:tag-outline")}
-        </div>
+        `)}
 
-        <div class="config-card">
-          <div class="config-card-title"><ha-icon icon="mdi:cctv" style="color:#10b981;"></ha-icon> Vidéosurveillance & Claviers</div>
+        ${this._renderAccordionCard("cameras_keypads", "mdi:cctv", "#10b981", "Vidéosurveillance & Claviers", `
           ${this._renderEntityListField("Caméras de Sécurité", "Caméras enregistrant des clichés et vidéos en cas d'intrusion", "cameras", ["camera"], "mdi:cctv")}
           ${this._renderLabelsField("Étiquettes Caméras de Sécurité", "Sélection automatique par étiquette HA (ex: camera, video)", "cameras_labels", "mdi:tag-outline")}
 
@@ -3659,12 +3788,11 @@ class DomolinkPanel extends HTMLElement {
 
           ${this._renderEntityListField("Claviers Physiques / Déportés", "Claviers muraux ou panneaux tiers synchronisés", "keypads", ["alarm_control_panel", "sensor"], "mdi:dialpad")}
           ${this._renderLabelsField("Étiquettes Claviers", "Sélection automatique par étiquette HA", "keypads_labels", "mdi:tag-outline")}
-        </div>
+        `)}
       `;
     } else if (this._configSubTab === 'actuators') {
       contentHtml = `
-        <div class="config-card">
-          <div class="config-card-title"><ha-icon icon="mdi:bullhorn" style="color:#ef4444;"></ha-icon> Dissuasion & Sirènes</div>
+        ${this._renderAccordionCard("sirens", "mdi:bullhorn", "#ef4444", "Dissuasion & Sirènes", `
           ${this._renderEntityListField("Sirènes d'Alarme", "Sirènes intérieures et extérieures à déclencher", "sirens", ["switch", "siren"], "mdi:bullhorn")}
           ${this._renderLabelsField("Étiquettes Sirènes", "Sélection automatique par étiquette HA (ex: sirene)", "sirens_labels", "mdi:tag-outline")}
 
@@ -3673,10 +3801,9 @@ class DomolinkPanel extends HTMLElement {
 
           ${this._renderEntityListField("Haut-parleurs & Annonces Vocales", "Enceintes diffusant des messages dissuasifs TTS", "media_players", ["media_player"], "mdi:speaker")}
           ${this._renderLabelsField("Étiquettes Haut-parleurs", "Sélection automatique par étiquette HA (ex: enceinte)", "media_players_labels", "mdi:tag-outline")}
-        </div>
+        `)}
 
-        <div class="config-card">
-          <div class="config-card-title"><ha-icon icon="mdi:bell-badge" style="color:#f59e0b;"></ha-icon> Notifications & Alertes Mobiles</div>
+        ${this._renderAccordionCard("notifications", "mdi:bell-badge", "#f59e0b", "Notifications & Alertes Mobiles", `
           ${this._renderEntityListField("Services de Notification", "Services d'envoi de notifications push (HA Companion, etc.)", "notify_services", ["notify", "script"], "mdi:bell-ring")}
           ${this._renderLabelsField("Étiquettes Services Notification", "Sélection automatique par étiquette HA (ex: notification)", "notify_services_labels", "mdi:tag-outline")}
 
@@ -3686,43 +3813,38 @@ class DomolinkPanel extends HTMLElement {
           ${this._renderTextField("Free Mobile — Utilisateur", "Identifiant abonné Free Mobile pour alertes SMS directes (Optionnel)", "free_mobile_user", "mdi:cellphone-message")}
           ${this._renderPasswordField("Free Mobile — Clé API", "Clé d'accès API notifications SMS Free Mobile", "free_mobile_pass", "mdi:key")}
           ${this._renderLabelsField("iCloud — Noms des Appareils", "Noms des appareils Apple à faire sonner en urgence (Find My)", "icloud_devices", "mdi:apple")}
-        </div>
+        `)}
 
-        <div class="config-card">
-          <div class="config-card-title"><ha-icon icon="mdi:home-clock" style="color:#8b5cf6;"></ha-icon> Simulation de Présence</div>
+        ${this._renderAccordionCard("presence", "mdi:home-clock", "#8b5cf6", "Simulation de Présence", `
           ${this._renderEntityListField("Appareils Rejoués", "Lumières, volets et prises rejouant vos habitudes passées", "presence_simulation_entities", ["light", "switch", "cover"], "mdi:lightbulb-multiple")}
           ${this._renderLabelsField("Étiquettes Simulation de Présence", "Sélection automatique par étiquette HA (ex: simulation)", "presence_simulation_labels", "mdi:tag-outline")}
-        </div>
+        `)}
       `;
     } else if (this._configSubTab === 'zones') {
       contentHtml = `
-        <div class="config-card">
-          <div class="config-card-title"><ha-icon icon="mdi:map-marker-radius" style="color:#f59e0b;"></ha-icon> Zones de Surveillance Ciblée</div>
+        ${this._renderAccordionCard("zones_def", "mdi:map-marker-radius", "#f59e0b", "Zones de Surveillance Ciblée", `
           ${this._renderLabelsField("Étiquettes des Zones (Labels)", "Noms des zones créées dans Home Assistant (ex: Jardin, Étage, Salon)", "zone_labels", "mdi:tag-multiple")}
           ${this._renderEntityListField("Caméras Globales", "Caméras capturant des clichés quelle que soit la zone déclenchée", "global_cameras", ["camera"], "mdi:earth")}
           ${this._renderLabelsField("Étiquettes Caméras Globales", "Sélection automatique par étiquette HA", "global_cameras_labels", "mdi:tag-outline")}
-        </div>
+        `)}
       `;
     } else if (this._configSubTab === 'logic') {
       contentHtml = `
-        <div class="config-card">
-          <div class="config-card-title"><ha-icon icon="mdi:account-lock" style="color:#10b981;"></ha-icon> Utilisateurs, Codes PIN & Badges</div>
+        ${this._renderAccordionCard("users", "mdi:account-lock", "#10b981", "Utilisateurs, Codes PIN & Badges", `
           ${this._renderEntityListField("Personnes & Présence", "Membres du foyer pour l'armement/désarmement géolocalisé", "persons", ["person"], "mdi:account-group")}
           ${this._renderLabelsField("Étiquettes Personnes", "Sélection automatique par étiquette HA", "persons_labels", "mdi:tag-outline")}
           ${this._renderTextField("Utilisateurs & Codes PIN", "Format : Prénom:CodePIN séparés par des virgules (ex: Jean:1234, Marie:5678)", "users_codes", "mdi:account-key")}
           ${this._renderTextField("Code sous contrainte (Duress)", "Code secret désarmant l'alarme tout en envoyant une alerte silencieuse", "duress_code", "mdi:shield-alert-outline")}
           ${this._renderTextField("Badges RFID", "Format : IdentifiantBadge:Nom séparés par des virgules (ex: 04-7A-5B:Jean, 8F-B2:Marie)", "rfid_tags", "mdi:nfc-variant")}
-        </div>
+        `)}
 
-        <div class="config-card">
-          <div class="config-card-title"><ha-icon icon="mdi:timer-outline" style="color:#3b82f6;"></ha-icon> Délais Système</div>
+        ${this._renderAccordionCard("delays", "mdi:timer-outline", "#3b82f6", "Délais Système", `
           ${this._renderNumberField("Délai de sortie", "Temps alloué pour quitter les lieux après armement", "exit_delay", "mdi:exit-run", 0, 300, 5, "secondes")}
           ${this._renderNumberField("Délai d'entrée", "Temps accordé pour taper le code PIN avant déclenchement sirène", "entry_delay", "mdi:door-open", 0, 300, 5, "secondes")}
           ${this._renderNumberField("Durée de la sirène", "Durée maximale de retentissement sonore continu", "siren_duration", "mdi:volume-high", 30, 900, 15, "secondes")}
-        </div>
+        `)}
 
-        <div class="config-card">
-          <div class="config-card-title"><ha-icon icon="mdi:cog-outline" style="color:#f59e0b;"></ha-icon> Comportement & Détection</div>
+        ${this._renderAccordionCard("behavior", "mdi:cog-outline", "#f59e0b", "Comportement & Détection", `
           ${this._renderToggleField("Mode Carillon (Chime)", "Bip sonore bref à l'ouverture d'une porte lorsque l'alarme est désarmée", "chime_mode", "mdi:bell-outline")}
           ${this._renderToggleField("Autoriser le contournement (Bypass)", "Permettre d'armer même si un capteur reste ouvert", "bypass_allowed", "mdi:shield-off")}
           ${this._renderToggleField("Surveillance de santé automatique", "Vérifie régulièrement l'état de ligne et de batterie des équipements", "health_check", "mdi:heart-pulse")}
@@ -3734,17 +3856,15 @@ class DomolinkPanel extends HTMLElement {
             { value: 21, label: "21 jours d'historique" },
             { value: 28, label: "28 jours d'historique" },
           ])}
-        </div>
+        `)}
 
-        <div class="config-card">
-          <div class="config-card-title"><ha-icon icon="mdi:crosshairs-gps" style="color:#06b6d4;"></ha-icon> Géolocalisation & Rappels</div>
+        ${this._renderAccordionCard("geo", "mdi:crosshairs-gps", "#06b6d4", "Géolocalisation & Rappels", `
           ${this._renderToggleField("Armement Automatique Géolocalisé", "Arme l'alarme quand toutes les personnes ont quitté le domicile", "geofence_auto_arm", "mdi:home-export-outline")}
           ${this._renderToggleField("Rappel d'armement", "Envoie une notification push si vous partez sans armer l'alarme", "geofence_reminder", "mdi:cellphone-message")}
           ${this._renderNumberField("Délai avant rappel", "Délai après départ du domicile avant d'envoyer le rappel", "geofence_reminder_delay", "mdi:timer-sand", 1, 60, 1, "minutes")}
-        </div>
+        `)}
 
-        <div class="config-card">
-          <div class="config-card-title"><ha-icon icon="mdi:calendar-clock" style="color:#a855f7;"></ha-icon> Tests & Planification Automatique</div>
+        ${this._renderAccordionCard("schedule", "mdi:calendar-clock", "#a855f7", "Tests & Planification Automatique", `
           ${this._renderToggleField("Test Mensuel Automatique de Sirène", "Déclenche un bref bip sonore mensuel de vérification fonctionnelle", "siren_test", "mdi:bullhorn-outline")}
           ${this._renderSelectField("Jour du test mensuel", "Jour de la semaine pour le test automatique", "siren_test_day", "mdi:calendar-today", [
             { value: 1, label: "Lundi" },
@@ -3764,16 +3884,15 @@ class DomolinkPanel extends HTMLElement {
             { value: "away", label: "Mode Absent (Total)" },
             { value: "home", label: "Mode Maison" },
           ])}
-        </div>
+        `)}
       `;
     } else if (this._configSubTab === 'mqtt') {
       contentHtml = `
-        <div class="config-card">
-          <div class="config-card-title"><ha-icon icon="mdi:access-point-network" style="color:#f59e0b;"></ha-icon> Intégration MQTT & Domotique Tierce</div>
+        ${this._renderAccordionCard("mqtt_cfg", "mdi:access-point-network", "#f59e0b", "Intégration MQTT & Domotique Tierce", `
           ${this._renderToggleField("Activer la passerelle MQTT", "Publie l'état de l'alarme et écoute les commandes sur votre broker MQTT", "mqtt_enabled", "mdi:checkbox-marked-circle-outline")}
           ${this._renderTextField("Topic de base MQTT", "Préfixe des topics MQTT pour Domolink Alarm", "mqtt_topic_base", "mdi:pound", "text", "domolink/alarme")}
           ${this._renderToggleField("Exiger le code PIN sur MQTT", "Oblige à fournir le code PIN dans le payload MQTT pour désarmer", "mqtt_require_code", "mdi:lock-alert")}
-        </div>
+        `)}
       `;
     } else if (this._configSubTab === 'backup') {
       const nasResults = (attrs && attrs.nas_test_results) ? attrs.nas_test_results : {};
@@ -3793,15 +3912,13 @@ class DomolinkPanel extends HTMLElement {
       const curWebdavRes = nasResults[`${curNas}_webdav`] || (nasResults[curNas]?.protocol === 'webdav' ? nasResults[curNas] : (attrs.webdav_test_result && Object.keys(attrs.webdav_test_result).length ? attrs.webdav_test_result : null));
 
       contentHtml = `
-        <div class="config-card">
-          <div class="config-card-title"><ha-icon icon="mdi:send" style="color:#0088cc;"></ha-icon> Sauvegarde & Alertes Telegram</div>
+        ${this._renderAccordionCard("telegram", "mdi:send", "#0088cc", "Sauvegarde & Alertes Telegram", `
           ${this._renderToggleField("Activer l'envoi Telegram", "Envoie les clichés photos et alertes dans votre canal/bot Telegram", "telegram_enabled", "mdi:telegram")}
           ${this._renderPasswordField("Token du Bot Telegram", "Token fourni par BotFather (ex: 123456:ABC-DEF1234...)", "telegram_token", "mdi:key")}
           ${this._renderTextField("Chat ID Telegram", "Identifiant du groupe ou canal de réception des alertes", "telegram_chat_id", "mdi:message-badge")}
-        </div>
+        `)}
 
-        <div class="config-card">
-          <div class="config-card-title"><ha-icon icon="mdi:nas" style="color:#f59e0b;"></ha-icon> Profil & Constructeur de NAS</div>
+        ${this._renderAccordionCard("nas_profile", "mdi:nas", "#f59e0b", "Profil & Constructeur de NAS", `
           <div style="font-size:12px; color:var(--d-subtext); margin-bottom:12px;">
             Sélectionnez votre modèle de NAS pour adapter les protocoles recommandés, ports et arborescences types :
           </div>
@@ -3845,10 +3962,9 @@ class DomolinkPanel extends HTMLElement {
               </button>
             </div>
           </div>
-        </div>
+        `)}
 
-        <div class="config-card">
-          <div class="config-card-title"><ha-icon icon="mdi:server-network" style="color:#10b981;"></ha-icon> Serveur FTP — ${curNasLabel}</div>
+        ${this._renderAccordionCard("ftp", "mdi:server-network", "#10b981", `Serveur FTP — ${curNasLabel}`, `
           ${this._renderToggleField("Activer le transfert FTP", "Téléverse automatiquement photos et vidéos lors des déclenchements d'alarme", "ftp_enabled", "mdi:upload-network")}
           ${this._renderTextField("Hôte FTP", "Adresse IP locale ou nom d'hôte du NAS", "ftp_host", "mdi:ip-network", "text", curNas === 'freebox' ? 'mafreebox.freebox.fr' : '192.168.1.50')}
           ${this._renderNumberField("Port FTP", "Port de connexion FTP standard", "ftp_port", "mdi:numeric", 1, 65535, 1, "")}
@@ -3870,10 +3986,9 @@ class DomolinkPanel extends HTMLElement {
               <span>Tester la connexion FTP</span>
             </button>
           </div>
-        </div>
+        `)}
 
-        <div class="config-card">
-          <div class="config-card-title"><ha-icon icon="mdi:cloud-sync" style="color:#8b5cf6;"></ha-icon> Sauvegarde Multi-Cloud WebDAV / Nextcloud / NAS</div>
+        ${this._renderAccordionCard("webdav", "mdi:cloud-sync", "#8b5cf6", "Sauvegarde Multi-Cloud WebDAV / Nextcloud / NAS", `
           ${this._renderToggleField("Activer la sauvegarde WebDAV", "Téléverse automatiquement photos et vidéos sur votre serveur WebDAV / Nextcloud / NAS", "webdav_enabled", "mdi:cloud-upload")}
           ${this._renderTextField("URL du serveur WebDAV", "Ex: https://nas.local:5006/ ou https://cloud.domaine.fr/remote.php/dav/files/user/", "webdav_url", "mdi:web", "text", "https://cloud.domaine.fr/remote.php/dav/files/user/")}
           ${this._renderTextField("Identifiant WebDAV", "Nom d'utilisateur WebDAV / Nextcloud", "webdav_user", "mdi:account")}
@@ -3894,10 +4009,9 @@ class DomolinkPanel extends HTMLElement {
               <span>Tester la connexion WebDAV</span>
             </button>
           </div>
-        </div>
+        `)}
 
-        <div class="config-card">
-          <div class="config-card-title"><ha-icon icon="mdi:google-drive" style="color:#34a853;"></ha-icon> Sauvegarde Cloud Google Drive</div>
+        ${this._renderAccordionCard("gdrive", "mdi:google-drive", "#34a853", "Sauvegarde Cloud Google Drive", `
           ${this._renderToggleField("Activer la sauvegarde Google Drive", "Téléverse automatiquement les clichés et vidéos vers Google Drive", "google_drive_enabled", "mdi:cloud-upload")}
           ${this._renderSelectField("Méthode de synchronisation", "Mode de liaison avec Google Drive", "google_drive_method", "mdi:transfer", [
             { value: "webhook", label: "Webhook Google Apps Script (Recommandé — Simple & Sans OAuth)" },
@@ -3929,14 +4043,13 @@ class DomolinkPanel extends HTMLElement {
               <span>Tester la connexion Google Drive</span>
             </button>
           </div>
-        </div>
+        `)}
 
-        <div class="config-card">
-          <div class="config-card-title"><ha-icon icon="mdi:database-clock" style="color:#06b6d4;"></ha-icon> Politique de Rétention & Quota de Stockage Médias</div>
+        ${this._renderAccordionCard("retention", "mdi:database-clock", "#06b6d4", "Politique de Rétention & Quota de Stockage Médias", `
           ${this._renderNumberField("Durée maximale de rétention", "Nombre de jours de conservation des photos et vidéos locales (0 = illimité)", "media_retention_days", "mdi:calendar-range", 0, 365, 1, "jours")}
           ${this._renderNumberField("Quota de stockage maximal", "Taille maximale allouée au dossier médias en Mo (0 = illimité, rotation FIFO)", "media_max_size_mb", "mdi:harddisk", 0, 10240, 64, "Mo")}
           ${this._renderTextField("Sous-dossier de stockage local", "Dossier dans /config/www/ où sont stockées les photos et vidéos", "media_path", "mdi:folder", "text", "domolink_media")}
-        </div>
+        `)}
       `;
     }
 
@@ -3951,7 +4064,7 @@ class DomolinkPanel extends HTMLElement {
             <div>
               <div style="font-size:18px; font-weight:800; color:var(--d-text); display:flex; align-items:center; gap:8px;">
                 Centre de Configuration
-                <span class="nav-badge-pill badge-version">v0.9.63</span>
+                <span class="nav-badge-pill badge-version">v0.9.64</span>
               </div>
               <div style="font-size:12px; color:var(--d-subtext); margin-top:3px;">
                 Modifiez vos équipements, délais, notifications et sauvegardes en toute simplicité
@@ -3980,6 +4093,22 @@ class DomolinkPanel extends HTMLElement {
 
         <!-- Subtab Content -->
         <div class="config-content-pane">
+          <div class="config-accordion-toolbar">
+            <div class="config-accordion-toolbar-hint">
+              <ha-icon icon="mdi:arrow-split-horizontal" style="--mdc-icon-size:15px; color:#f59e0b;"></ha-icon>
+              <span>Sections repliables — cliquez sur un titre pour ouvrir ou fermer</span>
+            </div>
+            <div class="config-accordion-toolbar-actions">
+              <button type="button" class="btn-accordion-action" id="btn-accordions-expand-all" title="Tout déplier">
+                <ha-icon icon="mdi:unfold-more-horizontal" style="--mdc-icon-size:14px;"></ha-icon>
+                <span>Tout déplier</span>
+              </button>
+              <button type="button" class="btn-accordion-action" id="btn-accordions-collapse-all" title="Tout replier">
+                <ha-icon icon="mdi:unfold-less-horizontal" style="--mdc-icon-size:14px;"></ha-icon>
+                <span>Tout replier</span>
+              </button>
+            </div>
+          </div>
           ${contentHtml}
         </div>
 
@@ -4003,6 +4132,73 @@ class DomolinkPanel extends HTMLElement {
     container.innerHTML = html;
 
     // ─── Bind Events ──────────────────────────────
+
+    // Accordions Toggle Handling
+    container.querySelectorAll('.config-card.accordion-card .config-card-header').forEach(header => {
+      header.addEventListener('click', (e) => {
+        // Prevent toggle if user clicked on interactive elements
+        if (e.target.closest('button') || e.target.closest('input') || e.target.closest('a') || e.target.closest('select')) return;
+
+        const card = header.closest('.config-card.accordion-card');
+        if (!card) return;
+        const accId = card.getAttribute('data-accordion-id') || header.getAttribute('data-toggle-accordion');
+        const isCurrentlyOpen = card.classList.contains('open');
+
+        if (!this._openAccordions) this._openAccordions = new Set();
+        if (!this._closedAccordions) this._closedAccordions = new Set();
+
+        if (isCurrentlyOpen) {
+          card.classList.remove('open');
+          card.classList.add('collapsed');
+          if (accId) {
+            this._openAccordions.delete(accId);
+            this._closedAccordions.add(accId);
+          }
+        } else {
+          card.classList.remove('collapsed');
+          card.classList.add('open');
+          if (accId) {
+            this._openAccordions.add(accId);
+            this._closedAccordions.delete(accId);
+          }
+        }
+      });
+    });
+
+    // Expand All / Collapse All Buttons
+    const btnExpandAll = container.querySelector('#btn-accordions-expand-all');
+    if (btnExpandAll) {
+      btnExpandAll.addEventListener('click', () => {
+        if (!this._openAccordions) this._openAccordions = new Set();
+        if (!this._closedAccordions) this._closedAccordions = new Set();
+        container.querySelectorAll('.config-card.accordion-card').forEach(card => {
+          card.classList.remove('collapsed');
+          card.classList.add('open');
+          const id = card.getAttribute('data-accordion-id');
+          if (id) {
+            this._openAccordions.add(id);
+            this._closedAccordions.delete(id);
+          }
+        });
+      });
+    }
+
+    const btnCollapseAll = container.querySelector('#btn-accordions-collapse-all');
+    if (btnCollapseAll) {
+      btnCollapseAll.addEventListener('click', () => {
+        if (!this._openAccordions) this._openAccordions = new Set();
+        if (!this._closedAccordions) this._closedAccordions = new Set();
+        container.querySelectorAll('.config-card.accordion-card').forEach(card => {
+          card.classList.remove('open');
+          card.classList.add('collapsed');
+          const id = card.getAttribute('data-accordion-id');
+          if (id) {
+            this._openAccordions.delete(id);
+            this._closedAccordions.add(id);
+          }
+        });
+      });
+    }
 
     // Subtab switching
     container.querySelectorAll('.config-subnav-btn').forEach(btn => {
@@ -4645,7 +4841,7 @@ class DomolinkPanel extends HTMLElement {
       const cloudLabel = countCloud > 1 ? 'MULTI-CLOUD' : (isGdrive ? 'G-DRIVE' : (isDav ? 'WEBDAV' : (isFtp ? 'FTP' : 'LOCAL')));
       elParam.innerHTML = `
         <div class="nav-badge-stack">
-          <span class="nav-badge-pill badge-version">v0.9.63</span>
+          <span class="nav-badge-pill badge-version">v0.9.64</span>
           <span class="nav-badge-pill badge-neutral">${cloudLabel}</span>
         </div>
       `;
