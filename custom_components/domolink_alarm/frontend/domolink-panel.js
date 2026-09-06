@@ -3526,6 +3526,21 @@ class DomolinkPanel extends HTMLElement {
     `;
   }
 
+  _renderTestBadge(testResult) {
+    if (!testResult) {
+      return `<span style="display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:12px; font-size:10px; font-weight:700; background:rgba(148,163,184,0.12); color:var(--d-subtext); border:1px solid rgba(148,163,184,0.25);">Non testé</span>`;
+    }
+    if (testResult.loading) {
+      return `<span style="display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:700; background:rgba(59,130,246,0.15); color:#3b82f6; border:1px solid rgba(59,130,246,0.3);"><ha-icon icon="mdi:loading" class="spin" style="--mdc-icon-size:12px;"></ha-icon> Test...</span>`;
+    }
+    if (testResult.success) {
+      return `<span style="display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:800; background:rgba(16,185,129,0.16); color:#10b981; border:1px solid rgba(16,185,129,0.35);"><ha-icon icon="mdi:check-circle" style="--mdc-icon-size:13px;"></ha-icon> Connecté</span>`;
+    }
+    const label = testResult.result_label || (testResult.code ? `Erreur ${testResult.code}` : "Erreur");
+    const msg = this.escapeHtml(testResult.message || "");
+    return `<span style="display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:800; background:rgba(239,68,68,0.16); color:#ef4444; border:1px solid rgba(239,68,68,0.35);" title="${msg}"><ha-icon icon="mdi:alert-circle" style="--mdc-icon-size:13px;"></ha-icon> ${this.escapeHtml(label)}</span>`;
+  }
+
   _renderTextField(title, help, fieldName, icon, type = "text", placeholder = "") {
     const val = this._configDraft[fieldName] !== undefined ? this._configDraft[fieldName] : "";
     return `
@@ -3761,6 +3776,22 @@ class DomolinkPanel extends HTMLElement {
         </div>
       `;
     } else if (this._configSubTab === 'backup') {
+      const nasResults = (attrs && attrs.nas_test_results) ? attrs.nas_test_results : {};
+      const curNas = this._configDraft.nas_type || "asustor";
+      const nasLabels = {
+        "asustor": "ASUSTOR",
+        "synology": "Synology",
+        "qnap": "QNAP",
+        "truenas": "TrueNAS",
+        "freebox": "Freebox",
+        "unraid": "Unraid",
+        "generic": "Autre NAS"
+      };
+      const curNasLabel = nasLabels[curNas] || "NAS / Serveur";
+      const curNasStatus = nasResults[curNas] || nasResults[`${curNas}_ftp`] || nasResults[`${curNas}_webdav`];
+      const curFtpRes = nasResults[`${curNas}_ftp`] || (nasResults[curNas]?.protocol === 'ftp' ? nasResults[curNas] : (attrs.ftp_test_result && Object.keys(attrs.ftp_test_result).length ? attrs.ftp_test_result : null));
+      const curWebdavRes = nasResults[`${curNas}_webdav`] || (nasResults[curNas]?.protocol === 'webdav' ? nasResults[curNas] : (attrs.webdav_test_result && Object.keys(attrs.webdav_test_result).length ? attrs.webdav_test_result : null));
+
       contentHtml = `
         <div class="config-card">
           <div class="config-card-title"><ha-icon icon="mdi:send" style="color:#0088cc;"></ha-icon> Sauvegarde & Alertes Telegram</div>
@@ -3784,26 +3815,61 @@ class DomolinkPanel extends HTMLElement {
               { key: "unraid", label: "Unraid", icon: "mdi:server-security", desc: "Unraid OS • FTP/WebDAV" },
               { key: "generic", label: "Autre NAS", icon: "mdi:cog-box", desc: "Configuration libre" }
             ].map(nas => {
-              const active = (this._configDraft.nas_type || "asustor") === nas.key;
+              const active = curNas === nas.key;
+              const nasRes = nasResults[nas.key] || nasResults[`${nas.key}_ftp`] || nasResults[`${nas.key}_webdav`];
               return `
                 <div class="nas-profile-card ${active ? 'active' : ''}" data-nas="${nas.key}" style="border-radius:12px; padding:10px 8px; cursor:pointer; border:1px solid ${active ? '#f59e0b' : 'var(--d-border)'}; background:${active ? 'rgba(245,158,11,0.14)' : 'var(--d-card-bg)'}; text-align:center; transition:all 0.2s ease;">
                   <ha-icon icon="${nas.icon}" style="--mdc-icon-size:24px; color:${active ? '#f59e0b' : 'var(--d-subtext)'};"></ha-icon>
                   <div style="font-size:13px; font-weight:800; color:${active ? '#f59e0b' : 'var(--d-text)'}; margin-top:4px;">${nas.label}</div>
                   <div style="font-size:10px; color:var(--d-subtext); margin-top:2px;">${nas.desc}</div>
+                  <div class="nas-test-badge-container" data-nas="${nas.key}" style="margin-top:6px;">
+                    ${this._renderTestBadge(nasRes)}
+                  </div>
                 </div>
               `;
             }).join('')}
           </div>
+          <div style="margin-top:12px; padding:10px 14px; border-radius:12px; background:rgba(245,158,11,0.06); border:1px solid rgba(245,158,11,0.22); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:12px; font-weight:700; color:var(--d-text);">Diagnostic rapide ${curNasLabel} :</span>
+              <span id="nas-card-status-badge">${this._renderTestBadge(curNasStatus)}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <button type="button" class="btn-nas-quick-test-ftp" data-nas="${curNas}" style="padding:6px 12px; border-radius:8px; border:1px solid rgba(16,185,129,0.4); background:rgba(16,185,129,0.12); color:#10b981; font-size:11px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:5px; transition:all 0.2s;">
+                <ha-icon icon="mdi:server-network" style="--mdc-icon-size:14px;"></ha-icon>
+                <span>Tester FTP</span>
+              </button>
+              <button type="button" class="btn-nas-quick-test-webdav" data-nas="${curNas}" style="padding:6px 12px; border-radius:8px; border:1px solid rgba(139,92,246,0.4); background:rgba(139,92,246,0.12); color:#a855f7; font-size:11px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:5px; transition:all 0.2s;">
+                <ha-icon icon="mdi:cloud-check" style="--mdc-icon-size:14px;"></ha-icon>
+                <span>Tester WebDAV</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         <div class="config-card">
-          <div class="config-card-title"><ha-icon icon="mdi:server-network" style="color:#10b981;"></ha-icon> Serveur FTP — ${{"asustor": "ASUSTOR", "synology": "Synology", "qnap": "QNAP", "truenas": "TrueNAS", "freebox": "Freebox", "unraid": "Unraid"}[this._configDraft.nas_type || "asustor"] || "NAS / Serveur"}</div>
+          <div class="config-card-title"><ha-icon icon="mdi:server-network" style="color:#10b981;"></ha-icon> Serveur FTP — ${curNasLabel}</div>
           ${this._renderToggleField("Activer le transfert FTP", "Téléverse automatiquement photos et vidéos lors des déclenchements d'alarme", "ftp_enabled", "mdi:upload-network")}
-          ${this._renderTextField("Hôte FTP", "Adresse IP locale ou nom d'hôte du NAS", "ftp_host", "mdi:ip-network", "text", this._configDraft.nas_type === 'freebox' ? 'mafreebox.freebox.fr' : '192.168.1.50')}
+          ${this._renderTextField("Hôte FTP", "Adresse IP locale ou nom d'hôte du NAS", "ftp_host", "mdi:ip-network", "text", curNas === 'freebox' ? 'mafreebox.freebox.fr' : '192.168.1.50')}
           ${this._renderNumberField("Port FTP", "Port de connexion FTP standard", "ftp_port", "mdi:numeric", 1, 65535, 1, "")}
           ${this._renderTextField("Identifiant FTP", "Nom d'utilisateur du compte NAS", "ftp_user", "mdi:account")}
           ${this._renderPasswordField("Mot de passe FTP", "Mot de passe du compte FTP", "ftp_pass", "mdi:lock")}
           ${this._renderTextField("Répertoire distant", "Chemin distant (créera automatiquement domolink/alarm/...)", "ftp_path", "mdi:folder-network", "text", "/")}
+          <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--d-border-light); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+            <div style="display:flex; flex-direction:column; gap:4px; max-width:65%;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:12px; font-weight:700; color:var(--d-text);">Résultat connexion FTP :</span>
+                <span id="ftp-test-inline-badge">${this._renderTestBadge(curFtpRes)}</span>
+              </div>
+              <div id="ftp-test-inline-msg" style="font-size:11px; line-height:1.4; color:${curFtpRes?.success ? '#10b981' : (curFtpRes?.success === false ? '#ef4444' : 'var(--d-subtext)')};">
+                ${curFtpRes?.message ? this.escapeHtml(curFtpRes.message) : 'Testez la connexion FTP avec vos identifiants actuels ci-dessus.'}
+              </div>
+            </div>
+            <button type="button" class="btn-test-ftp-inline" id="btn-test-ftp-inline" style="padding:8px 16px; border-radius:10px; border:1px solid rgba(16,185,129,0.4); background:rgba(16,185,129,0.12); color:#10b981; font-size:12px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:6px; transition:all 0.2s;">
+              <ha-icon icon="mdi:server-network" style="--mdc-icon-size:16px;"></ha-icon>
+              <span>Tester la connexion FTP</span>
+            </button>
+          </div>
         </div>
 
         <div class="config-card">
@@ -3813,11 +3879,17 @@ class DomolinkPanel extends HTMLElement {
           ${this._renderTextField("Identifiant WebDAV", "Nom d'utilisateur WebDAV / Nextcloud", "webdav_user", "mdi:account")}
           ${this._renderPasswordField("Mot de passe / Token d'application", "Mot de passe de compte ou token d'application WebDAV", "webdav_pass", "mdi:lock")}
           ${this._renderTextField("Dossier distant de sauvegarde", "Chemin relatif sur le serveur (ex: domolink/alarm)", "webdav_path", "mdi:folder-network", "text", "domolink/alarm")}
-          <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--d-border-light); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
-            <div style="font-size:12px; color:var(--d-subtext);">
-              Testez la connexion à votre cloud WebDAV avant d'enregistrer la configuration
+          <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--d-border-light); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+            <div style="display:flex; flex-direction:column; gap:4px; max-width:65%;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:12px; font-weight:700; color:var(--d-text);">Résultat connexion WebDAV :</span>
+                <span id="webdav-test-inline-badge">${this._renderTestBadge(curWebdavRes)}</span>
+              </div>
+              <div id="webdav-test-inline-msg" style="font-size:11px; line-height:1.4; color:${curWebdavRes?.success ? '#10b981' : (curWebdavRes?.success === false ? '#ef4444' : 'var(--d-subtext)')};">
+                ${curWebdavRes?.message ? this.escapeHtml(curWebdavRes.message) : 'Testez la connexion WebDAV avec vos identifiants actuels ci-dessus.'}
+              </div>
             </div>
-            <button class="btn-test-webdav-cfg" id="btn-test-webdav-cfg" style="padding:8px 14px; border-radius:10px; border:1px solid rgba(139,92,246,0.4); background:rgba(139,92,246,0.12); color:#a855f7; font-size:12px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:6px; transition:all 0.2s;">
+            <button type="button" class="btn-test-webdav-inline" id="btn-test-webdav-cfg" style="padding:8px 16px; border-radius:10px; border:1px solid rgba(139,92,246,0.4); background:rgba(139,92,246,0.12); color:#a855f7; font-size:12px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:6px; transition:all 0.2s;">
               <ha-icon icon="mdi:cloud-check" style="--mdc-icon-size:16px;"></ha-icon>
               <span>Tester la connexion WebDAV</span>
             </button>
@@ -3879,7 +3951,7 @@ class DomolinkPanel extends HTMLElement {
             <div>
               <div style="font-size:18px; font-weight:800; color:var(--d-text); display:flex; align-items:center; gap:8px;">
                 Centre de Configuration
-                <span class="nav-badge-pill badge-version">v0.9.62</span>
+                <span class="nav-badge-pill badge-version">v0.9.63</span>
               </div>
               <div style="font-size:12px; color:var(--d-subtext); margin-top:3px;">
                 Modifiez vos équipements, délais, notifications et sauvegardes en toute simplicité
@@ -4097,20 +4169,202 @@ class DomolinkPanel extends HTMLElement {
     if (saveTop) saveTop.addEventListener('click', () => handleSave(saveTop));
     if (saveBottom) saveBottom.addEventListener('click', () => handleSave(saveBottom));
 
-    // WebDAV Test from Config Tab
+    // ─── Inline NAS Diagnostic Tests (FTP & WebDAV) ──────────────────
+    const runFtpTestInline = async (targetBtn) => {
+      const curNas = this._configDraft.nas_type || 'asustor';
+      const hostInput = container.querySelector('input[data-field="ftp_host"]');
+      const portInput = container.querySelector('input[data-field="ftp_port"]');
+      const userInput = container.querySelector('input[data-field="ftp_user"]');
+      const passInput = container.querySelector('input[data-field="ftp_pass"]');
+      const pathInput = container.querySelector('input[data-field="ftp_path"]');
+      const enabledInput = container.querySelector('input[data-field="ftp_enabled"]');
+
+      const ftpPayload = {
+        nas_type: curNas,
+        ftp_host: hostInput ? hostInput.value.trim() : (this._configDraft.ftp_host || ''),
+        ftp_port: portInput ? parseInt(portInput.value, 10) || 21 : (this._configDraft.ftp_port || 21),
+        ftp_user: userInput ? userInput.value.trim() : (this._configDraft.ftp_user || ''),
+        ftp_pass: passInput ? passInput.value : (this._configDraft.ftp_pass || ''),
+        ftp_path: pathInput ? pathInput.value.trim() : (this._configDraft.ftp_path || '/'),
+        ftp_enabled: enabledInput ? Boolean(enabledInput.checked) : true,
+      };
+
+      const badgeFtp = container.querySelector('#ftp-test-inline-badge');
+      const msgFtp = container.querySelector('#ftp-test-inline-msg');
+      const badgeNas = container.querySelector('#nas-card-status-badge');
+      const cardBadge = container.querySelector(`.nas-test-badge-container[data-nas="${curNas}"]`);
+
+      if (badgeFtp) badgeFtp.innerHTML = this._renderTestBadge({ loading: true });
+      if (msgFtp) {
+        msgFtp.innerHTML = '<span style="color:#3b82f6;">Diagnostic de connexion FTP en cours...</span>';
+      }
+      if (badgeNas) badgeNas.innerHTML = this._renderTestBadge({ loading: true });
+      if (cardBadge) cardBadge.innerHTML = this._renderTestBadge({ loading: true });
+
+      if (targetBtn) {
+        targetBtn.disabled = true;
+        targetBtn.style.opacity = '0.6';
+      }
+
+      try {
+        let result = null;
+        if (this._hass && this._hass.callWS) {
+          try {
+            const wsResp = await this._hass.callWS({
+              type: 'call_service',
+              domain: 'domolink_alarm',
+              service: 'test_ftp',
+              service_data: ftpPayload,
+              return_response: true,
+            });
+            if (wsResp && wsResp.response) {
+              result = wsResp.response;
+            }
+          } catch (wsErr) {
+            console.warn("callWS test_ftp fallback:", wsErr);
+          }
+        }
+        if (!result) {
+          await this._hass.callService('domolink_alarm', 'test_ftp', ftpPayload);
+          await new Promise(r => setTimeout(r, 600));
+          const latestEntity = this._hass.states[alarmEntity.entity_id];
+          const latestResults = latestEntity?.attributes?.nas_test_results || {};
+          result = latestResults[curNas] || latestResults[`${curNas}_ftp`] || latestEntity?.attributes?.ftp_test_result;
+        }
+
+        if (result) {
+          if (badgeFtp) badgeFtp.innerHTML = this._renderTestBadge(result);
+          if (msgFtp) {
+            msgFtp.textContent = result.message || (result.success ? "Connexion acceptée" : (result.result_label || `Erreur ${result.code || ''}`));
+            msgFtp.style.color = result.success ? '#10b981' : '#ef4444';
+          }
+          if (badgeNas) badgeNas.innerHTML = this._renderTestBadge(result);
+          if (cardBadge) cardBadge.innerHTML = this._renderTestBadge(result);
+        }
+      } catch (err) {
+        console.error("Erreur test FTP:", err);
+        const errObj = { success: false, code: 500, result_label: "Erreur 500", message: err.message || String(err) };
+        if (badgeFtp) badgeFtp.innerHTML = this._renderTestBadge(errObj);
+        if (msgFtp) {
+          msgFtp.textContent = `Erreur lors du test : ${err.message || err}`;
+          msgFtp.style.color = '#ef4444';
+        }
+        if (badgeNas) badgeNas.innerHTML = this._renderTestBadge(errObj);
+        if (cardBadge) cardBadge.innerHTML = this._renderTestBadge(errObj);
+      } finally {
+        if (targetBtn) {
+          targetBtn.disabled = false;
+          targetBtn.style.opacity = '1';
+        }
+      }
+    };
+
+    const runWebdavTestInline = async (targetBtn) => {
+      const curNas = this._configDraft.nas_type || 'asustor';
+      const urlInput = container.querySelector('input[data-field="webdav_url"]');
+      const userInput = container.querySelector('input[data-field="webdav_user"]');
+      const passInput = container.querySelector('input[data-field="webdav_pass"]');
+      const pathInput = container.querySelector('input[data-field="webdav_path"]');
+      const enabledInput = container.querySelector('input[data-field="webdav_enabled"]');
+
+      const webdavPayload = {
+        nas_type: curNas,
+        webdav_url: urlInput ? urlInput.value.trim() : (this._configDraft.webdav_url || ''),
+        webdav_user: userInput ? userInput.value.trim() : (this._configDraft.webdav_user || ''),
+        webdav_pass: passInput ? passInput.value : (this._configDraft.webdav_pass || ''),
+        webdav_path: pathInput ? pathInput.value.trim() : (this._configDraft.webdav_path || 'domolink/alarm'),
+        webdav_enabled: enabledInput ? Boolean(enabledInput.checked) : true,
+      };
+
+      const badgeWd = container.querySelector('#webdav-test-inline-badge');
+      const msgWd = container.querySelector('#webdav-test-inline-msg');
+      const badgeNas = container.querySelector('#nas-card-status-badge');
+      const cardBadge = container.querySelector(`.nas-test-badge-container[data-nas="${curNas}"]`);
+
+      if (badgeWd) badgeWd.innerHTML = this._renderTestBadge({ loading: true });
+      if (msgWd) {
+        msgWd.innerHTML = '<span style="color:#3b82f6;">Diagnostic de connexion WebDAV en cours...</span>';
+      }
+      if (badgeNas) badgeNas.innerHTML = this._renderTestBadge({ loading: true });
+      if (cardBadge) cardBadge.innerHTML = this._renderTestBadge({ loading: true });
+
+      if (targetBtn) {
+        targetBtn.disabled = true;
+        targetBtn.style.opacity = '0.6';
+      }
+
+      try {
+        let result = null;
+        if (this._hass && this._hass.callWS) {
+          try {
+            const wsResp = await this._hass.callWS({
+              type: 'call_service',
+              domain: 'domolink_alarm',
+              service: 'test_webdav',
+              service_data: webdavPayload,
+              return_response: true,
+            });
+            if (wsResp && wsResp.response) {
+              result = wsResp.response;
+            }
+          } catch (wsErr) {
+            console.warn("callWS test_webdav fallback:", wsErr);
+          }
+        }
+        if (!result) {
+          await this._hass.callService('domolink_alarm', 'test_webdav', webdavPayload);
+          await new Promise(r => setTimeout(r, 600));
+          const latestEntity = this._hass.states[alarmEntity.entity_id];
+          const latestResults = latestEntity?.attributes?.nas_test_results || {};
+          result = latestResults[curNas] || latestResults[`${curNas}_webdav`] || latestEntity?.attributes?.webdav_test_result;
+        }
+
+        if (result) {
+          if (badgeWd) badgeWd.innerHTML = this._renderTestBadge(result);
+          if (msgWd) {
+            msgWd.textContent = result.message || (result.success ? "Connexion acceptée" : (result.result_label || `Erreur ${result.code || ''}`));
+            msgWd.style.color = result.success ? '#10b981' : '#ef4444';
+          }
+          if (badgeNas) badgeNas.innerHTML = this._renderTestBadge(result);
+          if (cardBadge) cardBadge.innerHTML = this._renderTestBadge(result);
+        }
+      } catch (err) {
+        console.error("Erreur test WebDAV:", err);
+        const errObj = { success: false, code: 500, result_label: "Erreur 500", message: err.message || String(err) };
+        if (badgeWd) badgeWd.innerHTML = this._renderTestBadge(errObj);
+        if (msgWd) {
+          msgWd.textContent = `Erreur lors du test : ${err.message || err}`;
+          msgWd.style.color = '#ef4444';
+        }
+        if (badgeNas) badgeNas.innerHTML = this._renderTestBadge(errObj);
+        if (cardBadge) cardBadge.innerHTML = this._renderTestBadge(errObj);
+      } finally {
+        if (targetBtn) {
+          targetBtn.disabled = false;
+          targetBtn.style.opacity = '1';
+        }
+      }
+    };
+
+    // FTP Test from Config Tab (Inline)
+    const ftpInlineBtn = container.querySelector('#btn-test-ftp-inline');
+    if (ftpInlineBtn) {
+      ftpInlineBtn.addEventListener('click', () => runFtpTestInline(ftpInlineBtn));
+    }
+
+    // WebDAV Test from Config Tab (Inline)
     const webdavCfgBtn = container.querySelector('#btn-test-webdav-cfg');
     if (webdavCfgBtn) {
-      webdavCfgBtn.addEventListener('click', () => {
-        this._showWebdavTestConsole = true;
-        this._activeTab = 'arm';
-        this._paramRendered = false;
-        this.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.getAttribute('data-tab') === 'arm'));
-        this.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'pane-arm'));
-        this._lastArmKey = '';
-        this.render();
-        this._hass.callService('domolink_alarm', 'test_webdav', {});
-      });
+      webdavCfgBtn.addEventListener('click', () => runWebdavTestInline(webdavCfgBtn));
     }
+
+    // Quick Test Buttons in Profile Card
+    container.querySelectorAll('.btn-nas-quick-test-ftp').forEach(btn => {
+      btn.addEventListener('click', () => runFtpTestInline(btn));
+    });
+    container.querySelectorAll('.btn-nas-quick-test-webdav').forEach(btn => {
+      btn.addEventListener('click', () => runWebdavTestInline(btn));
+    });
 
     // Google Drive Test from Config Tab
     const gdriveCfgBtn = container.querySelector('#btn-test-gdrive-cfg');
@@ -4391,7 +4645,7 @@ class DomolinkPanel extends HTMLElement {
       const cloudLabel = countCloud > 1 ? 'MULTI-CLOUD' : (isGdrive ? 'G-DRIVE' : (isDav ? 'WEBDAV' : (isFtp ? 'FTP' : 'LOCAL')));
       elParam.innerHTML = `
         <div class="nav-badge-stack">
-          <span class="nav-badge-pill badge-version">v0.9.62</span>
+          <span class="nav-badge-pill badge-version">v0.9.63</span>
           <span class="nav-badge-pill badge-neutral">${cloudLabel}</span>
         </div>
       `;

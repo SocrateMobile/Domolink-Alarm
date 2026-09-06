@@ -223,15 +223,15 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
 
     async def async_handle_test_ftp(call):
         """Handle FTP test service call."""
-        await entity.async_test_ftp(call)
+        return await entity.async_test_ftp(call)
 
     async def async_handle_test_webdav(call):
         """Handle WebDAV test service call."""
-        await entity.async_test_webdav(call)
+        return await entity.async_test_webdav(call)
 
     async def async_handle_test_google_drive(call):
         """Handle Google Drive test service call."""
-        await entity.async_test_google_drive(call)
+        return await entity.async_test_google_drive(call)
 
     async def async_handle_clean_media(call):
         """Handle clean media service call."""
@@ -243,15 +243,33 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
     hass.services.async_register(
         DOMAIN, "test_cameras_recording", async_handle_test_cameras
     )
-    hass.services.async_register(
-        DOMAIN, "test_ftp", async_handle_test_ftp
-    )
-    hass.services.async_register(
-        DOMAIN, "test_webdav", async_handle_test_webdav
-    )
-    hass.services.async_register(
-        DOMAIN, "test_google_drive", async_handle_test_google_drive
-    )
+
+    try:
+        from homeassistant.core import SupportsResponse
+        supports_opt = SupportsResponse.OPTIONAL
+    except Exception:
+        supports_opt = None
+
+    if supports_opt is not None:
+        hass.services.async_register(
+            DOMAIN, "test_ftp", async_handle_test_ftp, supports_response=supports_opt
+        )
+        hass.services.async_register(
+            DOMAIN, "test_webdav", async_handle_test_webdav, supports_response=supports_opt
+        )
+        hass.services.async_register(
+            DOMAIN, "test_google_drive", async_handle_test_google_drive, supports_response=supports_opt
+        )
+    else:
+        hass.services.async_register(
+            DOMAIN, "test_ftp", async_handle_test_ftp
+        )
+        hass.services.async_register(
+            DOMAIN, "test_webdav", async_handle_test_webdav
+        )
+        hass.services.async_register(
+            DOMAIN, "test_google_drive", async_handle_test_google_drive
+        )
     hass.services.async_register(
         DOMAIN, "clean_media", async_handle_clean_media
     )
@@ -355,6 +373,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._webdav_test_running = False
         self._webdav_test_logs = []
         self._webdav_test_result = {}
+        self._nas_test_results = {}
         self._google_drive_test_running = False
         self._google_drive_test_logs = []
         self._google_drive_test_result = {}
@@ -734,6 +753,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             "webdav_test_result": dict(getattr(self, "_webdav_test_result", {})),
             "nas_type": getattr(self, "_nas_type", "asustor"),
             "nas_configs": dict(getattr(self, "_nas_configs", {})),
+            "nas_test_results": dict(getattr(self, "_nas_test_results", {})),
             "google_drive_status": getattr(self, "_google_drive_status", "Désactivé"),
             "google_drive_method": getattr(self, "_google_drive_method", "webhook"),
             "google_drive_test_running": getattr(self, "_google_drive_test_running", False),
@@ -2515,77 +2535,132 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         """Force a connection test to the FTP server with real-time log steps."""
         if getattr(self, "_ftp_test_running", False):
             _LOGGER.debug("Domolink: Un test FTP est déjà en cours.")
-            return
+            return {
+                "success": False,
+                "code": 429,
+                "result_label": "Erreur 429",
+                "message": "Un test FTP est déjà en cours.",
+            }
 
-        nas_labels = {"asustor": "ASUSTOR", "synology": "Synology", "qnap": "QNAP", "truenas": "TrueNAS", "freebox": "Freebox", "unraid": "Unraid"}
-        nas_name = nas_labels.get(getattr(self, "_nas_type", "asustor"), "NAS / Serveur")
+        data = call.data if (call and hasattr(call, "data")) else {}
+        return await self._async_run_ftp_test(data)
+
+    async def _async_run_ftp_test(self, data=None):
+        """Run FTP test in executor and report logs thread-safely."""
+        if data is None:
+            data = {}
+
+        nas_labels = {
+            "asustor": "ASUSTOR",
+            "synology": "Synology",
+            "qnap": "QNAP",
+            "truenas": "TrueNAS",
+            "freebox": "Freebox",
+            "unraid": "Unraid",
+            "generic": "Autre NAS",
+        }
+        cur_nas = data.get("nas_type") or getattr(self, "_nas_type", "asustor")
+        nas_name = nas_labels.get(cur_nas, "NAS")
 
         self._ftp_test_running = True
         self._ftp_test_logs = []
         self._ftp_test_result = {}
         self._append_ftp_log(f"🚀 Démarrage du diagnostic de connexion FTP ({nas_name})...", "info")
 
-        self.hass.async_create_task(self._async_run_ftp_test())
-
-    async def _async_run_ftp_test(self):
-        """Run FTP test in executor and report logs thread-safely."""
-        nas_labels = {"asustor": "ASUSTOR", "synology": "Synology", "qnap": "QNAP", "truenas": "TrueNAS", "freebox": "Freebox", "unraid": "Unraid"}
-        nas_name = nas_labels.get(getattr(self, "_nas_type", "asustor"), "NAS")
-
         def log_step(msg, level="info"):
             _LOGGER.info("Domolink FTP test: %s", msg)
             self.hass.loop.call_soon_threadsafe(self._append_ftp_log, msg, level)
+
+        nas_cfg = getattr(self, "_nas_configs", {}).get(cur_nas, {})
+        host = data.get("ftp_host") or nas_cfg.get("ftp_host") or getattr(self, "_ftp_host", "")
+        if not host and cur_nas == "freebox":
+            host = "mafreebox.freebox.fr"
+        port = data.get("ftp_port") or nas_cfg.get("ftp_port") or getattr(self, "_ftp_port", 21)
+        user = data.get("ftp_user") if "ftp_user" in data else (nas_cfg.get("ftp_user") if "ftp_user" in nas_cfg else getattr(self, "_ftp_user", ""))
+        if not user and cur_nas == "freebox":
+            user = "freebox"
+        password = data.get("ftp_pass") if "ftp_pass" in data else (nas_cfg.get("ftp_pass") if "ftp_pass" in nas_cfg else getattr(self, "_ftp_pass", ""))
+        path = data.get("ftp_path") if "ftp_path" in data else (nas_cfg.get("ftp_path") if "ftp_path" in nas_cfg else getattr(self, "_ftp_path", "/"))
 
         def run_test_sync():
             import ftplib
             import time
             import io
+            import re
+            import socket
 
-            time.sleep(0.3)
-            if not getattr(self, "_ftp_enabled", False):
-                log_step("Le service FTP est désactivé dans la configuration de Domolink.", "error")
-                return False, "Le service FTP est désactivé dans la configuration de l'alarme.", ""
+            time.sleep(0.2)
+            if not host:
+                log_step("Aucune adresse de serveur FTP renseignée.", "error")
+                return False, 400, "Adresse du serveur FTP manquante.", ""
 
-            if not self._ftp_host:
-                log_step("Aucune adresse de serveur FTP renseignée dans la configuration.", "error")
-                return False, "Adresse du serveur FTP manquante.", ""
+            try:
+                port_int = int(port or 21)
+            except (ValueError, TypeError):
+                port_int = 21
 
-            port = int(self._ftp_port or 21)
-            host = str(self._ftp_host).strip()
-            user = str(self._ftp_user or "").strip()
-            password = str(self._ftp_pass or "")
+            clean_host = str(host).strip()
+            clean_user = str(user or "").strip()
+            clean_pass = str(password or "")
 
-            log_step(f"1. Profil {nas_name} : Hôte={host}, Port={port}, Utilisateur='{user}'", "info")
-            time.sleep(0.35)
+            log_step(f"1. Profil {nas_name} : Hôte={clean_host}, Port={port_int}, Utilisateur='{clean_user}'", "info")
+            time.sleep(0.25)
 
-            log_step(f"2. Connexion réseau au serveur {host}:{port}...", "info")
+            log_step(f"2. Connexion réseau au serveur {clean_host}:{port_int}...", "info")
             ftp = ftplib.FTP()
             ftp.encoding = "utf-8"
             try:
-                ftp.connect(host, port, timeout=10)
+                ftp.connect(clean_host, port_int, timeout=10)
                 log_step("   ✓ Connexion TCP établie avec succès.", "success")
             except Exception as e:
-                log_step(f"   ✗ Échec de connexion réseau : {e}", "error")
+                err_str = str(e)
+                log_step(f"   ✗ Échec de connexion réseau : {err_str}", "error")
                 try:
                     ftp.close()
                 except Exception:
                     pass
-                return False, f"Impossible de joindre le serveur {host}:{port} ({e})", ""
 
-            time.sleep(0.35)
-            log_step(f"3. Authentification de l'utilisateur '{user}'...", "info")
+                code = None
+                if hasattr(e, "errno") and e.errno is not None:
+                    code = abs(e.errno)
+                elif isinstance(e, socket.gaierror):
+                    code = getattr(e, "errno", None) or 2
+                elif isinstance(e, (socket.timeout, TimeoutError)):
+                    code = 110
+                if code is None:
+                    m = re.search(r'\[Errno\s*(-?\d+)\]', err_str)
+                    if m:
+                        code = abs(int(m.group(1)))
+                    else:
+                        m_rfc = re.search(r'\b([1-5]\d{2})\b', err_str)
+                        code = int(m_rfc.group(1)) if m_rfc else 111
+
+                return False, code, f"Impossible de joindre le serveur {clean_host}:{port_int} ({err_str})", ""
+
+            time.sleep(0.25)
+            log_step(f"3. Authentification de l'utilisateur '{clean_user}'...", "info")
             try:
-                ftp.login(user, password)
+                ftp.login(clean_user, clean_pass)
                 log_step("   ✓ Authentification acceptée par le serveur FTP.", "success")
             except Exception as e:
-                log_step(f"   ✗ Échec d'authentification : {e}", "error")
+                err_str = str(e)
+                log_step(f"   ✗ Échec d'authentification : {err_str}", "error")
                 try:
                     ftp.quit()
                 except Exception:
                     pass
-                return False, f"Identifiants incorrects ou refusés ({e})", ""
 
-            time.sleep(0.35)
+                code = None
+                m_rfc = re.search(r'\b([1-5]\d{2})\b', err_str)
+                if m_rfc:
+                    code = int(m_rfc.group(1))
+                elif hasattr(e, "errno") and e.errno is not None:
+                    code = abs(e.errno)
+                if code is None:
+                    code = 530
+                return False, code, f"Identifiants incorrects ou refusés ({err_str})", ""
+
+            time.sleep(0.2)
             log_step("4. Contrôle de l'arborescence des répertoires...", "info")
 
             # Verify / create 'domolink'
@@ -2598,14 +2673,17 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                     ftp.cwd("domolink")
                     log_step("   ✓ Dossier 'domolink' créé avec succès.", "success")
                 except Exception as mkd_err:
-                    log_step(f"   ✗ Impossible d'accéder ou créer 'domolink' : {mkd_err}", "error")
+                    err_str = str(mkd_err)
+                    log_step(f"   ✗ Impossible d'accéder ou créer 'domolink' : {err_str}", "error")
                     try:
                         ftp.quit()
                     except Exception:
                         pass
-                    return False, f"Permissions insuffisantes pour créer 'domolink' ({mkd_err})", ""
+                    m_rfc = re.search(r'\b([1-5]\d{2})\b', err_str)
+                    code = int(m_rfc.group(1)) if m_rfc else 550
+                    return False, code, f"Permissions insuffisantes pour créer 'domolink' ({err_str})", ""
 
-            time.sleep(0.3)
+            time.sleep(0.2)
             # Verify / create 'alarm'
             try:
                 ftp.cwd("alarm")
@@ -2616,17 +2694,20 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                     ftp.cwd("alarm")
                     log_step("   ✓ Sous-dossier 'alarm' créé avec succès.", "success")
                 except Exception as mkd_err:
-                    log_step(f"   ✗ Impossible d'accéder ou créer 'alarm' : {mkd_err}", "error")
+                    err_str = str(mkd_err)
+                    log_step(f"   ✗ Impossible d'accéder ou créer 'alarm' : {err_str}", "error")
                     try:
                         ftp.quit()
                     except Exception:
                         pass
-                    return False, f"Permissions insuffisantes pour créer 'alarm' ({mkd_err})", ""
+                    m_rfc = re.search(r'\b([1-5]\d{2})\b', err_str)
+                    code = int(m_rfc.group(1)) if m_rfc else 550
+                    return False, code, f"Permissions insuffisantes pour créer 'alarm' ({err_str})", ""
 
-            time.sleep(0.3)
+            time.sleep(0.2)
             # Verify / create custom path if configured
             save_path = "domolink/alarm"
-            custom_dir = str(self._ftp_path or "").strip()
+            custom_dir = str(path or "").strip()
             if custom_dir and custom_dir != "/":
                 parts = [p for p in custom_dir.split('/') if p and p not in ("domolink", "alarm")]
                 for part in parts:
@@ -2643,7 +2724,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 if parts:
                     save_path = f"domolink/alarm/{'/'.join(parts)}"
 
-            time.sleep(0.3)
+            time.sleep(0.2)
             log_step("5. Test des permissions d'écriture...", "info")
             try:
                 probe_data = io.BytesIO(b"Domolink Alarm write probe test")
@@ -2654,14 +2735,17 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                     pass
                 log_step("   ✓ Droits d'écriture validés (fichier test créé et nettoyé).", "success")
             except Exception as write_err:
-                log_step(f"   ✗ Erreur d'écriture sur le serveur : {write_err}", "error")
+                err_str = str(write_err)
+                log_step(f"   ✗ Erreur d'écriture sur le serveur : {err_str}", "error")
                 try:
                     ftp.quit()
                 except Exception:
                     pass
-                return False, f"Droits d'écriture insuffisants ({write_err})", save_path
+                m_rfc = re.search(r'\b([1-5]\d{2})\b', err_str)
+                code = int(m_rfc.group(1)) if m_rfc else 553
+                return False, code, f"Droits d'écriture insuffisants ({err_str})", save_path
 
-            time.sleep(0.3)
+            time.sleep(0.2)
             try:
                 ftp.quit()
             except Exception:
@@ -2669,31 +2753,62 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
             log_step(f"6. Chemin de sauvegarde validé : {save_path}", "success")
             log_step(f"🎉 Connexion FTP acceptée et validée avec succès sur {nas_name} !", "success")
-            return True, "Connexion acceptée", save_path
+            return True, 200, "Connexion acceptée", save_path
 
+        import time as _t
         try:
-            success, msg, save_path = await self.hass.async_add_executor_job(run_test_sync)
+            success, code, msg, save_path = await self.hass.async_add_executor_job(run_test_sync)
+            result_label = "Connecté" if success else f"Erreur {code}"
             self._ftp_test_running = False
             self._ftp_status = "Connecté" if success else "Erreur"
-            self._ftp_test_result = {
+            res_dict = {
                 "success": success,
+                "code": code,
+                "result_label": result_label,
                 "message": msg,
                 "save_path": save_path,
+                "nas_type": cur_nas,
+                "protocol": "ftp",
+                "timestamp": int(_t.time()),
             }
+            self._ftp_test_result = res_dict
+            if not hasattr(self, "_nas_test_results"):
+                self._nas_test_results = {}
+            self._nas_test_results[cur_nas] = res_dict
+            self._nas_test_results[f"{cur_nas}_ftp"] = res_dict
+            self._nas_test_results["last_ftp"] = res_dict
+
             if success:
-                self._log_event(f"Test FTP réussi (Dossier: {save_path})")
+                self._log_event(f"Test FTP {nas_name} réussi : Connecté ({save_path})")
             else:
-                self._log_event(f"⚠️ Échec du test FTP : {msg}")
+                self._log_event(f"⚠️ Test FTP {nas_name} échoué : {result_label} - {msg}")
+            return res_dict
         except Exception as e:
+            err_str = str(e)
+            code = 500
+            result_label = f"Erreur {code}"
             self._ftp_test_running = False
             self._ftp_status = "Erreur"
-            self._ftp_test_result = {
+            res_dict = {
                 "success": False,
-                "message": str(e),
+                "code": code,
+                "result_label": result_label,
+                "message": err_str,
                 "save_path": "",
+                "nas_type": cur_nas,
+                "protocol": "ftp",
+                "timestamp": int(_t.time()),
             }
+            self._ftp_test_result = res_dict
+            if not hasattr(self, "_nas_test_results"):
+                self._nas_test_results = {}
+            self._nas_test_results[cur_nas] = res_dict
+            self._nas_test_results[f"{cur_nas}_ftp"] = res_dict
+            self._nas_test_results["last_ftp"] = res_dict
+
             self._append_ftp_log(f"Erreur inattendue : {e}", "error")
-            self._log_event(f"⚠️ Erreur test FTP : {e}")
+            self._log_event(f"⚠️ Erreur test FTP {nas_name} : {e}")
+            return res_dict
         finally:
             self.async_write_ha_state()
 
@@ -2781,61 +2896,90 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         """Force a connection test to the WebDAV server with real-time log steps."""
         if getattr(self, "_webdav_test_running", False):
             _LOGGER.debug("Domolink: Un test WebDAV est déjà en cours.")
-            return
+            return {
+                "success": False,
+                "code": 429,
+                "result_label": "Erreur 429",
+                "message": "Un test WebDAV est déjà en cours.",
+            }
 
-        nas_labels = {"asustor": "ASUSTOR", "synology": "Synology", "qnap": "QNAP", "truenas": "TrueNAS", "freebox": "Freebox", "unraid": "Unraid"}
-        nas_name = nas_labels.get(getattr(self, "_nas_type", "asustor"), "NAS / Serveur")
+        data = call.data if (call and hasattr(call, "data")) else {}
+        return await self._async_run_webdav_test(data)
+
+    async def _async_run_webdav_test(self, data=None):
+        """Run step-by-step diagnostic of WebDAV server asynchronously."""
+        import time
+        import aiohttp
+        import re
+        from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+        if data is None:
+            data = {}
+
+        nas_labels = {
+            "asustor": "ASUSTOR",
+            "synology": "Synology",
+            "qnap": "QNAP",
+            "truenas": "TrueNAS",
+            "freebox": "Freebox",
+            "unraid": "Unraid",
+            "generic": "Autre NAS",
+        }
+        cur_nas = data.get("nas_type") or getattr(self, "_nas_type", "asustor")
+        nas_name = nas_labels.get(cur_nas, "NAS")
 
         self._webdav_test_running = True
         self._webdav_test_logs = []
         self._webdav_test_result = {}
         self._append_webdav_log(f"🚀 Démarrage du diagnostic WebDAV ({nas_name})...", "info")
 
-        self.hass.async_create_task(self._async_run_webdav_test())
-
-    async def _async_run_webdav_test(self):
-        """Run step-by-step diagnostic of WebDAV server asynchronously."""
-        import time
-        import aiohttp
-        from homeassistant.helpers.aiohttp_client import async_get_clientsession
-
-        nas_labels = {"asustor": "ASUSTOR", "synology": "Synology", "qnap": "QNAP", "truenas": "TrueNAS", "freebox": "Freebox", "unraid": "Unraid"}
-        nas_name = nas_labels.get(getattr(self, "_nas_type", "asustor"), "NAS")
-
         start_time = time.time()
-        url = str(getattr(self, "_webdav_url", "") or "").strip()
-        user = str(getattr(self, "_webdav_user", "") or "").strip()
-        passwd = str(getattr(self, "_webdav_pass", "") or "")
-        path = str(getattr(self, "_webdav_path", "domolink/alarm") or "domolink/alarm").strip().strip("/")
+        nas_cfg = getattr(self, "_nas_configs", {}).get(cur_nas, {})
+        url = str(data.get("webdav_url") or nas_cfg.get("webdav_url") or getattr(self, "_webdav_url", "") or "").strip()
+        user = str(data.get("webdav_user") if "webdav_user" in data else (nas_cfg.get("webdav_user") if "webdav_user" in nas_cfg else getattr(self, "_webdav_user", "") or "")).strip()
+        passwd = str(data.get("webdav_pass") if "webdav_pass" in data else (nas_cfg.get("webdav_pass") if "webdav_pass" in nas_cfg else getattr(self, "_webdav_pass", "") or ""))
+        path = str(data.get("webdav_path") if "webdav_path" in data else (nas_cfg.get("webdav_path") if "webdav_path" in nas_cfg else getattr(self, "_webdav_path", "domolink/alarm") or "domolink/alarm")).strip().strip("/")
+
+        def record_result(success, code, msg, save_p=""):
+            elapsed = round(time.time() - start_time, 2)
+            result_label = "Connecté" if success else f"Erreur {code}"
+            self._webdav_test_running = False
+            self._webdav_status = "Connecté" if success else "Erreur"
+            res = {
+                "success": success,
+                "code": code,
+                "result_label": result_label,
+                "message": msg,
+                "save_path": save_p or path,
+                "elapsed": elapsed,
+                "nas_type": cur_nas,
+                "protocol": "webdav",
+                "timestamp": int(time.time()),
+            }
+            self._webdav_test_result = res
+            if not hasattr(self, "_nas_test_results"):
+                self._nas_test_results = {}
+            self._nas_test_results[cur_nas] = res
+            self._nas_test_results[f"{cur_nas}_webdav"] = res
+            self._nas_test_results["last_webdav"] = res
+            if success:
+                self._log_event(f"Test WebDAV {nas_name} réussi : Connecté ({elapsed}s)")
+            else:
+                self._log_event(f"⚠️ Test WebDAV {nas_name} échoué : {result_label} - {msg}")
+            return res
 
         try:
             await asyncio.sleep(0.2)
-            if not getattr(self, "_webdav_enabled", False):
-                self._append_webdav_log("Le service WebDAV est désactivé dans la configuration.", "error")
-                self._webdav_status = "Erreur"
-                self._webdav_test_running = False
-                self._webdav_test_result = {"success": False, "message": "Service WebDAV désactivé."}
-                self.async_write_ha_state()
-                return
-
             if not url:
                 self._append_webdav_log("Aucune URL WebDAV configurée.", "error")
-                self._webdav_status = "Erreur"
-                self._webdav_test_running = False
-                self._webdav_test_result = {"success": False, "message": "URL WebDAV manquante."}
-                self.async_write_ha_state()
-                return
+                return record_result(False, 400, "URL WebDAV manquante.")
 
             if not (url.startswith("http://") or url.startswith("https://")):
                 self._append_webdav_log("URL invalide (doit débuter par http:// ou https://)", "error")
-                self._webdav_status = "Erreur"
-                self._webdav_test_running = False
-                self._webdav_test_result = {"success": False, "message": "URL invalide (http:// ou https:// requis)."}
-                self.async_write_ha_state()
-                return
+                return record_result(False, 400, "URL invalide (http:// ou https:// requis).")
 
             self._append_webdav_log(f"1. Profil {nas_name} : URL={url}, Utilisateur='{user}'", "info")
-            await asyncio.sleep(0.3)
+            await asyncio.sleep(0.25)
 
             # Step 2: Connection & Auth
             self._append_webdav_log("2. Connexion réseau et authentification...", "info")
@@ -2847,24 +2991,33 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 async with session.request("PROPFIND", base_url, headers={"Depth": "0"}, auth=auth, timeout=aiohttp.ClientTimeout(total=12)) as resp:
                     if resp.status in (401, 403):
                         self._append_webdav_log(f"   ✗ Authentification rejetée (Code {resp.status})", "error")
-                        self._webdav_status = "Erreur"
-                        self._webdav_test_running = False
-                        self._webdav_test_result = {"success": False, "message": f"Identifiants invalides (HTTP {resp.status})"}
-                        self.async_write_ha_state()
-                        return
+                        return record_result(False, resp.status, f"Identifiants invalides (HTTP {resp.status})")
                     elif resp.status in (200, 207, 405):
                         self._append_webdav_log(f"   ✓ Connexion et accès autorisés (HTTP {resp.status})", "success")
+                    elif resp.status == 404:
+                        self._append_webdav_log(f"   ✗ Chemin ou serveur WebDAV introuvable (Code {resp.status})", "error")
+                        return record_result(False, 404, "Chemin introuvable (HTTP 404)")
                     else:
                         self._append_webdav_log(f"   ⚠️ Réponse serveur inattendue (HTTP {resp.status}), poursuite...", "warning")
             except Exception as conn_err:
-                self._append_webdav_log(f"   ✗ Impossible de joindre le serveur WebDAV : {conn_err}", "error")
-                self._webdav_status = "Erreur"
-                self._webdav_test_running = False
-                self._webdav_test_result = {"success": False, "message": f"Erreur réseau: {conn_err}"}
-                self.async_write_ha_state()
-                return
+                err_str = str(conn_err)
+                self._append_webdav_log(f"   ✗ Impossible de joindre le serveur WebDAV : {err_str}", "error")
+                code = 111
+                if hasattr(conn_err, "os_error") and getattr(conn_err.os_error, "errno", None):
+                    code = abs(conn_err.os_error.errno)
+                elif isinstance(conn_err, asyncio.TimeoutError):
+                    code = 110
+                else:
+                    m = re.search(r'\[Errno\s*(-?\d+)\]', err_str)
+                    if m:
+                        code = abs(int(m.group(1)))
+                    else:
+                        m_http = re.search(r'\b([1-5]\d{2})\b', err_str)
+                        if m_http:
+                            code = int(m_http.group(1))
+                return record_result(False, code, f"Erreur réseau: {err_str}")
 
-            await asyncio.sleep(0.3)
+            await asyncio.sleep(0.25)
             # Step 3: Directory creation
             self._append_webdav_log(f"3. Vérification de l'arborescence '{path}'...", "info")
             dirs = [d for d in path.split("/") if d]
@@ -2878,7 +3031,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                     pass
             self._append_webdav_log("   ✓ Arborescence distante vérifiée.", "success")
 
-            await asyncio.sleep(0.3)
+            await asyncio.sleep(0.25)
             # Step 4: Write test
             self._append_webdav_log("4. Test des permissions d'écriture (PUT)...", "info")
             test_file = f"domolink_probe_{int(time.time())}.txt"
@@ -2889,19 +3042,12 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 async with session.put(test_url, data=test_data, headers={"Content-Type": "text/plain"}, auth=auth, timeout=aiohttp.ClientTimeout(total=12)) as put_resp:
                     if put_resp.status not in (200, 201, 204):
                         self._append_webdav_log(f"   ✗ Échec écriture fichier test (Code {put_resp.status})", "error")
-                        self._webdav_status = "Erreur"
-                        self._webdav_test_running = False
-                        self._webdav_test_result = {"success": False, "message": f"Écriture refusée (HTTP {put_resp.status})"}
-                        self.async_write_ha_state()
-                        return
+                        return record_result(False, put_resp.status, f"Écriture refusée (HTTP {put_resp.status})")
                     self._append_webdav_log("   ✓ Droits d'écriture validés.", "success")
             except Exception as put_err:
-                self._append_webdav_log(f"   ✗ Erreur d'écriture : {put_err}", "error")
-                self._webdav_status = "Erreur"
-                self._webdav_test_running = False
-                self._webdav_test_result = {"success": False, "message": f"Erreur d'écriture: {put_err}"}
-                self.async_write_ha_state()
-                return
+                err_str = str(put_err)
+                self._append_webdav_log(f"   ✗ Erreur d'écriture : {err_str}", "error")
+                return record_result(False, 500, f"Erreur d'écriture: {err_str}")
 
             await asyncio.sleep(0.2)
             # Step 5: Clean test file
@@ -2915,23 +3061,12 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             elapsed = round(time.time() - start_time, 2)
             self._append_webdav_log(f"6. Chemin de sauvegarde validé : {path}", "success")
             self._append_webdav_log(f"🎉 Connexion WebDAV acceptée et validée avec succès sur {nas_name} ({elapsed}s) !", "success")
-            self._webdav_status = "Connecté"
-            self._webdav_test_running = False
-            self._webdav_test_result = {
-                "success": True,
-                "message": "Connexion acceptée",
-                "save_path": path,
-                "elapsed": elapsed,
-            }
-            self._log_event(f"Test WebDAV réussi ({elapsed}s) : {path}")
+            return record_result(True, 200, "Connexion acceptée", path)
 
         except Exception as global_err:
             _LOGGER.error("Domolink: Erreur test WebDAV: %s", global_err)
             self._append_webdav_log(f"Erreur inattendue : {global_err}", "error")
-            self._webdav_status = "Erreur"
-            self._webdav_test_running = False
-            self._webdav_test_result = {"success": False, "message": str(global_err)}
-            self._log_event(f"⚠️ Erreur test WebDAV : {global_err}")
+            return record_result(False, 500, str(global_err))
         finally:
             self.async_write_ha_state()
 
