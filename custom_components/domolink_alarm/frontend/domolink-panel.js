@@ -2086,7 +2086,7 @@ class DomolinkPanel extends HTMLElement {
     else if (this._activeTab === 'sim') this._renderSimTab(attrs);
     else if (this._activeTab === 'media') {
       // Only re-render media tab when data actually changed (prevents flickering)
-      const mediaSignature = JSON.stringify(attrs.media_files || []) + '|' + (attrs.camera_test_running || false);
+      const mediaSignature = JSON.stringify(attrs.media_files || []) + '|' + (attrs.camera_test_running || false) + '|' + (this._mediaType || 'photos') + '|' + (this._mediaPage || 0);
       if (this._lastMediaSignature !== mediaSignature || this._mediaForceRender) {
         this._lastMediaSignature = mediaSignature;
         this._mediaForceRender = false;
@@ -2109,15 +2109,17 @@ class DomolinkPanel extends HTMLElement {
     if (!this._mediaPage) this._mediaPage = 0;
     const PAGE_SIZE = 24;
 
-    // Build file list from HA states — list directory via REST API
-    if (!this._mediaFiles || this._mediaFiles._path !== mediaPath || this._mediaNeedsRefresh) {
-      this._mediaFiles = { _path: mediaPath, photos: [], videos: [] };
-      this._mediaNeedsRefresh = false;
-      // Async fetch via HA template API
-      this._fetchMediaFiles(mediaPath);
-      container.innerHTML = `<div class="glass-card" style="text-align:center;padding:40px;color:var(--d-subtext)"><ha-icon icon="mdi:loading" style="animation:spin 1s linear infinite;--mdc-icon-size:40px;"></ha-icon><br><br>Chargement des médias...</div>`;
-      return;
-    }
+    // Parse media files directly from alarm entity attributes (synchronous & instant)
+    const rawFiles = Array.isArray(attrs.media_files) ? attrs.media_files : [];
+    const photos = [];
+    const videos = [];
+    rawFiles.forEach(f => {
+      if (/\.(jpg|jpeg|png)$/i.test(f.name)) photos.push(f);
+      else if (/\.(mp4|webm|ogg)$/i.test(f.name)) videos.push(f);
+    });
+    photos.sort((a,b) => b.name.localeCompare(a.name));
+    videos.sort((a,b) => b.name.localeCompare(a.name));
+    this._mediaFiles = { _path: mediaPath, photos, videos };
 
     const files = this._mediaType === 'photos' ? this._mediaFiles.photos : this._mediaFiles.videos;
     const totalPages = Math.max(1, Math.ceil(files.length / PAGE_SIZE));
@@ -2127,8 +2129,8 @@ class DomolinkPanel extends HTMLElement {
     if (pageFiles.length === 0) {
       gridHtml = `<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--d-subtext);">
         <ha-icon icon="${this._mediaType === 'photos' ? 'mdi:image-off' : 'mdi:video-off'}" style="--mdc-icon-size:48px;opacity:0.4;"></ha-icon>
-        <div style="margin-top:16px;font-size:15px;font-weight:600;">Aucun ${this._mediaType === 'photos' ? 'photo' : 'vidéo'} trouvé(e)</div>
-        <div style="font-size:12px;margin-top:6px;opacity:0.7;">Déclenchez une alarme pour capturer des médias.</div>
+        <div style="margin-top:16px;font-size:15px;font-weight:600;">Aucune ${this._mediaType === 'photos' ? 'photo' : 'vidéo'} trouvée</div>
+        <div style="font-size:12px;margin-top:6px;opacity:0.7;">Déclenchez une alarme ou lancez un test pour enregistrer des médias.</div>
       </div>`;
     } else {
       pageFiles.forEach((file, idx) => {
@@ -2252,23 +2254,23 @@ class DomolinkPanel extends HTMLElement {
 
     // Type toggle
     container.querySelector('#media-btn-photos')?.addEventListener('click', () => {
-      this._mediaType = 'photos'; this._mediaPage = 0; this._mediaForceRender = true; this._renderMediaTab(attrs);
+      this._mediaType = 'photos'; this._mediaPage = 0; this._mediaForceRender = true; this._lastMediaSignature = null; this.render();
     });
     container.querySelector('#media-btn-videos')?.addEventListener('click', () => {
-      this._mediaType = 'videos'; this._mediaPage = 0; this._mediaForceRender = true; this._renderMediaTab(attrs);
+      this._mediaType = 'videos'; this._mediaPage = 0; this._mediaForceRender = true; this._lastMediaSignature = null; this.render();
     });
 
     // Refresh
     container.querySelector('#media-btn-refresh')?.addEventListener('click', () => {
-      this._mediaNeedsRefresh = true; this._mediaPage = 0; this._mediaForceRender = true; this._renderMediaTab(attrs);
+      this._mediaPage = 0; this._mediaForceRender = true; this._lastMediaSignature = null; this.render();
     });
 
     // Pagination
     container.querySelector('#media-prev')?.addEventListener('click', () => {
-      if (this._mediaPage > 0) { this._mediaPage--; this._mediaForceRender = true; this._renderMediaTab(attrs); }
+      if (this._mediaPage > 0) { this._mediaPage--; this._mediaForceRender = true; this._lastMediaSignature = null; this.render(); }
     });
     container.querySelector('#media-next')?.addEventListener('click', () => {
-      if (this._mediaPage < totalPages - 1) { this._mediaPage++; this._mediaForceRender = true; this._renderMediaTab(attrs); }
+      if (this._mediaPage < totalPages - 1) { this._mediaPage++; this._mediaForceRender = true; this._lastMediaSignature = null; this.render(); }
     });
 
     // Lightbox for photos
@@ -2448,9 +2450,9 @@ class DomolinkPanel extends HTMLElement {
           if (!confirm(`Supprimer définitivement "${filename}" ?`)) return;
           try {
             await this._hass.callService('domolink_alarm', 'media_action', { action: 'delete', filename });
-            this._mediaNeedsRefresh = true;
             this._mediaForceRender = true;
-            this._renderMediaTab(attrs);
+            this._lastMediaSignature = null;
+            this.render();
           } catch (err) {
             alert('Erreur lors de la suppression : ' + (err.message || err));
           }
@@ -2462,40 +2464,15 @@ class DomolinkPanel extends HTMLElement {
           const newName = newBase.trim() + ext;
           try {
             await this._hass.callService('domolink_alarm', 'media_action', { action: 'rename', filename, new_name: newName });
-            this._mediaNeedsRefresh = true;
             this._mediaForceRender = true;
-            this._renderMediaTab(attrs);
+            this._lastMediaSignature = null;
+            this.render();
           } catch (err) {
             alert('Erreur lors du renommage : ' + (err.message || err));
           }
         }
       });
     });
-  }
-
-  async _fetchMediaFiles(mediaPath) {
-    try {
-      // Read file list from the alarm entity's media_files attribute (populated by Python backend)
-      const alarmEntity = this._getAlarmEntity();
-      const mediaFiles = alarmEntity?.attributes?.media_files;
-      
-      this._mediaFiles = { _path: mediaPath, photos: [], videos: [] };
-      if (Array.isArray(mediaFiles)) {
-        mediaFiles.forEach(f => {
-          if (/\.(jpg|jpeg|png)$/i.test(f.name)) this._mediaFiles.photos.push(f);
-          else if (/\.(mp4|webm|ogg)$/i.test(f.name)) this._mediaFiles.videos.push(f);
-        });
-        // Sort by name desc (newest first)
-        this._mediaFiles.photos.sort((a,b) => b.name.localeCompare(a.name));
-        this._mediaFiles.videos.sort((a,b) => b.name.localeCompare(a.name));
-      }
-      this._lastMediaSignature = null;
-      this.render();
-    } catch (e) {
-      this._mediaFiles = { _path: mediaPath, photos: [], videos: [] };
-      this._lastMediaSignature = null;
-      this.render();
-    }
   }
 
   // ─── Helpers ────────────────────────────────────
