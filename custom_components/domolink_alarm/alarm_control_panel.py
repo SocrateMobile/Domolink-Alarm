@@ -1719,6 +1719,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             if os.path.exists(expected_mp4_path) and os.path.getsize(expected_mp4_path) > 10240:
                 self._media_files_cache_ts = 0
                 _LOGGER.debug("Domolink: Video OK: %s", expected_mp4_path)
+                if getattr(self, "_ftp_enabled", False):
+                    self.hass.async_create_task(self._async_upload_to_ftp(expected_mp4_path))
                 return
             # If HA left a .tmp file after recording finished, check stability and rename
             for tmp in (tmp_path, alt_tmp):
@@ -1732,6 +1734,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                             self._media_files_cache_ts = 0
                             _LOGGER.info("Domolink: .mp4.tmp finalisé en .mp4: %s", expected_mp4_path)
                             self._log_event(f"Vidéo sauvegardée: {os.path.basename(expected_mp4_path)}")
+                            if getattr(self, "_ftp_enabled", False):
+                                self.hass.async_create_task(self._async_upload_to_ftp(expected_mp4_path))
                             return
                     except Exception as e:
                         _LOGGER.debug("Domolink: Erreur finalisation tmp: %s", e)
@@ -1866,6 +1870,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                         shutil.copy2(snapshot_path, alert_path)
                     except Exception:
                         pass
+                    if getattr(self, "_ftp_enabled", False):
+                        self.hass.async_create_task(self._async_upload_to_ftp(snapshot_path))
                 self._log_event(f"✅ Photo test enregistrée ({cam_name})")
             except asyncio.TimeoutError:
                 self._log_event(f"⚠️ Timeout photo (15s) sur {cam_name}")
@@ -1968,33 +1974,52 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self.async_write_ha_state()
 
     def _upload_to_ftp_sync(self, file_path):
-        """Upload photo to FTP synchronously (to be run in executor)."""
+        """Upload photo or video to FTP synchronously (to be run in executor)."""
         import ftplib
         try:
             with ftplib.FTP() as ftp:
-                ftp.connect(self._ftp_host, int(self._ftp_port), timeout=10)
+                ftp.connect(self._ftp_host, int(self._ftp_port), timeout=25)
                 ftp.login(self._ftp_user, self._ftp_pass)
+
+                # Robust directory navigation: handles Asustor/Synology/Linux FTP paths
+                remote_dir = str(self._ftp_path or "").strip()
+                if remote_dir and remote_dir != "/":
+                    parts = [p for p in remote_dir.split('/') if p]
+                    for part in parts:
+                        try:
+                            ftp.cwd(part)
+                        except Exception:
+                            try:
+                                ftp.mkd(part)
+                                ftp.cwd(part)
+                            except Exception as mkd_err:
+                                _LOGGER.warning("Domolink FTP: Impossible d'accéder au dossier '%s': %s", part, mkd_err)
+
                 filename = os.path.basename(file_path)
-                remote_dir = self._ftp_path.rstrip('/')
-                remote_full_path = f"{remote_dir}/{filename}" if remote_dir else f"/{filename}"
                 with open(file_path, "rb") as f:
-                    ftp.storbinary(f"STOR {remote_full_path}", f)
+                    ftp.storbinary(f"STOR {filename}", f)
             return True
         except Exception as e:
-            _LOGGER.error("Domolink: Erreur lors de l'envoi FTP : %s", e)
+            _LOGGER.error("Domolink: Erreur lors de l'envoi FTP de %s : %s", file_path, e)
             return False
 
     async def _async_upload_to_ftp(self, file_path):
         """Handle FTP upload in executor job."""
         if not self._ftp_enabled or not self._ftp_host:
             return
-        
+
+        is_video = file_path.lower().endswith(('.mp4', '.webm', '.ogg'))
+        media_type = "vidéo" if is_video else "photo"
+        filename = os.path.basename(file_path)
+
         success = await self.hass.async_add_executor_job(self._upload_to_ftp_sync, file_path)
         if success:
-            _LOGGER.info("Domolink: Snapshot envoyé sur FTP avec succès")
-            self._log_event("Sauvegarde photo FTP réussie")
+            _LOGGER.info("Domolink: %s envoyé(e) sur FTP avec succès: %s", media_type.capitalize(), filename)
+            self._log_event(f"Sauvegarde {media_type} FTP réussie: {filename}")
             self._ftp_status = "Connecté"
         else:
+            _LOGGER.error("Domolink: Échec sauvegarde %s sur FTP: %s", media_type, filename)
+            self._log_event(f"⚠️ Échec transfert FTP {media_type}: {filename}")
             self._ftp_status = "Erreur"
         self.async_write_ha_state()
 
