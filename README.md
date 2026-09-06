@@ -7,6 +7,14 @@ Conçue pour dépasser les standards du marché, elle offre une configuration 10
 
 ## 🌟 Fonctionnalités Principales
 
+### 🚀 Nouveautés de la version 0.9.66 (UI Tuiles de Sauvegarde & Test Caméras Temps Réel)
+- **Refonte Visuelle des Tuiles de Sauvegarde** : Les boutons `TEST` (FTP, WebDAV, Google Drive) bénéficient d'une disposition à deux étages ultra lisible. Les statuts (`Connecté`, `Désactivé`, codes d'erreur) s'affichent en pleine largeur sans aucune troncature ni empiètement.
+- **Progression en Temps Réel du Test Caméras** :
+  - Correction de la diffusion des états en backend (fin du blocage figé à 0/6, 0%, « Initialisation... »).
+  - Timer cadencé à la seconde animant la jauge globale et le temps de capture vidéo `(1s / 30s)`, `(2s / 30s)`...
+  - Remplacement du doublon d'affichage par un badge d'état compact sous la caméra et la console complète au centre.
+  - Bascule automatique de la vignette caméra sur celle en cours de test.
+
 ### 🚀 Nouveautés de la version 0.9.65 (Sauvegardes Multi-Cloud & Diagnostics NAS)
 - **Tests de Connexion Dédiés par NAS** : Testez directement la connexion vers chaque profil de NAS (**Synology**, **Freebox**, **ASUSTOR**, **QNAP**, **TrueNAS**, **Unraid**, **Autre NAS**) d'un simple clic depuis sa carte dédiée.
 - **Retour Visuel Précis** : Affichage instantané du résultat : **`✓ Connecté`** (badge vert) ou **`✗ Erreur [N°]`** (badge rouge avec le code protocole RFC FTP ou code HTTP WebDAV exact, ex: *Erreur 530*, *Erreur 401*, *Erreur 111*...).
