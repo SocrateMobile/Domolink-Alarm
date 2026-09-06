@@ -51,9 +51,92 @@ class DomolinkPanel extends HTMLElement {
       if (this._screensaverVisible) {
         this._updateScreensaverContent();
       }
+      this._updateLiveTestProgress();
     };
     updateTime();
     this._clockTimer = setInterval(updateTime, 1000);
+  }
+
+  _updateLiveTestProgress() {
+    const entity = this._hass && this._hass.states ? this._hass.states['alarm_control_panel.domolink_alarm'] : null;
+    if (!entity || !entity.attributes) return;
+    const attrs = entity.attributes;
+    if (!attrs.camera_test_running || !attrs.camera_test_info) return;
+
+    const info = attrs.camera_test_info;
+    const total = Math.max(1, info.total || 1);
+    const current = Math.max(0, info.current || 0);
+
+    let cameraFraction = 0;
+    let stepLabel = '';
+    let stepStatus = '';
+    let stepRatio = 0;
+
+    if (info.step === 'photo') {
+      cameraFraction = 0.15;
+      stepLabel = 'Capture Photo en cours...';
+      stepStatus = 'En cours';
+      stepRatio = 0.5;
+    } else if (info.step === 'video') {
+      const elapsed = Math.max(0, (Date.now() / 1000) - (info.video_start || (Date.now() / 1000)));
+      const duration = info.video_duration || 34;
+      const videoSecs = Math.min(30, Math.floor(elapsed));
+      stepRatio = Math.min(1, elapsed / duration);
+      cameraFraction = 0.15 + (0.85 * stepRatio);
+      stepLabel = `Vidéo 30s en cours (${videoSecs}s / 30s)...`;
+      stepStatus = 'Enregistrement';
+    } else {
+      stepLabel = 'Préparation du test...';
+      stepStatus = 'Initialisation';
+      stepRatio = 0.1;
+    }
+
+    let globalPct = 0;
+    if (current > 0) {
+      globalPct = Math.min(100, Math.max(0, (((current - 1) + cameraFraction) / total) * 100));
+    }
+
+    const camName = info.camera_name && info.camera_name !== '...' ? info.camera_name : (current > 0 ? `Caméra ${current}/${total}` : 'Initialisation...');
+
+    // Update global progress text & bar
+    this.querySelectorAll('.cam-test-global-text').forEach(el => {
+      el.textContent = `GLOBAL (${current}/${total})`;
+    });
+    this.querySelectorAll('.cam-test-global-pct').forEach(el => {
+      el.textContent = `${Math.round(globalPct)}%`;
+    });
+    this.querySelectorAll('.cam-test-global-bar').forEach(el => {
+      el.style.width = `${globalPct}%`;
+    });
+
+    // Update camera name
+    this.querySelectorAll('.cam-test-camera-name').forEach(el => {
+      el.textContent = camName;
+    });
+
+    // Update step label & status
+    this.querySelectorAll('.cam-test-step-label').forEach(el => {
+      el.textContent = stepLabel;
+    });
+    this.querySelectorAll('.cam-test-step-status').forEach(el => {
+      el.textContent = stepStatus;
+    });
+
+    // Update step bar
+    if (info.step === 'video') {
+      this.querySelectorAll('.cam-test-step-bar').forEach(el => {
+        el.style.animation = 'none';
+        el.style.width = `${Math.round(stepRatio * 100)}%`;
+      });
+    }
+
+    // Update Widget 1 compact indicators
+    this.querySelectorAll('.cam-test-widget-current').forEach(el => {
+      el.textContent = `Test en cours (${current}/${total})`;
+    });
+    this.querySelectorAll('.cam-test-widget-cam').forEach(el => {
+      el.textContent = camName;
+    });
   }
 
   _startCameraStream() {
@@ -1980,7 +2063,10 @@ class DomolinkPanel extends HTMLElement {
 
     // 1. Resolve Cameras
     const cameraList = attrs.cameras || Object.keys(this._hass.states).filter(k => k.startsWith('camera.'));
-    const currentCamEntity = cameraList.length > 0 ? cameraList[this._selectedCameraIndex % cameraList.length] : null;
+    let currentCamEntity = cameraList.length > 0 ? cameraList[this._selectedCameraIndex % cameraList.length] : null;
+    if (attrs.camera_test_running && attrs.camera_test_info && attrs.camera_test_info.camera_entity) {
+      currentCamEntity = attrs.camera_test_info.camera_entity;
+    }
     const currentCamState = currentCamEntity ? this._hass.states[currentCamEntity] : null;
     const camFriendlyName = currentCamState ? (currentCamState.attributes.friendly_name || currentCamEntity) : "Aucune caméra";
     const camImgSrc = currentCamState && currentCamState.attributes.entity_picture 
@@ -2159,11 +2245,15 @@ class DomolinkPanel extends HTMLElement {
 
       // Compute realistic, monotonic global percentage
       let cameraFraction = 0;
-      if (info.step === 'photo') cameraFraction = 0.15;
-      else if (info.step === 'video') {
-        const elapsed = Math.max(0, (Date.now()/1000) - (info.video_start || 0));
+      let delay = 0;
+      let videoSecs = 0;
+      if (info.step === 'photo') {
+        cameraFraction = 0.15;
+      } else if (info.step === 'video') {
+        delay = Math.max(0, (Date.now()/1000) - (info.video_start || (Date.now()/1000)));
         const duration = info.video_duration || 34;
-        const videoRatio = Math.min(1, elapsed / duration);
+        videoSecs = Math.min(30, Math.floor(delay));
+        const videoRatio = Math.min(1, delay / duration);
         cameraFraction = 0.15 + (0.85 * videoRatio);
       }
 
@@ -2175,54 +2265,55 @@ class DomolinkPanel extends HTMLElement {
       let stepHtml = '';
       if (info.step === 'photo') {
          stepHtml = `
-           <div style="display:flex; justify-content:space-between; font-size:10px; margin-bottom:4px; opacity:0.8;">
-             <span>Capture Photo...</span>
-             <span>En cours</span>
+           <div style="display:flex; justify-content:space-between; font-size:10.5px; margin-bottom:4px; opacity:0.9;">
+             <span class="cam-test-step-label">Capture Photo en cours...</span>
+             <span class="cam-test-step-status" style="color:#f59e0b; font-weight:700;">En cours</span>
            </div>
-           <div style="width:100%; height:4px; background:rgba(255,255,255,0.1); border-radius:2px; overflow:hidden;">
-             <div style="width:100%; height:100%; background:#f59e0b; animation: progressIndeterminate 1.5s infinite linear;"></div>
+           <div style="width:100%; height:5px; background:rgba(255,255,255,0.1); border-radius:3px; overflow:hidden;">
+             <div class="cam-test-step-bar" style="width:100%; height:100%; background:#f59e0b; animation: progressIndeterminate 1.5s infinite linear;"></div>
            </div>
          `;
       } else if (info.step === 'video') {
-         const delay = Math.max(0, (Date.now()/1000) - (info.video_start || 0));
          stepHtml = `
-           <div style="display:flex; justify-content:space-between; font-size:10px; margin-bottom:4px; opacity:0.8;">
-             <span>Vidéo 30s en cours...</span>
+           <div style="display:flex; justify-content:space-between; font-size:10.5px; margin-bottom:4px; opacity:0.9;">
+             <span class="cam-test-step-label">Vidéo 30s en cours (${videoSecs}s / 30s)...</span>
+             <span class="cam-test-step-status" style="color:#f59e0b; font-weight:700;">Enregistrement</span>
            </div>
-           <div style="width:100%; height:4px; background:rgba(255,255,255,0.1); border-radius:2px; overflow:hidden;">
-             <div style="width:100%; height:100%; background:#f59e0b; animation: fillBar 34s linear forwards; animation-delay: -${delay}s;"></div>
+           <div style="width:100%; height:5px; background:rgba(255,255,255,0.1); border-radius:3px; overflow:hidden;">
+             <div class="cam-test-step-bar" style="width:100%; height:100%; background:#f59e0b; animation: fillBar 34s linear forwards; animation-delay: -${delay}s;"></div>
            </div>
          `;
       } else {
          stepHtml = `
-           <div style="display:flex; justify-content:space-between; font-size:10px; margin-bottom:4px; opacity:0.8;">
-             <span>Préparation du test...</span>
-             <span>En cours</span>
+           <div style="display:flex; justify-content:space-between; font-size:10.5px; margin-bottom:4px; opacity:0.9;">
+             <span class="cam-test-step-label">Préparation du test...</span>
+             <span class="cam-test-step-status" style="color:#f59e0b; font-weight:700;">Initialisation</span>
            </div>
-           <div style="width:100%; height:4px; background:rgba(255,255,255,0.1); border-radius:2px; overflow:hidden;">
-             <div style="width:100%; height:100%; background:#f59e0b; animation: progressIndeterminate 1.5s infinite linear;"></div>
+           <div style="width:100%; height:5px; background:rgba(255,255,255,0.1); border-radius:3px; overflow:hidden;">
+             <div class="cam-test-step-bar" style="width:100%; height:100%; background:#f59e0b; animation: progressIndeterminate 1.5s infinite linear;"></div>
            </div>
          `;
       }
       
-      const cameraLabel = info.camera_name && info.camera_name !== '...' ? info.camera_name : (current > 0 ? `Caméra ${current}/${total}` : 'Démarrage...');
+      const cameraLabel = info.camera_name && info.camera_name !== '...' ? info.camera_name : (current > 0 ? `Caméra ${current}/${total}` : 'Initialisation...');
 
       return `
-        <div style="display:flex; flex-direction:column; width:100%; gap:12px; padding: 4px 0; background:rgba(245,158,11,0.05); border-radius:10px; border:1px solid rgba(245,158,11,0.2); padding:12px; margin-top:10px;">
+        <div class="camera-test-progress-card" style="display:flex; flex-direction:column; width:100%; gap:12px; background:rgba(245,158,11,0.06); border-radius:12px; border:1px solid rgba(245,158,11,0.3); padding:14px; box-shadow:0 4px 16px rgba(0,0,0,0.1);">
           <!-- Total Progress -->
           <div>
-            <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; margin-bottom:4px; color:#10b981;">
-              <span>GLOBAL (${current}/${total})</span>
-              <span>${Math.round(globalPct)}%</span>
+            <div style="display:flex; justify-content:space-between; font-size:11px; font-weight:800; margin-bottom:6px; color:#10b981;">
+              <span class="cam-test-global-text">GLOBAL (${current}/${total})</span>
+              <span class="cam-test-global-pct">${Math.round(globalPct)}%</span>
             </div>
-            <div style="width:100%; height:4px; background:rgba(255,255,255,0.1); border-radius:2px; overflow:hidden;">
-              <div style="width:${globalPct}%; height:100%; background:#10b981; transition:width 0.3s;"></div>
+            <div style="width:100%; height:6px; background:rgba(255,255,255,0.1); border-radius:3px; overflow:hidden;">
+              <div class="cam-test-global-bar" style="width:${globalPct}%; height:100%; background:#10b981; transition:width 0.4s ease;"></div>
             </div>
           </div>
           <!-- Current Camera Progress -->
           <div>
-            <div style="font-size:11px; font-weight:800; margin-bottom:6px; color:var(--d-text);">
-              Caméra : <span style="color:#f59e0b;">${this.escapeHtml(cameraLabel)}</span>
+            <div style="font-size:12px; font-weight:800; margin-bottom:6px; color:var(--d-text); display:flex; justify-content:space-between; align-items:center;">
+              <div>Caméra : <span class="cam-test-camera-name" style="color:#f59e0b;">${this.escapeHtml(cameraLabel)}</span></div>
+              <span style="font-size:10px; font-weight:700; color:#f59e0b; background:rgba(245,158,11,0.15); padding:2px 6px; border-radius:4px;">${current > 0 ? `${current}/${total}` : '...'}</span>
             </div>
             ${stepHtml}
           </div>
@@ -2270,7 +2361,15 @@ class DomolinkPanel extends HTMLElement {
             </div>
 
             <!-- Test d'enregistrement vidéo Button (Widget 1) -->
-            ${attrs.camera_test_running ? testProgressHTML : `
+            ${attrs.camera_test_running ? `
+            <div style="width:100%; margin-top:10px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.25); border-radius:10px; padding:9px 12px; display:flex; align-items:center; gap:8px;">
+              <ha-icon icon="mdi:loading" style="--mdc-icon-size:18px; color:#f59e0b; animation:spin 1s linear infinite; flex-shrink:0;"></ha-icon>
+              <div style="flex:1; min-width:0;">
+                <div class="cam-test-widget-current" style="font-size:10px; font-weight:800; color:#f59e0b; text-transform:uppercase; letter-spacing:0.5px;">Test en cours (${Math.max(0, (attrs.camera_test_info || {}).current || 0)}/${Math.max(1, (attrs.camera_test_info || {}).total || 1)})</div>
+                <div class="cam-test-widget-cam" style="font-size:11.5px; font-weight:700; color:var(--d-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${this.escapeHtml((attrs.camera_test_info || {}).camera_name || 'Initialisation...')}</div>
+              </div>
+            </div>
+            ` : `
             <button class="btn-test-cameras-record" id="btn-test-cameras-record-widget" style="width:100%; margin-top:10px; background:linear-gradient(135deg, rgba(245,158,11,0.12), rgba(217,119,6,0.22)); border:1px solid rgba(245,158,11,0.45); color:#f59e0b; padding:8px 12px; border-radius:10px; font-size:11px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; transition:all 0.2s ease;">
               <ha-icon icon="mdi:video-check" style="--mdc-icon-size:16px;"></ha-icon>
               <span>TEST ENREGISTREMENT VIDÉO</span>
@@ -2384,71 +2483,106 @@ class DomolinkPanel extends HTMLElement {
           </div>
           
           <!-- Cloud & Cameras Status (Red Box Area) -->
-          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:10px; margin-top:24px;">
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:10px; margin-top:24px;">
             <!-- Telegram -->
-            <div style="background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border); padding:10px 12px; display:flex; align-items:center; gap:8px; box-shadow:0 2px 10px rgba(0,0,0,0.02); min-width:0;">
-              <div style="width:34px; height:34px; min-width:34px; border-radius:10px; background:${telegramStatus === 'Désactivé' ? 'var(--d-border)' : (telegramStatus === 'Connecté' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)')}; display:flex; align-items:center; justify-content:center; color:${telegramStatus === 'Désactivé' ? 'var(--d-subtext)' : (telegramStatus === 'Connecté' ? '#10b981' : '#ef4444')};">
-                <ha-icon icon="mdi:send-circle" style="--mdc-icon-size:20px;"></ha-icon>
+            <div style="background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border); padding:10px 12px; display:flex; flex-direction:column; justify-content:space-between; box-shadow:0 2px 10px rgba(0,0,0,0.02); min-width:0; min-height:68px;">
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; min-width:0; margin-bottom:6px;">
+                <div style="display:flex; align-items:center; gap:7px; min-width:0; flex:1;">
+                  <div style="width:28px; height:28px; min-width:28px; border-radius:8px; background:${telegramStatus === 'Désactivé' ? 'var(--d-border)' : (telegramStatus === 'Connecté' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)')}; display:flex; align-items:center; justify-content:center; color:${telegramStatus === 'Désactivé' ? 'var(--d-subtext)' : (telegramStatus === 'Connecté' ? '#10b981' : '#ef4444')};">
+                    <ha-icon icon="mdi:send-circle" style="--mdc-icon-size:18px;"></ha-icon>
+                  </div>
+                  <span style="font-size:10.5px; font-weight:800; color:var(--d-subtext); text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Telegram</span>
+                </div>
               </div>
-              <div style="flex-grow:1; min-width:0;">
-                <div style="font-size:10px; font-weight:800; color:var(--d-subtext); text-transform:uppercase; letter-spacing:0.5px;">Telegram</div>
-                <div style="font-size:12px; font-weight:800; color:var(--d-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${telegramStatus}</div>
+              <div style="display:flex; align-items:center; justify-content:space-between; min-width:0;">
+                <span style="font-size:12.5px; font-weight:800; color:${telegramStatus === 'Connecté' ? '#10b981' : (telegramStatus === 'Désactivé' ? 'var(--d-subtext)' : '#ef4444')}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${this.escapeHtml(telegramStatus)}">
+                  ${this.escapeHtml(telegramStatus)}
+                </span>
+                <span style="width:6px; height:6px; border-radius:50%; background:${telegramStatus === 'Connecté' ? '#10b981' : (telegramStatus === 'Désactivé' ? 'rgba(255,255,255,0.2)' : '#ef4444')}; flex-shrink:0;"></span>
               </div>
             </div>
             
             <!-- FTP -->
-            <div style="background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border); padding:10px 12px; display:flex; align-items:center; gap:8px; box-shadow:0 2px 10px rgba(0,0,0,0.02); min-width:0;">
-              <div style="width:34px; height:34px; min-width:34px; border-radius:10px; background:${ftpStatus === 'Désactivé' ? 'var(--d-border)' : (ftpStatus === 'Connecté' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)')}; display:flex; align-items:center; justify-content:center; color:${ftpStatus === 'Désactivé' ? 'var(--d-subtext)' : (ftpStatus === 'Connecté' ? '#10b981' : '#ef4444')};">
-                <ha-icon icon="mdi:folder-network" style="--mdc-icon-size:20px;"></ha-icon>
+            <div style="background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border); padding:10px 12px; display:flex; flex-direction:column; justify-content:space-between; box-shadow:0 2px 10px rgba(0,0,0,0.02); min-width:0; min-height:68px;">
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; min-width:0; margin-bottom:6px;">
+                <div style="display:flex; align-items:center; gap:7px; min-width:0; flex:1;">
+                  <div style="width:28px; height:28px; min-width:28px; border-radius:8px; background:${ftpStatus === 'Désactivé' ? 'var(--d-border)' : (ftpStatus === 'Connecté' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)')}; display:flex; align-items:center; justify-content:center; color:${ftpStatus === 'Désactivé' ? 'var(--d-subtext)' : (ftpStatus === 'Connecté' ? '#10b981' : '#ef4444')};">
+                    <ha-icon icon="mdi:folder-network" style="--mdc-icon-size:18px;"></ha-icon>
+                  </div>
+                  <span style="font-size:10.5px; font-weight:800; color:var(--d-subtext); text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">FTP ${this.escapeHtml(nasName)}</span>
+                </div>
+                <button class="btn-test-ftp" title="Tester la connexion au serveur FTP" style="padding:2px 7px; font-size:9.5px; font-weight:800; border-radius:6px; border:1px solid ${attrs.ftp_test_running ? 'rgba(245,158,11,0.5)' : 'rgba(59,130,246,0.35)'}; background:${attrs.ftp_test_running ? 'rgba(245,158,11,0.15)' : 'rgba(59,130,246,0.12)'}; color:${attrs.ftp_test_running ? '#f59e0b' : '#3b82f6'}; cursor:pointer; display:inline-flex; align-items:center; gap:3px; transition:all 0.2s; white-space:nowrap; flex-shrink:0;">
+                  <ha-icon icon="${attrs.ftp_test_running ? 'mdi:loading' : 'mdi:lan-connect'}" style="--mdc-icon-size:12px; ${attrs.ftp_test_running ? 'animation: spin 1s linear infinite;' : ''}"></ha-icon>
+                  <span>${attrs.ftp_test_running ? '...' : 'TEST'}</span>
+                </button>
               </div>
-              <div style="flex-grow:1; min-width:0;">
-                <div style="font-size:10px; font-weight:800; color:var(--d-subtext); text-transform:uppercase; letter-spacing:0.5px;">FTP ${this.escapeHtml(nasName)}</div>
-                <div style="font-size:12px; font-weight:800; color:var(--d-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${ftpStatus}</div>
+              <div style="display:flex; align-items:center; justify-content:space-between; min-width:0;">
+                <span style="font-size:12.5px; font-weight:800; color:${ftpStatus === 'Connecté' ? '#10b981' : (ftpStatus === 'Désactivé' ? 'var(--d-subtext)' : '#ef4444')}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${this.escapeHtml(ftpStatus)}">
+                  ${this.escapeHtml(ftpStatus)}
+                </span>
+                <span style="width:6px; height:6px; border-radius:50%; background:${ftpStatus === 'Connecté' ? '#10b981' : (ftpStatus === 'Désactivé' ? 'rgba(255,255,255,0.2)' : '#ef4444')}; flex-shrink:0;"></span>
               </div>
-              <button class="btn-test-ftp" title="Tester la connexion au serveur FTP" style="padding:4px 7px; font-size:10px; font-weight:800; border-radius:8px; border:1px solid ${attrs.ftp_test_running ? 'rgba(245,158,11,0.5)' : 'rgba(59,130,246,0.4)'}; background:${attrs.ftp_test_running ? 'rgba(245,158,11,0.15)' : 'rgba(59,130,246,0.12)'}; color:${attrs.ftp_test_running ? '#f59e0b' : '#3b82f6'}; cursor:pointer; display:flex; align-items:center; gap:2px; transition:all 0.2s; white-space:nowrap;">
-                <ha-icon icon="${attrs.ftp_test_running ? 'mdi:loading' : 'mdi:lan-connect'}" style="--mdc-icon-size:13px; ${attrs.ftp_test_running ? 'animation: spin 1s linear infinite;' : ''}"></ha-icon>
-                <span>${attrs.ftp_test_running ? '...' : 'TEST'}</span>
-              </button>
             </div>
 
             <!-- WebDAV / Multi-Cloud -->
-            <div style="background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border); padding:10px 12px; display:flex; align-items:center; gap:8px; box-shadow:0 2px 10px rgba(0,0,0,0.02); min-width:0;">
-              <div style="width:34px; height:34px; min-width:34px; border-radius:10px; background:${webdavStatus === 'Désactivé' ? 'var(--d-border)' : (webdavStatus === 'Connecté' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)')}; display:flex; align-items:center; justify-content:center; color:${webdavStatus === 'Désactivé' ? 'var(--d-subtext)' : (webdavStatus === 'Connecté' ? '#10b981' : '#ef4444')};">
-                <ha-icon icon="mdi:cloud-sync" style="--mdc-icon-size:20px;"></ha-icon>
+            <div style="background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border); padding:10px 12px; display:flex; flex-direction:column; justify-content:space-between; box-shadow:0 2px 10px rgba(0,0,0,0.02); min-width:0; min-height:68px;">
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; min-width:0; margin-bottom:6px;">
+                <div style="display:flex; align-items:center; gap:7px; min-width:0; flex:1;">
+                  <div style="width:28px; height:28px; min-width:28px; border-radius:8px; background:${webdavStatus === 'Désactivé' ? 'var(--d-border)' : (webdavStatus === 'Connecté' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)')}; display:flex; align-items:center; justify-content:center; color:${webdavStatus === 'Désactivé' ? 'var(--d-subtext)' : (webdavStatus === 'Connecté' ? '#10b981' : '#ef4444')};">
+                    <ha-icon icon="mdi:cloud-sync" style="--mdc-icon-size:18px;"></ha-icon>
+                  </div>
+                  <span style="font-size:10.5px; font-weight:800; color:var(--d-subtext); text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">WebDAV</span>
+                </div>
+                <button class="btn-test-webdav" title="Tester la synchronisation WebDAV" style="padding:2px 7px; font-size:9.5px; font-weight:800; border-radius:6px; border:1px solid ${attrs.webdav_test_running ? 'rgba(245,158,11,0.5)' : 'rgba(139,92,246,0.35)'}; background:${attrs.webdav_test_running ? 'rgba(245,158,11,0.15)' : 'rgba(139,92,246,0.12)'}; color:${attrs.webdav_test_running ? '#f59e0b' : '#a855f7'}; cursor:pointer; display:inline-flex; align-items:center; gap:3px; transition:all 0.2s; white-space:nowrap; flex-shrink:0;">
+                  <ha-icon icon="${attrs.webdav_test_running ? 'mdi:loading' : 'mdi:cloud-check'}" style="--mdc-icon-size:12px; ${attrs.webdav_test_running ? 'animation: spin 1s linear infinite;' : ''}"></ha-icon>
+                  <span>${attrs.webdav_test_running ? '...' : 'TEST'}</span>
+                </button>
               </div>
-              <div style="flex-grow:1; min-width:0;">
-                <div style="font-size:10px; font-weight:800; color:var(--d-subtext); text-transform:uppercase; letter-spacing:0.5px;">WebDAV</div>
-                <div style="font-size:12px; font-weight:800; color:var(--d-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${webdavStatus}</div>
+              <div style="display:flex; align-items:center; justify-content:space-between; min-width:0;">
+                <span style="font-size:12.5px; font-weight:800; color:${webdavStatus === 'Connecté' ? '#10b981' : (webdavStatus === 'Désactivé' ? 'var(--d-subtext)' : '#ef4444')}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${this.escapeHtml(webdavStatus)}">
+                  ${this.escapeHtml(webdavStatus)}
+                </span>
+                <span style="width:6px; height:6px; border-radius:50%; background:${webdavStatus === 'Connecté' ? '#10b981' : (webdavStatus === 'Désactivé' ? 'rgba(255,255,255,0.2)' : '#ef4444')}; flex-shrink:0;"></span>
               </div>
-              <button class="btn-test-webdav" title="Tester la synchronisation WebDAV" style="padding:4px 7px; font-size:10px; font-weight:800; border-radius:8px; border:1px solid ${attrs.webdav_test_running ? 'rgba(245,158,11,0.5)' : 'rgba(139,92,246,0.4)'}; background:${attrs.webdav_test_running ? 'rgba(245,158,11,0.15)' : 'rgba(139,92,246,0.12)'}; color:${attrs.webdav_test_running ? '#f59e0b' : '#a855f7'}; cursor:pointer; display:flex; align-items:center; gap:2px; transition:all 0.2s; white-space:nowrap;">
-                <ha-icon icon="${attrs.webdav_test_running ? 'mdi:loading' : 'mdi:cloud-check'}" style="--mdc-icon-size:13px; ${attrs.webdav_test_running ? 'animation: spin 1s linear infinite;' : ''}"></ha-icon>
-                <span>${attrs.webdav_test_running ? '...' : 'TEST'}</span>
-              </button>
             </div>
 
             <!-- Google Drive -->
-            <div style="background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border); padding:10px 12px; display:flex; align-items:center; gap:8px; box-shadow:0 2px 10px rgba(0,0,0,0.02); min-width:0;">
-              <div style="width:34px; height:34px; min-width:34px; border-radius:10px; background:${googleDriveStatus === 'Désactivé' ? 'var(--d-border)' : (googleDriveStatus === 'Connecté' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)')}; display:flex; align-items:center; justify-content:center; color:${googleDriveStatus === 'Désactivé' ? 'var(--d-subtext)' : (googleDriveStatus === 'Connecté' ? '#10b981' : '#ef4444')};">
-                <ha-icon icon="mdi:google-drive" style="--mdc-icon-size:20px;"></ha-icon>
+            <div style="background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border); padding:10px 12px; display:flex; flex-direction:column; justify-content:space-between; box-shadow:0 2px 10px rgba(0,0,0,0.02); min-width:0; min-height:68px;">
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; min-width:0; margin-bottom:6px;">
+                <div style="display:flex; align-items:center; gap:7px; min-width:0; flex:1;">
+                  <div style="width:28px; height:28px; min-width:28px; border-radius:8px; background:${googleDriveStatus === 'Désactivé' ? 'var(--d-border)' : (googleDriveStatus === 'Connecté' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)')}; display:flex; align-items:center; justify-content:center; color:${googleDriveStatus === 'Désactivé' ? 'var(--d-subtext)' : (googleDriveStatus === 'Connecté' ? '#10b981' : '#ef4444')};">
+                    <ha-icon icon="mdi:google-drive" style="--mdc-icon-size:18px;"></ha-icon>
+                  </div>
+                  <span style="font-size:10.5px; font-weight:800; color:var(--d-subtext); text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Google Drive</span>
+                </div>
+                <button class="btn-test-gdrive" title="Tester la synchronisation Google Drive" style="padding:2px 7px; font-size:9.5px; font-weight:800; border-radius:6px; border:1px solid ${attrs.google_drive_test_running ? 'rgba(245,158,11,0.5)' : 'rgba(52,168,83,0.35)'}; background:${attrs.google_drive_test_running ? 'rgba(245,158,11,0.15)' : 'rgba(52,168,83,0.12)'}; color:${attrs.google_drive_test_running ? '#f59e0b' : '#34a853'}; cursor:pointer; display:inline-flex; align-items:center; gap:3px; transition:all 0.2s; white-space:nowrap; flex-shrink:0;">
+                  <ha-icon icon="${attrs.google_drive_test_running ? 'mdi:loading' : 'mdi:cloud-check'}" style="--mdc-icon-size:12px; ${attrs.google_drive_test_running ? 'animation: spin 1s linear infinite;' : ''}"></ha-icon>
+                  <span>${attrs.google_drive_test_running ? '...' : 'TEST'}</span>
+                </button>
               </div>
-              <div style="flex-grow:1; min-width:0;">
-                <div style="font-size:10px; font-weight:800; color:var(--d-subtext); text-transform:uppercase; letter-spacing:0.5px;">Google Drive</div>
-                <div style="font-size:12px; font-weight:800; color:var(--d-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${googleDriveStatus}</div>
+              <div style="display:flex; align-items:center; justify-content:space-between; min-width:0;">
+                <span style="font-size:12.5px; font-weight:800; color:${googleDriveStatus === 'Connecté' ? '#10b981' : (googleDriveStatus === 'Désactivé' ? 'var(--d-subtext)' : '#ef4444')}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${this.escapeHtml(googleDriveStatus)}">
+                  ${this.escapeHtml(googleDriveStatus)}
+                </span>
+                <span style="width:6px; height:6px; border-radius:50%; background:${googleDriveStatus === 'Connecté' ? '#10b981' : (googleDriveStatus === 'Désactivé' ? 'rgba(255,255,255,0.2)' : '#ef4444')}; flex-shrink:0;"></span>
               </div>
-              <button class="btn-test-gdrive" title="Tester la synchronisation Google Drive" style="padding:4px 7px; font-size:10px; font-weight:800; border-radius:8px; border:1px solid ${attrs.google_drive_test_running ? 'rgba(245,158,11,0.5)' : 'rgba(52,168,83,0.4)'}; background:${attrs.google_drive_test_running ? 'rgba(245,158,11,0.15)' : 'rgba(52,168,83,0.12)'}; color:${attrs.google_drive_test_running ? '#f59e0b' : '#34a853'}; cursor:pointer; display:flex; align-items:center; gap:2px; transition:all 0.2s; white-space:nowrap;">
-                <ha-icon icon="${attrs.google_drive_test_running ? 'mdi:loading' : 'mdi:cloud-check'}" style="--mdc-icon-size:13px; ${attrs.google_drive_test_running ? 'animation: spin 1s linear infinite;' : ''}"></ha-icon>
-                <span>${attrs.google_drive_test_running ? '...' : 'TEST'}</span>
-              </button>
             </div>
             
             <!-- Cameras -->
-            <div style="background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border); padding:10px 12px; display:flex; align-items:center; gap:8px; box-shadow:0 2px 10px rgba(0,0,0,0.02); min-width:0;">
-              <div style="width:34px; height:34px; min-width:34px; border-radius:10px; background:${camerasArmed ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)'}; display:flex; align-items:center; justify-content:center; color:${camerasArmed ? '#ef4444' : '#10b981'};">
-                <ha-icon icon="mdi:cctv" style="--mdc-icon-size:20px;"></ha-icon>
+            <div style="background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border); padding:10px 12px; display:flex; flex-direction:column; justify-content:space-between; box-shadow:0 2px 10px rgba(0,0,0,0.02); min-width:0; min-height:68px;">
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; min-width:0; margin-bottom:6px;">
+                <div style="display:flex; align-items:center; gap:7px; min-width:0; flex:1;">
+                  <div style="width:28px; height:28px; min-width:28px; border-radius:8px; background:${camerasArmed ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)'}; display:flex; align-items:center; justify-content:center; color:${camerasArmed ? '#ef4444' : '#10b981'};">
+                    <ha-icon icon="mdi:cctv" style="--mdc-icon-size:18px;"></ha-icon>
+                  </div>
+                  <span style="font-size:10.5px; font-weight:800; color:var(--d-subtext); text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Caméras</span>
+                </div>
               </div>
-              <div style="flex-grow:1; min-width:0;">
-                <div style="font-size:10px; font-weight:800; color:var(--d-subtext); text-transform:uppercase; letter-spacing:0.5px;">Caméras</div>
-                <div style="font-size:12px; font-weight:800; color:var(--d-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${camerasArmed ? 'Armées' : 'Désactivées'}</div>
+              <div style="display:flex; align-items:center; justify-content:space-between; min-width:0;">
+                <span style="font-size:12.5px; font-weight:800; color:${camerasArmed ? '#ef4444' : '#10b981'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                  ${camerasArmed ? 'Armées' : 'Désactivées'}
+                </span>
+                <span style="width:6px; height:6px; border-radius:50%; background:${camerasArmed ? '#ef4444' : '#10b981'}; flex-shrink:0;"></span>
               </div>
             </div>
           </div>
@@ -2754,7 +2888,7 @@ class DomolinkPanel extends HTMLElement {
       </div>
     `;
 
-    const armCacheKey = `${state}_${attrs.last_user}_${attrs.triggered_by}_${this._selectedCameraIndex}_${totalSensorsCount}_${activeTriggers.length}_${isArmed}_${telegramStatus}_${ftpStatus}_${webdavStatus}_${googleDriveStatus}_${camerasArmed}_${attrs.camera_test_running}_${JSON.stringify(attrs.camera_test_info || {})}_${attrs.ftp_test_running}_${this._showFtpTestConsole}_${(attrs.ftp_test_logs || []).length}_${JSON.stringify(attrs.ftp_test_result || {})}_${attrs.webdav_test_running}_${this._showWebdavTestConsole}_${(attrs.webdav_test_logs || []).length}_${JSON.stringify(attrs.webdav_test_result || {})}_${attrs.google_drive_test_running}_${this._showGoogleDriveTestConsole}_${(attrs.google_drive_test_logs || []).length}_${JSON.stringify(attrs.google_drive_test_result || {})}`;
+    const armCacheKey = `${state}_${attrs.last_user}_${attrs.triggered_by}_${this._selectedCameraIndex}_${totalSensorsCount}_${activeTriggers.length}_${isArmed}_${telegramStatus}_${ftpStatus}_${webdavStatus}_${googleDriveStatus}_${camerasArmed}_${attrs.camera_test_running}_${JSON.stringify(attrs.camera_test_info || {})}_${attrs.ftp_test_running}_${this._showFtpTestConsole}_${(attrs.ftp_test_logs || []).length}_${JSON.stringify(attrs.ftp_test_result || {})}_${attrs.webdav_test_running}_${this._showWebdavTestConsole}_${(attrs.webdav_test_logs || []).length}_${JSON.stringify(attrs.webdav_test_result || {})}_${attrs.google_drive_test_running}_${this._showGoogleDriveTestConsole}_${(attrs.google_drive_test_logs || []).length}_${JSON.stringify(attrs.google_drive_test_result || {})}_${recentEvent1}_${recentEvent2}`;
     if (this._lastArmKey !== armCacheKey) {
       this._lastArmKey = armCacheKey;
       container.innerHTML = html;
@@ -4207,7 +4341,7 @@ function doGet(e) {
             <div>
               <div style="font-size:18px; font-weight:800; color:var(--d-text); display:flex; align-items:center; gap:8px;">
                 Centre de Configuration
-                <span class="nav-badge-pill badge-version">v0.9.65</span>
+                <span class="nav-badge-pill badge-version">v0.9.66</span>
               </div>
               <div style="font-size:12px; color:var(--d-subtext); margin-top:3px;">
                 Modifiez vos équipements, délais, notifications et sauvegardes en toute simplicité
@@ -5006,7 +5140,7 @@ function doGet(e) {
       const cloudLabel = countCloud > 1 ? 'MULTI-CLOUD' : (isGdrive ? 'G-DRIVE' : (isDav ? 'WEBDAV' : (isFtp ? 'FTP' : 'LOCAL')));
       elParam.innerHTML = `
         <div class="nav-badge-stack">
-          <span class="nav-badge-pill badge-version">v0.9.65</span>
+          <span class="nav-badge-pill badge-version">v0.9.66</span>
           <span class="nav-badge-pill badge-neutral">${cloudLabel}</span>
         </div>
       `;
