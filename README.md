@@ -7,6 +7,13 @@ Conçue pour dépasser les standards du marché, elle offre une configuration 10
 
 ## 🌟 Fonctionnalités Principales
 
+### 🚀 Nouveautés de la version 0.9.65 (Sauvegardes Multi-Cloud & Diagnostics NAS)
+- **Tests de Connexion Dédiés par NAS** : Testez directement la connexion vers chaque profil de NAS (**Synology**, **Freebox**, **ASUSTOR**, **QNAP**, **TrueNAS**, **Unraid**, **Autre NAS**) d'un simple clic depuis sa carte dédiée.
+- **Retour Visuel Précis** : Affichage instantané du résultat : **`✓ Connecté`** (badge vert) ou **`✗ Erreur [N°]`** (badge rouge avec le code protocole RFC FTP ou code HTTP WebDAV exact, ex: *Erreur 530*, *Erreur 401*, *Erreur 111*...).
+- **Bouton 1-Clic « Copier le Google Script »** : Dans la section Google Drive Webhook, un bouton copie immédiatement le code JavaScript complet prêt à être collé dans [script.google.com](https://script.google.com) pour autoriser la sauvegarde cloud en 1 minute.
+- **Centre de Configuration avec Accordéons Repliables** : 19 sections repliées par défaut pour une lisibilité maximale, avec barre d'outils d'action rapide *« Tout déplier »* et *« Tout replier »* (0 ms de lag, aucune perte de données ou de focus lors de la saisie).
+- **Profils NAS Indépendants & Mémorisés** : Chaque modèle de NAS conserve ses propres paramètres (hôte, port, utilisateur, mot de passe, chemins) et la Freebox bénéficie de valeurs par défaut automatiques (`mafreebox.freebox.fr`, port 21, utilisateur `freebox`).
+- **Sauvegarde Multi-Cloud Complète** : Téléversement automatique des enregistrements vidéos et photos lors d'une alerte vers Serveurs FTP distants, WebDAV / Nextcloud, Google Drive et Telegram avec politique de rétention (jours) et quotas d'espace (Mo, rotation FIFO).
 
 ### 🚀 Nouveautés de la version 0.9.34 (Intégration Totale)
 - **Support MQTT Complet** : Domolink publie désormais ses changements d'états et ses événements (au format JSON) sur un broker MQTT, et peut recevoir des commandes brutes (`ARM_AWAY`, `DISARM`, `PANIC`) depuis des systèmes externes (Node-RED, claviers physiques tiers).
@@ -54,6 +61,144 @@ Conçue pour dépasser les standards du marché, elle offre une configuration 10
 3. Redémarrez Home Assistant.
 4. Allez dans **Paramètres > Appareils et services**, cliquez sur **Ajouter une intégration** et cherchez `Domolink Alarm`.
 5. Suivez le guide de configuration interactif.
+
+---
+
+## ☁️ Sauvegardes Multi-Cloud & NAS (Guide Pratique)
+
+Domolink Alarm met vos preuves photographiques et vidéos (enregistrements de 30 secondes multi-caméras lors d'une intrusion) à l'abri immédiat des cambrioleurs en les téléversant automatiquement hors du domicile sur votre serveur NAS ou vos espaces cloud favoris.
+
+### 🖧 1. Profils NAS & Diagnostics de Connexion Intégrés
+Chaque modèle de NAS dispose d'une configuration dédiée et mémorisée avec un bouton de test en direct affichant **`✓ Connecté`** ou **`✗ Erreur [N°]`** :
+
+- **ASUSTOR** (ADM) : FTP port 21 / WebDAV port 8001.
+- **Synology** (DSM) : FTP port 21 / WebDAV port 5006 (HTTPS).
+- **QNAP** (QTS) : FTP port 21 / WebDAV port 5001.
+- **TrueNAS** (SCALE/CORE) : WebDAV sécurisé.
+- **Freebox** (Delta / Ultra) : Configuration automatique FTP (`mafreebox.freebox.fr`, port 21, utilisateur `freebox`).
+- **Unraid** & **Autre NAS** : Configuration libre FTP et WebDAV.
+
+#### 🔍 Compréhension des codes de diagnostic :
+- **FTP :**
+  - `Connecté` : Connexion acceptée, arborescence `domolink/alarm` créée et droits d'écriture vérifiés.
+  - `Erreur 530` : Identifiant ou mot de passe incorrect.
+  - `Erreur 550` / `Erreur 553` : Droits insuffisants pour créer ou écrire dans le répertoire.
+  - `Erreur 111` : Connexion refusée (vérifiez l'adresse IP et l'activation du service FTP sur le NAS).
+  - `Erreur 110` : Délai de connexion dépassé (timeout).
+- **WebDAV :**
+  - `Connecté` : Serveur accessible, collections créées et téléversement probe validé.
+  - `Erreur 401` / `Erreur 403` : Authentification refusée ou token révoqué.
+  - `Erreur 404` : URL de serveur ou dossier distant introuvable.
+
+---
+
+### 📂 2. Sauvegarde Cloud Google Drive (Webhook en 1 minute)
+
+La synchronisation via **Webhook Google Apps Script** est la méthode recommandée : elle ne nécessite aucun compte développeur payant ni configuration OAuth2 complexe.
+
+#### 📋 Déploiement étape par étape :
+1. Dans le Centre de Configuration de Domolink Alarm (**Paramètres ➔ Sauvegardes & Médias ➔ Sauvegarde Cloud Google Drive**), cliquez sur **« Copier le Google Script »**.
+2. Ouvrez [script.google.com](https://script.google.com) avec votre compte Google et cliquez sur **Nouveau projet**.
+3. Supprimez le code par défaut et collez le script copié.
+4. Cliquez sur **Déployer ➔ Nouveau déploiement**.
+5. Cliquez sur l'engrenage à gauche de "Sélectionner le type" et choisissez **Application Web**.
+6. Renseignez impérativement les options suivantes :
+   - **Description** : `Domolink Alarm Webhook`
+   - **Exécuter en tant que** : `Moi (votre adresse Gmail)`
+   - **Qui a accès** : `Tout le monde (Anyone)` *(Indispensable pour permettre à Home Assistant d'envoyer les photos/vidéos sans jeton OAuth expirable)*
+7. Cliquez sur **Déployer**, autorisez l'accès à Google Drive lors de la demande de permissions.
+8. Copiez l'**URL de l'application Web** (qui se termine par `/exec`).
+9. Collez l'URL dans le champ **URL du Webhook Google Apps Script** dans Domolink Alarm, puis cliquez sur **Tester la connexion Google Drive** !
+
+#### 💻 Code du script Google Apps Script (inclus dans l'interface) :
+```javascript
+function doPost(e) {
+  try {
+    if (!e || !e.postData || !e.postData.contents) {
+      return ContentService.createTextOutput(JSON.stringify({
+        success: false,
+        code: 400,
+        message: "Corps de requête vide."
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    var data = JSON.parse(e.postData.contents);
+
+    // 1. Sonde de test diagnostic Domolink Alarm
+    if (data.probe === true) {
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        code: 200,
+        status: "ok",
+        message: "Diagnostic Domolink Alarm réussi : Webhook Google Drive opérationnel !"
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // 2. Traitement du fichier média (Photo ou Vidéo)
+    var filename = data.filename || ("domolink_" + Utilities.formatDate(new Date(), "GMT", "yyyyMMdd_HHmmss") + ".jpg");
+    var mimeType = data.mime_type || "image/jpeg";
+    var folderId = (data.folder_id || "").toString().trim();
+    var fileBase64 = data.file_base64;
+
+    if (!fileBase64) {
+      return ContentService.createTextOutput(JSON.stringify({
+        success: false,
+        code: 400,
+        message: "Contenu base64 manquant."
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    var fileBytes = Utilities.base64Decode(fileBase64);
+    var blob = Utilities.newBlob(fileBytes, mimeType, filename);
+
+    // 3. Dossier cible (Automatique "Domolink Alarm" ou ID spécifique)
+    var targetFolder;
+    if (folderId !== "") {
+      try {
+        targetFolder = DriveApp.getFolderById(folderId);
+      } catch (err) {
+        targetFolder = null;
+      }
+    }
+    if (!targetFolder) {
+      var folderName = "Domolink Alarm";
+      var folders = DriveApp.getFoldersByName(folderName);
+      targetFolder = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
+    }
+
+    // 4. Enregistrement sur Google Drive
+    var driveFile = targetFolder.createFile(blob);
+    return ContentService.createTextOutput(JSON.stringify({
+      success: true,
+      code: 200,
+      file_id: driveFile.getId(),
+      file_name: driveFile.getName(),
+      file_url: driveFile.getUrl()
+    })).setMimeType(ContentService.MimeType.JSON);
+
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      code: 500,
+      message: err.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doGet(e) {
+  return ContentService.createTextOutput(JSON.stringify({
+    success: true,
+    status: "online",
+    service: "Domolink Alarm Google Drive Webhook"
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+```
+
+---
+
+### 🛡️ 3. Quotas de Stockage & Rétention Automatique
+- **Durée maximale de rétention** : Définissez le nombre de jours de conservation des captures locales (ex: 30 jours). Les fichiers plus anciens sont automatiquement purgés.
+- **Quota de stockage maximal (FIFO)** : Allouez un volume maximal en Mo au dossier `/config/www/domolink_media/`. Si le quota est atteint, les enregistrements les plus anciens sont automatiquement supprimés en priorité pour libérer la place aux nouvelles alertes.
 
 ---
 
@@ -301,7 +446,47 @@ card_mod:
 
 ## 📜 Changelog
 
-### 🚀 v0.8.0-beta (Current)
+### 🚀 v0.9.65 (Current)
+- ⚡ **Tests de Connexion Dédiés par NAS** : Ajout de boutons d'action rapide sur chaque profil constructeur (**Synology**, **Freebox**, **ASUSTOR**, **QNAP**, **TrueNAS**, **Unraid**, **Autre NAS**) pour lancer le diagnostic de connexion en 1 clic.
+- 🚦 **Résultats Précis & Extraction d'Erreurs** : Affichage dynamique du statut : `✓ Connecté` ou `✗ Erreur [N°]` avec codes protocolaires réels (RFC FTP `530`, `550`, `553`, réseau `111`, `110`, HTTP WebDAV `401`, `403`, `404`, `500`).
+- 📋 **Bouton « Copier le Google Script »** : Copie instantanée dans le presse-papier du code Google Apps Script complet avec décodage base64, gestion du dossier `Domolink Alarm` et détection des sondes de diagnostic.
+- 📖 **Documentation Complète README** : Guide détaillé de configuration pas à pas pour chaque modèle de NAS, guide Google Apps Script Webhook et explications des codes de diagnostic.
+
+### 🚀 v0.9.64
+- 📂 **Accordéons Repliables par Défaut** : Les 19 sections de configuration sont désormais repliées par défaut pour une ergonomie optimale et une clarté immédiate.
+- ⚡ **Zéro Lag de Rechargement (0 ms)** : Le dépliage/repliage s'effectue directement dans le DOM via `classList` sans recharger le panneau, préservant ainsi les textes en cours de frappe, la position du curseur et les sélections.
+- 🎛️ **Barre d'Action Rapide** : Nouveaux boutons « Tout déplier » et « Tout replier » en en-tête des onglets de configuration.
+- 🧠 **Persistance d'État en Session** : Mémorisation des sections ouvertes (`_openAccordions`) lors des changements de profil NAS ou de sous-onglets.
+
+### 🚀 v0.9.63
+- 🧪 **Tests de Diagnostic Inline FTP & WebDAV** : Exécution des tests de connexion directement dans l'onglet Configuration sans redirection vers l'onglet Armement.
+- 🔍 **Prise en Compte des Valeurs Non Enregistrées (Draft)** : Les tests utilisent immédiatement les valeurs tapées dans le formulaire (hôte, port, mot de passe) avant même de cliquer sur « Enregistrer ».
+
+### 🚀 v0.9.62
+- 🖧 **Gestion Multi-NAS avec 7 Profils Constructeurs** : ASUSTOR (ADM), Synology (DSM), QNAP (QTS), TrueNAS (SCALE/CORE), Freebox (Delta/Ultra), Unraid et Générique.
+- ⚙️ **Configuration Automatique Freebox** : Renseignement automatique de l'hôte `mafreebox.freebox.fr`, port 21 et utilisateur `freebox`.
+
+### 🚀 v0.9.61
+- 🔒 **Persistance Multi-NAS Sans Perte de Focus** : Mémorisation dans `nas_configs` de chaque configuration par constructeur sans re-render intempestif lors de la saisie.
+
+### 🚀 v0.9.60
+- ☁️ **Sauvegardes Multi-Cloud Unifiées** : Support simultané FTP distant, WebDAV, Nextcloud, Google Drive et Telegram.
+- 📦 **Politiques de Rétention & Quotas Médias** : Gestion du nombre de jours de conservation et quota maximal en Mo avec rotation automatique (FIFO).
+
+### 🚀 v0.9.50
+- 💬 **Intégration Telegram Bot** : Alertes d'intrusion avec envoi instantané des photos et vidéos capturées directement sur votre canal ou conversation Telegram privée.
+
+### 🚀 v0.9.34
+- 📡 **Support MQTT Complet** : Publication JSON des événements et commandes externes (`ARM_AWAY`, `DISARM`, `PANIC`).
+- 📊 **Journal Analytique Visuel** : Coloration dynamique selon la sévérité des événements et traçabilité des communications (SMS, notifications, TTS).
+- 🚨 **Prolongation Intelligente de Sirène** : Prolongation automatique en cas de nouvelle détection et suppression du délai d'entrée après intrusion.
+
+### 🚀 v0.9.15
+- 🎥 **Photos et Vidéos Multi-Caméras (30s)** : Enregistrement multi-flux lors d'une intrusion avec optimisation Arlo (`aarlo`).
+- 📱 **SMS Free Mobile Natifs** : Envoi de SMS hors-ligne via l'API Free Mobile.
+- 🆘 **Bouton Panique SOS** : Déclenchement d'urgence immédiat avec réarmement automatique.
+
+### 🚀 v0.8.0-beta
 - 🛡️ **Double Détection / Cross-Zoning Anti-Fausses Alertes** : Option permettant d'exiger une confirmation (deux détections de mouvement dans un intervalle configurable de 60s) avant d'activer le cycle d'intrusion complet.
 - 🚨 **Capteurs Techniques 24/7 (Fumée, Eau, Gaz, CO)** : Nouvelle catégorie de capteurs surveillés en permanence (même alarme désarmée), avec annonces vocales TTS dédiées et alertes critiques spécifiques.
 - 📍 **Rappel d'Oubli d'Armement (Geofencing Pro)** : Si le domicile est déserté depuis 15 minutes sans être armé, une notification push actionnable est envoyée pour armer d'un simple geste à distance (`⚡ Armer en Absence`).

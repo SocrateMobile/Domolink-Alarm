@@ -2572,15 +2572,17 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             self.hass.loop.call_soon_threadsafe(self._append_ftp_log, msg, level)
 
         nas_cfg = getattr(self, "_nas_configs", {}).get(cur_nas, {})
-        host = data.get("ftp_host") or nas_cfg.get("ftp_host") or getattr(self, "_ftp_host", "")
+        is_cur_active = (cur_nas == getattr(self, "_nas_type", "asustor"))
+
+        host = data.get("ftp_host") or nas_cfg.get("ftp_host") or (getattr(self, "_ftp_host", "") if is_cur_active else "")
         if not host and cur_nas == "freebox":
             host = "mafreebox.freebox.fr"
-        port = data.get("ftp_port") or nas_cfg.get("ftp_port") or getattr(self, "_ftp_port", 21)
-        user = data.get("ftp_user") if "ftp_user" in data else (nas_cfg.get("ftp_user") if "ftp_user" in nas_cfg else getattr(self, "_ftp_user", ""))
+        port = data.get("ftp_port") or nas_cfg.get("ftp_port") or (getattr(self, "_ftp_port", 21) if is_cur_active else 21)
+        user = data.get("ftp_user") if "ftp_user" in data else (nas_cfg.get("ftp_user") if "ftp_user" in nas_cfg else (getattr(self, "_ftp_user", "") if is_cur_active else ""))
         if not user and cur_nas == "freebox":
             user = "freebox"
-        password = data.get("ftp_pass") if "ftp_pass" in data else (nas_cfg.get("ftp_pass") if "ftp_pass" in nas_cfg else getattr(self, "_ftp_pass", ""))
-        path = data.get("ftp_path") if "ftp_path" in data else (nas_cfg.get("ftp_path") if "ftp_path" in nas_cfg else getattr(self, "_ftp_path", "/"))
+        password = data.get("ftp_pass") if "ftp_pass" in data else (nas_cfg.get("ftp_pass") if "ftp_pass" in nas_cfg else (getattr(self, "_ftp_pass", "") if is_cur_active else ""))
+        path = data.get("ftp_path") if "ftp_path" in data else (nas_cfg.get("ftp_path") if "ftp_path" in nas_cfg else (getattr(self, "_ftp_path", "/") if is_cur_active else "/"))
 
         def run_test_sync():
             import ftplib
@@ -2935,10 +2937,12 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
         start_time = time.time()
         nas_cfg = getattr(self, "_nas_configs", {}).get(cur_nas, {})
-        url = str(data.get("webdav_url") or nas_cfg.get("webdav_url") or getattr(self, "_webdav_url", "") or "").strip()
-        user = str(data.get("webdav_user") if "webdav_user" in data else (nas_cfg.get("webdav_user") if "webdav_user" in nas_cfg else getattr(self, "_webdav_user", "") or "")).strip()
-        passwd = str(data.get("webdav_pass") if "webdav_pass" in data else (nas_cfg.get("webdav_pass") if "webdav_pass" in nas_cfg else getattr(self, "_webdav_pass", "") or ""))
-        path = str(data.get("webdav_path") if "webdav_path" in data else (nas_cfg.get("webdav_path") if "webdav_path" in nas_cfg else getattr(self, "_webdav_path", "domolink/alarm") or "domolink/alarm")).strip().strip("/")
+        is_cur_active = (cur_nas == getattr(self, "_nas_type", "asustor"))
+
+        url = str(data.get("webdav_url") or nas_cfg.get("webdav_url") or (getattr(self, "_webdav_url", "") if is_cur_active else "") or "").strip()
+        user = str(data.get("webdav_user") if "webdav_user" in data else (nas_cfg.get("webdav_user") if "webdav_user" in nas_cfg else (getattr(self, "_webdav_user", "") if is_cur_active else "") or "")).strip()
+        passwd = str(data.get("webdav_pass") if "webdav_pass" in data else (nas_cfg.get("webdav_pass") if "webdav_pass" in nas_cfg else (getattr(self, "_webdav_pass", "") if is_cur_active else "") or ""))
+        path = str(data.get("webdav_path") if "webdav_path" in data else (nas_cfg.get("webdav_path") if "webdav_path" in nas_cfg else (getattr(self, "_webdav_path", "domolink/alarm") if is_cur_active else "domolink/alarm")) or "domolink/alarm").strip().strip("/")
 
         def record_result(success, code, msg, save_p=""):
             elapsed = round(time.time() - start_time, 2)
