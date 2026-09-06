@@ -190,27 +190,40 @@ class DomolinkPanel extends HTMLElement {
 
         .nav-capsule {
           display: inline-flex;
+          align-items: center;
           background: var(--d-surface);
           backdrop-filter: var(--d-card-blur);
-          padding: 6px;
+          padding: 5px 6px;
           border-radius: 9999px;
           border: 1px solid var(--d-border);
           box-shadow: var(--d-shadow);
           gap: 4px;
           user-select: none;
+          max-width: 100%;
+          overflow-x: auto;
+          scrollbar-width: none;
+        }
+        .nav-capsule::-webkit-scrollbar {
+          display: none;
         }
 
         .nav-tab {
-          padding: 8px 20px;
+          padding: 6px 14px;
           border-radius: 9999px;
-          font-size: 13.5px;
+          font-size: 13px;
           font-weight: 600;
           color: var(--d-subtext);
           cursor: pointer;
           transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-          display: flex;
+          display: inline-flex;
           align-items: center;
           gap: 8px;
+          white-space: nowrap;
+          flex-shrink: 0;
+        }
+        .nav-tab ha-icon {
+          --mdc-icon-size: 17px;
+          flex-shrink: 0;
         }
         .nav-tab:hover { color: var(--d-text); }
         .nav-tab.active {
@@ -218,6 +231,172 @@ class DomolinkPanel extends HTMLElement {
           color: var(--d-pill-active-text);
           font-weight: 700;
           box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        /* ─── Top Navigation Badges ────────────────── */
+        .nav-tab-badge {
+          display: inline-flex;
+          align-items: center;
+          pointer-events: none;
+        }
+
+        .nav-badge-stack {
+          display: inline-flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 2px;
+          line-height: 1;
+          margin-left: 2px;
+          pointer-events: none;
+        }
+
+        .nav-badge-pill {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 8.5px;
+          font-weight: 800;
+          padding: 1.5px 5px;
+          border-radius: 5px;
+          letter-spacing: 0.2px;
+          white-space: nowrap;
+          line-height: 1.1;
+          transition: all 0.2s ease;
+        }
+
+        .nav-badge-pill.badge-ok {
+          background: rgba(16, 185, 129, 0.18);
+          color: #10b981;
+          border: 1px solid rgba(16, 185, 129, 0.35);
+        }
+        .nav-badge-pill.badge-ko {
+          background: rgba(239, 68, 68, 0.18);
+          color: #ef4444;
+          border: 1px solid rgba(239, 68, 68, 0.4);
+        }
+        .nav-badge-pill.badge-ko.zero,
+        .nav-badge-pill.badge-ok.zero {
+          background: rgba(156, 163, 175, 0.12);
+          color: var(--d-subtext);
+          border: 1px solid rgba(156, 163, 175, 0.2);
+          opacity: 0.8;
+        }
+        .nav-badge-pill.badge-photo {
+          background: rgba(59, 130, 246, 0.18);
+          color: #3b82f6;
+          border: 1px solid rgba(59, 130, 246, 0.35);
+        }
+        .nav-badge-pill.badge-video {
+          background: rgba(168, 85, 247, 0.18);
+          color: #a855f7;
+          border: 1px solid rgba(168, 85, 247, 0.35);
+        }
+        .nav-badge-pill.badge-neutral {
+          background: rgba(156, 163, 175, 0.14);
+          color: var(--d-text);
+          border: 1px solid rgba(156, 163, 175, 0.25);
+        }
+        .nav-badge-pill.badge-sim-on {
+          background: rgba(16, 185, 129, 0.2);
+          color: #10b981;
+          border: 1px solid rgba(16, 185, 129, 0.45);
+          box-shadow: 0 0 6px rgba(16, 185, 129, 0.25);
+        }
+        .nav-badge-pill.badge-sim-off {
+          background: rgba(156, 163, 175, 0.12);
+          color: var(--d-subtext);
+          border: 1px solid rgba(156, 163, 175, 0.2);
+        }
+        .nav-badge-pill.badge-version {
+          background: rgba(245, 158, 11, 0.18);
+          color: #f59e0b;
+          border: 1px solid rgba(245, 158, 11, 0.35);
+        }
+        .nav-badge-pill.badge-arm-disarmed {
+          background: rgba(16, 185, 129, 0.16);
+          color: #10b981;
+          border: 1px solid rgba(16, 185, 129, 0.35);
+        }
+        .nav-badge-pill.badge-arm-armed {
+          background: rgba(59, 130, 246, 0.18);
+          color: #3b82f6;
+          border: 1px solid rgba(59, 130, 246, 0.4);
+        }
+        .nav-badge-pill.badge-arm-triggered {
+          background: rgba(239, 68, 68, 0.25);
+          color: #ef4444;
+          border: 1px solid rgba(239, 68, 68, 0.5);
+          animation: pulse 1s infinite;
+        }
+        .nav-badge-pill.badge-arm-pending {
+          background: rgba(245, 158, 11, 0.2);
+          color: #f59e0b;
+          border: 1px solid rgba(245, 158, 11, 0.4);
+        }
+        .nav-badge-pill.badge-warn {
+          background: rgba(245, 158, 11, 0.18);
+          color: #f59e0b;
+          border: 1px solid rgba(245, 158, 11, 0.35);
+        }
+
+        /* Active Tab Contrast Adjustments */
+        .nav-tab.active .nav-badge-pill.badge-ok {
+          background: rgba(16, 185, 129, 0.22);
+          color: #059669;
+          border-color: rgba(5, 150, 105, 0.45);
+        }
+        .nav-tab.active .nav-badge-pill.badge-ko {
+          background: rgba(239, 68, 68, 0.22);
+          color: #dc2626;
+          border-color: rgba(220, 38, 38, 0.45);
+        }
+        .nav-tab.active .nav-badge-pill.badge-ko.zero,
+        .nav-tab.active .nav-badge-pill.badge-ok.zero {
+          background: rgba(0, 0, 0, 0.08);
+          color: var(--d-pill-active-text);
+          border-color: rgba(0, 0, 0, 0.15);
+          opacity: 0.7;
+        }
+        .panel-wrap.theme-light .nav-tab.active .nav-badge-pill.badge-ko.zero,
+        .panel-wrap.theme-light .nav-tab.active .nav-badge-pill.badge-ok.zero {
+          background: rgba(255, 255, 255, 0.15);
+          color: var(--d-pill-active-text);
+          border-color: rgba(255, 255, 255, 0.25);
+        }
+        .nav-tab.active .nav-badge-pill.badge-photo {
+          background: rgba(59, 130, 246, 0.22);
+          color: #2563eb;
+          border-color: rgba(37, 99, 235, 0.45);
+        }
+        .nav-tab.active .nav-badge-pill.badge-video {
+          background: rgba(168, 85, 247, 0.22);
+          color: #9333ea;
+          border-color: rgba(147, 51, 234, 0.45);
+        }
+        .nav-tab.active .nav-badge-pill.badge-neutral {
+          background: rgba(0, 0, 0, 0.08);
+          color: var(--d-pill-active-text);
+          border-color: rgba(0, 0, 0, 0.15);
+        }
+        .panel-wrap.theme-light .nav-tab.active .nav-badge-pill.badge-neutral {
+          background: rgba(255, 255, 255, 0.15);
+          color: var(--d-pill-active-text);
+          border-color: rgba(255, 255, 255, 0.25);
+        }
+        .nav-tab.active .nav-badge-pill.badge-version {
+          background: rgba(245, 158, 11, 0.22);
+          color: #d97706;
+          border-color: rgba(217, 119, 6, 0.45);
+        }
+        .nav-tab.active .nav-badge-pill.badge-sim-on {
+          background: rgba(16, 185, 129, 0.22);
+          color: #059669;
+          border-color: rgba(5, 150, 105, 0.5);
+        }
+        .nav-tab.active .nav-badge-pill.badge-sim-off {
+          background: rgba(0, 0, 0, 0.08);
+          color: var(--d-pill-active-text);
+          border-color: rgba(0, 0, 0, 0.15);
         }
 
         .header-actions {
@@ -908,25 +1087,39 @@ class DomolinkPanel extends HTMLElement {
 
             <div class="nav-capsule">
               <div class="nav-tab active" data-tab="arm">
-                <ha-icon icon="mdi:shield-check"></ha-icon> Armement
+                <ha-icon icon="mdi:shield-check"></ha-icon>
+                <span>Armement</span>
+                <span class="nav-tab-badge" id="nav-badge-arm"></span>
               </div>
               <div class="nav-tab" data-tab="equip">
-                <ha-icon icon="mdi:devices"></ha-icon> Équipements
+                <ha-icon icon="mdi:devices"></ha-icon>
+                <span>Équipements</span>
+                <span class="nav-tab-badge" id="nav-badge-equip"></span>
               </div>
               <div class="nav-tab" data-tab="log">
-                <ha-icon icon="mdi:history"></ha-icon> Journal
+                <ha-icon icon="mdi:history"></ha-icon>
+                <span>Journal</span>
+                <span class="nav-tab-badge" id="nav-badge-log"></span>
               </div>
               <div class="nav-tab" data-tab="health">
-                <ha-icon icon="mdi:heart-pulse"></ha-icon> Santé
+                <ha-icon icon="mdi:heart-pulse"></ha-icon>
+                <span>Santé</span>
+                <span class="nav-tab-badge" id="nav-badge-health"></span>
               </div>
               <div class="nav-tab" data-tab="sim">
-                <ha-icon icon="mdi:home-clock"></ha-icon> Simulation
+                <ha-icon icon="mdi:home-clock"></ha-icon>
+                <span>Simulation</span>
+                <span class="nav-tab-badge" id="nav-badge-sim"></span>
               </div>
               <div class="nav-tab" data-tab="media">
-                <ha-icon icon="mdi:image-multiple"></ha-icon> Médias
+                <ha-icon icon="mdi:image-multiple"></ha-icon>
+                <span>Médias</span>
+                <span class="nav-tab-badge" id="nav-badge-media"></span>
               </div>
               <div class="nav-tab" data-tab="param">
-                <ha-icon icon="mdi:cog"></ha-icon> Paramètres
+                <ha-icon icon="mdi:cog"></ha-icon>
+                <span>Paramètres</span>
+                <span class="nav-tab-badge" id="nav-badge-param"></span>
               </div>
             </div>
 
@@ -2229,11 +2422,206 @@ class DomolinkPanel extends HTMLElement {
     }
   }
 
+  // ─── Dynamic Navigation Badges ──────────────────
+
+  _updateNavBadges(alarmEntity, attrs) {
+    if (!attrs) attrs = {};
+
+    // 1. Armement Badge
+    const elArm = this.querySelector('#nav-badge-arm');
+    if (elArm) {
+      const state = alarmEntity ? alarmEntity.state : 'disarmed';
+      let stateLabel = 'DÉSARMÉ';
+      let stateSub = 'Prêt';
+      let pillClass = 'badge-arm-disarmed';
+
+      if (state === 'armed_away') {
+        stateLabel = 'ABSENT';
+        stateSub = 'Actif';
+        pillClass = 'badge-arm-armed';
+      } else if (state === 'armed_home') {
+        stateLabel = 'MAISON';
+        stateSub = 'Actif';
+        pillClass = 'badge-arm-armed';
+      } else if (state === 'armed_night') {
+        stateLabel = 'NUIT';
+        stateSub = 'Actif';
+        pillClass = 'badge-arm-armed';
+      } else if (state === 'armed_vacation') {
+        stateLabel = 'VACANCES';
+        stateSub = 'Actif';
+        pillClass = 'badge-arm-armed';
+      } else if (state === 'triggered') {
+        stateLabel = 'ALERTE';
+        stateSub = 'Sirène';
+        pillClass = 'badge-arm-triggered';
+      } else if (state === 'pending' || state === 'arming') {
+        stateLabel = 'DÉLAI';
+        stateSub = 'En cours';
+        pillClass = 'badge-arm-pending';
+      }
+
+      elArm.innerHTML = `
+        <div class="nav-badge-stack">
+          <span class="nav-badge-pill ${pillClass}">${stateLabel}</span>
+          <span class="nav-badge-pill ${pillClass}">${stateSub}</span>
+        </div>
+      `;
+    }
+
+    // 2. Équipements Badge (OK en vert, KO en dessous)
+    const elEquip = this.querySelector('#nav-badge-equip');
+    if (elEquip) {
+      const equipCategories = [
+        "opening_sensors", "motion_sensors", "tamper_sensors", "safety_sensors",
+        "night_sensors", "sirens", "lights", "cameras", "media_players", "persons"
+      ];
+      const allEquipIds = new Set();
+      for (const cat of equipCategories) {
+        const list = attrs[cat];
+        if (Array.isArray(list)) {
+          list.forEach(id => { if (id) allEquipIds.add(id); });
+        }
+      }
+      if (attrs.sensor_health && typeof attrs.sensor_health === 'object') {
+        Object.keys(attrs.sensor_health).forEach(id => { if (id) allEquipIds.add(id); });
+      }
+
+      const bypassedSensors = attrs.bypassed_sensors || [];
+      let equipOk = 0;
+      let equipKo = 0;
+
+      for (const entityId of allEquipIds) {
+        const entityState = this._hass && this._hass.states ? this._hass.states[entityId] : null;
+        const isBypassed = bypassedSensors.includes(entityId);
+        const healthItem = attrs.sensor_health ? attrs.sensor_health[entityId] : null;
+
+        let isKo = false;
+        if (isBypassed) {
+          isKo = true;
+        } else if (!entityState || entityState.state === 'unavailable' || entityState.state === 'unknown') {
+          isKo = true;
+        } else if (healthItem && healthItem.offline) {
+          isKo = true;
+        } else {
+          const domain = entityId.split('.')[0];
+          if (domain === 'binary_sensor' && entityState.state === 'on') {
+            isKo = true;
+          }
+        }
+
+        if (isKo) equipKo++;
+        else equipOk++;
+      }
+
+      elEquip.innerHTML = `
+        <div class="nav-badge-stack">
+          <span class="nav-badge-pill badge-ok">${equipOk} OK</span>
+          <span class="nav-badge-pill ${equipKo > 0 ? 'badge-ko' : 'badge-ko zero'}">${equipKo} KO</span>
+        </div>
+      `;
+    }
+
+    // 3. Journal Badge (activations & logs)
+    const elLog = this.querySelector('#nav-badge-log');
+    if (elLog) {
+      const armHistCount = (attrs.arm_history || []).length;
+      const sysEvtCount = (attrs.system_events || []).length;
+      elLog.innerHTML = `
+        <div class="nav-badge-stack">
+          <span class="nav-badge-pill badge-neutral">${armHistCount} activ.</span>
+          <span class="nav-badge-pill badge-neutral">${sysEvtCount} logs</span>
+        </div>
+      `;
+    }
+
+    // 4. Santé Badge (Score global & alertes/batteries)
+    const elHealth = this.querySelector('#nav-badge-health');
+    if (elHealth) {
+      const healthData = attrs.sensor_health || {};
+      const keys = Object.keys(healthData);
+      let onlineCount = 0;
+      let lowBattCount = 0;
+      for (const k of keys) {
+        const item = healthData[k];
+        if (item && !item.offline) onlineCount++;
+        if (item && item.battery !== null && item.battery <= 15) lowBattCount++;
+      }
+      const offlineCount = keys.length - onlineCount;
+      const score = keys.length > 0 ? Math.round((onlineCount / keys.length) * 100) : 100;
+      const scoreClass = score >= 95 ? 'badge-ok' : (score >= 80 ? 'badge-warn' : 'badge-ko');
+      
+      let subText = '0 défaut';
+      let subClass = 'badge-ok zero';
+      if (lowBattCount > 0) {
+        subText = `${lowBattCount} pile${lowBattCount > 1 ? 's' : ''}`;
+        subClass = 'badge-ko';
+      } else if (offlineCount > 0) {
+        subText = `${offlineCount} H.L.`;
+        subClass = 'badge-ko';
+      }
+
+      elHealth.innerHTML = `
+        <div class="nav-badge-stack">
+          <span class="nav-badge-pill ${scoreClass}">${score}%</span>
+          <span class="nav-badge-pill ${subClass}">${subText}</span>
+        </div>
+      `;
+    }
+
+    // 5. Simulation Badge (Statut & Nb appareils)
+    const elSim = this.querySelector('#nav-badge-sim');
+    if (elSim) {
+      const isRunning = Boolean(attrs.presence_simulation_active);
+      const entCount = (attrs.presence_simulation_entities || []).length;
+      elSim.innerHTML = `
+        <div class="nav-badge-stack">
+          <span class="nav-badge-pill ${isRunning ? 'badge-sim-on' : 'badge-sim-off'}">${isRunning ? 'ACTIF' : 'PAUSE'}</span>
+          <span class="nav-badge-pill badge-neutral">${entCount} app.</span>
+        </div>
+      `;
+    }
+
+    // 6. Médias Badge (Photos en haut, Vidéos en bas)
+    const elMedia = this.querySelector('#nav-badge-media');
+    if (elMedia) {
+      const rawFiles = Array.isArray(attrs.media_files) ? attrs.media_files : [];
+      let photoCount = 0;
+      let videoCount = 0;
+      rawFiles.forEach(f => {
+        if (f && f.name) {
+          if (/\.(jpg|jpeg|png)$/i.test(f.name)) photoCount++;
+          else if (/\.(mp4|webm|ogg)$/i.test(f.name)) videoCount++;
+        }
+      });
+      elMedia.innerHTML = `
+        <div class="nav-badge-stack">
+          <span class="nav-badge-pill badge-photo">${photoCount} photo${photoCount > 1 ? 's' : ''}</span>
+          <span class="nav-badge-pill badge-video">${videoCount} vidéo${videoCount > 1 ? 's' : ''}</span>
+        </div>
+      `;
+    }
+
+    // 7. Paramètres Badge
+    const elParam = this.querySelector('#nav-badge-param');
+    if (elParam) {
+      const isFtp = Boolean(attrs.ftp_enabled);
+      elParam.innerHTML = `
+        <div class="nav-badge-stack">
+          <span class="nav-badge-pill badge-version">v0.9.58</span>
+          <span class="nav-badge-pill badge-neutral">${isFtp ? 'FTP' : 'LOCAL'}</span>
+        </div>
+      `;
+    }
+  }
+
   // ─── Main Render ────────────────────────────────
 
   render() {
     const alarmEntity = this._getAlarmEntity();
     const attrs = alarmEntity ? alarmEntity.attributes : {};
+
+    this._updateNavBadges(alarmEntity, attrs);
 
     if (this._activeTab === 'arm') this._renderArmTab(alarmEntity);
     else if (this._activeTab === 'equip') this._renderEquipTab(attrs);
