@@ -1802,7 +1802,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._camera_test_info = {
             "total": total_cams,
             "current": 0,
-            "camera_name": "",
+            "camera_name": "Initialisation...",
             "step": "init",
             "video_start": 0,
             "video_duration": 34
