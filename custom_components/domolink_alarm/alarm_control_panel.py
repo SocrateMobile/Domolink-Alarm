@@ -113,6 +113,17 @@ from .const import (
     CONF_MEDIA_MAX_SIZE_MB,
     DEFAULT_MEDIA_RETENTION_DAYS,
     DEFAULT_MEDIA_MAX_SIZE_MB,
+    CONF_NAS_TYPE,
+    DEFAULT_NAS_TYPE,
+    CONF_GOOGLE_DRIVE_ENABLED,
+    CONF_GOOGLE_DRIVE_METHOD,
+    CONF_GOOGLE_DRIVE_WEBHOOK_URL,
+    CONF_GOOGLE_DRIVE_CLIENT_ID,
+    CONF_GOOGLE_DRIVE_CLIENT_SECRET,
+    CONF_GOOGLE_DRIVE_REFRESH_TOKEN,
+    CONF_GOOGLE_DRIVE_FOLDER_ID,
+    DEFAULT_GOOGLE_DRIVE_ENABLED,
+    DEFAULT_GOOGLE_DRIVE_METHOD,
     DEFAULT_EXIT_DELAY,
     DEFAULT_ENTRY_DELAY,
     DEFAULT_SIREN_DURATION,
@@ -216,6 +227,10 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
         """Handle WebDAV test service call."""
         await entity.async_test_webdav(call)
 
+    async def async_handle_test_google_drive(call):
+        """Handle Google Drive test service call."""
+        await entity.async_test_google_drive(call)
+
     async def async_handle_clean_media(call):
         """Handle clean media service call."""
         await entity.async_clean_media(call)
@@ -231,6 +246,9 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
     )
     hass.services.async_register(
         DOMAIN, "test_webdav", async_handle_test_webdav
+    )
+    hass.services.async_register(
+        DOMAIN, "test_google_drive", async_handle_test_google_drive
     )
     hass.services.async_register(
         DOMAIN, "clean_media", async_handle_clean_media
@@ -324,6 +342,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._telegram_status = "Désactivé"
         self._ftp_status = "Désactivé"
         self._webdav_status = "Désactivé"
+        self._google_drive_status = "Désactivé"
+        self._nas_type = DEFAULT_NAS_TYPE
         self._cameras_armed = False
         self._is_testing_cameras = False
         self._ftp_test_running = False
@@ -332,6 +352,9 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._webdav_test_running = False
         self._webdav_test_logs = []
         self._webdav_test_result = {}
+        self._google_drive_test_running = False
+        self._google_drive_test_logs = []
+        self._google_drive_test_result = {}
         self._media_storage_stats = {
             "bytes": 0,
             "mb": 0.0,
@@ -547,6 +570,18 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._webdav_path = str(options.get(CONF_WEBDAV_PATH, data.get(CONF_WEBDAV_PATH, DEFAULT_WEBDAV_PATH)) or DEFAULT_WEBDAV_PATH).strip().strip("/")
         self._webdav_status = "Connecté" if (self._webdav_enabled and self._webdav_url) else "Désactivé"
 
+        self._nas_type = str(options.get(CONF_NAS_TYPE, data.get(CONF_NAS_TYPE, DEFAULT_NAS_TYPE)) or DEFAULT_NAS_TYPE).lower()
+        self._google_drive_enabled = bool(options.get(CONF_GOOGLE_DRIVE_ENABLED, data.get(CONF_GOOGLE_DRIVE_ENABLED, DEFAULT_GOOGLE_DRIVE_ENABLED)))
+        self._google_drive_method = str(options.get(CONF_GOOGLE_DRIVE_METHOD, data.get(CONF_GOOGLE_DRIVE_METHOD, DEFAULT_GOOGLE_DRIVE_METHOD)) or DEFAULT_GOOGLE_DRIVE_METHOD).lower()
+        self._google_drive_webhook_url = str(options.get(CONF_GOOGLE_DRIVE_WEBHOOK_URL, data.get(CONF_GOOGLE_DRIVE_WEBHOOK_URL, "")) or "").strip()
+        self._google_drive_client_id = str(options.get(CONF_GOOGLE_DRIVE_CLIENT_ID, data.get(CONF_GOOGLE_DRIVE_CLIENT_ID, "")) or "").strip()
+        self._google_drive_client_secret = str(options.get(CONF_GOOGLE_DRIVE_CLIENT_SECRET, data.get(CONF_GOOGLE_DRIVE_CLIENT_SECRET, "")) or "").strip()
+        self._google_drive_refresh_token = str(options.get(CONF_GOOGLE_DRIVE_REFRESH_TOKEN, data.get(CONF_GOOGLE_DRIVE_REFRESH_TOKEN, "")) or "").strip()
+        self._google_drive_folder_id = str(options.get(CONF_GOOGLE_DRIVE_FOLDER_ID, data.get(CONF_GOOGLE_DRIVE_FOLDER_ID, "")) or "").strip()
+        
+        has_gdrive = (self._google_drive_method == "webhook" and self._google_drive_webhook_url) or (self._google_drive_method == "oauth" and self._google_drive_refresh_token)
+        self._google_drive_status = "Connecté" if (self._google_drive_enabled and has_gdrive) else "Désactivé"
+
         self._media_retention_days = int(options.get(CONF_MEDIA_RETENTION_DAYS, data.get(CONF_MEDIA_RETENTION_DAYS, DEFAULT_MEDIA_RETENTION_DAYS)) or 0)
         self._media_max_size_mb = int(options.get(CONF_MEDIA_MAX_SIZE_MB, data.get(CONF_MEDIA_MAX_SIZE_MB, DEFAULT_MEDIA_MAX_SIZE_MB)) or 0)
         
@@ -663,6 +698,12 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             "webdav_test_running": getattr(self, "_webdav_test_running", False),
             "webdav_test_logs": list(getattr(self, "_webdav_test_logs", [])),
             "webdav_test_result": dict(getattr(self, "_webdav_test_result", {})),
+            "nas_type": getattr(self, "_nas_type", "asustor"),
+            "google_drive_status": getattr(self, "_google_drive_status", "Désactivé"),
+            "google_drive_method": getattr(self, "_google_drive_method", "webhook"),
+            "google_drive_test_running": getattr(self, "_google_drive_test_running", False),
+            "google_drive_test_logs": list(getattr(self, "_google_drive_test_logs", [])),
+            "google_drive_test_result": dict(getattr(self, "_google_drive_test_result", {})),
             "media_storage_bytes": self._media_storage_stats.get("bytes", 0),
             "media_storage_mb": self._media_storage_stats.get("mb", 0.0),
             "media_storage_max_mb": self._media_max_size_mb,
@@ -758,6 +799,14 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             CONF_WEBDAV_USER: str(_val(CONF_WEBDAV_USER, "") or ""),
             CONF_WEBDAV_PASS: str(_val(CONF_WEBDAV_PASS, "") or ""),
             CONF_WEBDAV_PATH: str(_val(CONF_WEBDAV_PATH, DEFAULT_WEBDAV_PATH) or DEFAULT_WEBDAV_PATH),
+            CONF_NAS_TYPE: str(_val(CONF_NAS_TYPE, DEFAULT_NAS_TYPE) or DEFAULT_NAS_TYPE),
+            CONF_GOOGLE_DRIVE_ENABLED: bool(_val(CONF_GOOGLE_DRIVE_ENABLED, DEFAULT_GOOGLE_DRIVE_ENABLED)),
+            CONF_GOOGLE_DRIVE_METHOD: str(_val(CONF_GOOGLE_DRIVE_METHOD, DEFAULT_GOOGLE_DRIVE_METHOD) or DEFAULT_GOOGLE_DRIVE_METHOD),
+            CONF_GOOGLE_DRIVE_WEBHOOK_URL: str(_val(CONF_GOOGLE_DRIVE_WEBHOOK_URL, "") or ""),
+            CONF_GOOGLE_DRIVE_CLIENT_ID: str(_val(CONF_GOOGLE_DRIVE_CLIENT_ID, "") or ""),
+            CONF_GOOGLE_DRIVE_CLIENT_SECRET: str(_val(CONF_GOOGLE_DRIVE_CLIENT_SECRET, "") or ""),
+            CONF_GOOGLE_DRIVE_REFRESH_TOKEN: str(_val(CONF_GOOGLE_DRIVE_REFRESH_TOKEN, "") or ""),
+            CONF_GOOGLE_DRIVE_FOLDER_ID: str(_val(CONF_GOOGLE_DRIVE_FOLDER_ID, "") or ""),
             CONF_MEDIA_PATH: str(_val(CONF_MEDIA_PATH, DEFAULT_MEDIA_PATH) or DEFAULT_MEDIA_PATH),
             CONF_MEDIA_RETENTION_DAYS: int(_val(CONF_MEDIA_RETENTION_DAYS, DEFAULT_MEDIA_RETENTION_DAYS) or DEFAULT_MEDIA_RETENTION_DAYS),
             CONF_MEDIA_MAX_SIZE_MB: int(_val(CONF_MEDIA_MAX_SIZE_MB, DEFAULT_MEDIA_MAX_SIZE_MB) or DEFAULT_MEDIA_MAX_SIZE_MB),
@@ -2085,6 +2134,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                     self.hass.async_create_task(self._async_upload_to_ftp(expected_mp4_path))
                 if getattr(self, "_webdav_enabled", False):
                     self.hass.async_create_task(self._async_upload_to_webdav(expected_mp4_path))
+                if getattr(self, "_google_drive_enabled", False):
+                    self.hass.async_create_task(self._async_upload_to_google_drive(expected_mp4_path))
                 return
             # If HA left a .tmp file after recording finished, check stability and rename
             for tmp in (tmp_path, alt_tmp):
@@ -2102,6 +2153,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                                 self.hass.async_create_task(self._async_upload_to_ftp(expected_mp4_path))
                             if getattr(self, "_webdav_enabled", False):
                                 self.hass.async_create_task(self._async_upload_to_webdav(expected_mp4_path))
+                            if getattr(self, "_google_drive_enabled", False):
+                                self.hass.async_create_task(self._async_upload_to_google_drive(expected_mp4_path))
                             return
                     except Exception as e:
                         _LOGGER.debug("Domolink: Erreur finalisation tmp: %s", e)
@@ -2241,6 +2294,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                         self.hass.async_create_task(self._async_upload_to_ftp(snapshot_path))
                     if getattr(self, "_webdav_enabled", False):
                         self.hass.async_create_task(self._async_upload_to_webdav(snapshot_path))
+                    if getattr(self, "_google_drive_enabled", False):
+                        self.hass.async_create_task(self._async_upload_to_google_drive(snapshot_path))
                 self._log_event(f"✅ Photo test enregistrée ({cam_name})")
             except asyncio.TimeoutError:
                 self._log_event(f"⚠️ Timeout photo (15s) sur {cam_name}")
@@ -2426,15 +2481,21 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             _LOGGER.debug("Domolink: Un test FTP est déjà en cours.")
             return
 
+        nas_labels = {"asustor": "ASUSTOR", "synology": "Synology", "qnap": "QNAP", "truenas": "TrueNAS", "freebox": "Freebox", "unraid": "Unraid"}
+        nas_name = nas_labels.get(getattr(self, "_nas_type", "asustor"), "NAS / Serveur")
+
         self._ftp_test_running = True
         self._ftp_test_logs = []
         self._ftp_test_result = {}
-        self._append_ftp_log("🚀 Démarrage du diagnostic de connexion FTP...", "info")
+        self._append_ftp_log(f"🚀 Démarrage du diagnostic de connexion FTP ({nas_name})...", "info")
 
         self.hass.async_create_task(self._async_run_ftp_test())
 
     async def _async_run_ftp_test(self):
         """Run FTP test in executor and report logs thread-safely."""
+        nas_labels = {"asustor": "ASUSTOR", "synology": "Synology", "qnap": "QNAP", "truenas": "TrueNAS", "freebox": "Freebox", "unraid": "Unraid"}
+        nas_name = nas_labels.get(getattr(self, "_nas_type", "asustor"), "NAS")
+
         def log_step(msg, level="info"):
             _LOGGER.info("Domolink FTP test: %s", msg)
             self.hass.loop.call_soon_threadsafe(self._append_ftp_log, msg, level)
@@ -2458,7 +2519,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             user = str(self._ftp_user or "").strip()
             password = str(self._ftp_pass or "")
 
-            log_step(f"1. Configuration : Hôte={host}, Port={port}, Utilisateur='{user}'", "info")
+            log_step(f"1. Profil {nas_name} : Hôte={host}, Port={port}, Utilisateur='{user}'", "info")
             time.sleep(0.35)
 
             log_step(f"2. Connexion réseau au serveur {host}:{port}...", "info")
@@ -2571,7 +2632,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 pass
 
             log_step(f"6. Chemin de sauvegarde validé : {save_path}", "success")
-            log_step("🎉 Connexion FTP acceptée et validée avec succès !", "success")
+            log_step(f"🎉 Connexion FTP acceptée et validée avec succès sur {nas_name} !", "success")
             return True, "Connexion acceptée", save_path
 
         try:
@@ -2686,10 +2747,13 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             _LOGGER.debug("Domolink: Un test WebDAV est déjà en cours.")
             return
 
+        nas_labels = {"asustor": "ASUSTOR", "synology": "Synology", "qnap": "QNAP", "truenas": "TrueNAS", "freebox": "Freebox", "unraid": "Unraid"}
+        nas_name = nas_labels.get(getattr(self, "_nas_type", "asustor"), "NAS / Serveur")
+
         self._webdav_test_running = True
         self._webdav_test_logs = []
         self._webdav_test_result = {}
-        self._append_webdav_log("🚀 Démarrage du diagnostic WebDAV / Nextcloud...", "info")
+        self._append_webdav_log(f"🚀 Démarrage du diagnostic WebDAV ({nas_name})...", "info")
 
         self.hass.async_create_task(self._async_run_webdav_test())
 
@@ -2698,6 +2762,9 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         import time
         import aiohttp
         from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+        nas_labels = {"asustor": "ASUSTOR", "synology": "Synology", "qnap": "QNAP", "truenas": "TrueNAS", "freebox": "Freebox", "unraid": "Unraid"}
+        nas_name = nas_labels.get(getattr(self, "_nas_type", "asustor"), "NAS")
 
         start_time = time.time()
         url = str(getattr(self, "_webdav_url", "") or "").strip()
@@ -2731,7 +2798,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 self.async_write_ha_state()
                 return
 
-            self._append_webdav_log(f"1. Configuration : URL={url}, Utilisateur='{user}'", "info")
+            self._append_webdav_log(f"1. Profil {nas_name} : URL={url}, Utilisateur='{user}'", "info")
             await asyncio.sleep(0.3)
 
             # Step 2: Connection & Auth
@@ -2811,7 +2878,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
             elapsed = round(time.time() - start_time, 2)
             self._append_webdav_log(f"6. Chemin de sauvegarde validé : {path}", "success")
-            self._append_webdav_log(f"🎉 Connexion WebDAV acceptée et validée avec succès ({elapsed}s) !", "success")
+            self._append_webdav_log(f"🎉 Connexion WebDAV acceptée et validée avec succès sur {nas_name} ({elapsed}s) !", "success")
             self._webdav_status = "Connecté"
             self._webdav_test_running = False
             self._webdav_test_result = {
@@ -2829,6 +2896,331 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             self._webdav_test_running = False
             self._webdav_test_result = {"success": False, "message": str(global_err)}
             self._log_event(f"⚠️ Erreur test WebDAV : {global_err}")
+        finally:
+            self.async_write_ha_state()
+
+    async def _async_upload_to_google_drive(self, file_path):
+        """Upload photo or video to Google Drive asynchronously."""
+        if not getattr(self, "_google_drive_enabled", False):
+            return
+
+        method = getattr(self, "_google_drive_method", "webhook")
+        is_video = file_path.lower().endswith(('.mp4', '.webm', '.ogg'))
+        media_type = "vidéo" if is_video else "photo"
+        filename = os.path.basename(file_path)
+        mime_type = "video/mp4" if is_video else "image/jpeg"
+
+        import aiohttp
+        import base64
+        import json
+        from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+        session = async_get_clientsession(self.hass)
+
+        try:
+            def _read_file():
+                with open(file_path, "rb") as f:
+                    return f.read()
+
+            file_bytes = await self.hass.async_add_executor_job(_read_file)
+
+            if method == "webhook":
+                webhook_url = getattr(self, "_google_drive_webhook_url", "").strip()
+                if not webhook_url:
+                    _LOGGER.warning("Domolink Google Drive: URL Webhook manquante.")
+                    return
+
+                payload = {
+                    "filename": filename,
+                    "mime_type": mime_type,
+                    "file_base64": base64.b64encode(file_bytes).decode("utf-8"),
+                    "folder_id": getattr(self, "_google_drive_folder_id", "").strip(),
+                }
+
+                timeout = aiohttp.ClientTimeout(total=90 if is_video else 30)
+                async with session.post(webhook_url, json=payload, timeout=timeout, allow_redirects=True) as resp:
+                    if resp.status in (200, 201):
+                        self._google_drive_status = "Connecté"
+                        _LOGGER.info("Domolink: %s téléversée sur Google Drive via Webhook: %s", media_type.capitalize(), filename)
+                        self._log_event(f"Sauvegarde {media_type} Google Drive : {filename}")
+                    else:
+                        self._google_drive_status = "Erreur"
+                        _LOGGER.error("Domolink: Échec envoi Google Drive Webhook (%s): HTTP %s", filename, resp.status)
+                        self._log_event(f"⚠️ Échec Google Drive {media_type}: {filename} (HTTP {resp.status})")
+
+            elif method == "oauth":
+                client_id = getattr(self, "_google_drive_client_id", "").strip()
+                client_secret = getattr(self, "_google_drive_client_secret", "").strip()
+                refresh_token = getattr(self, "_google_drive_refresh_token", "").strip()
+                folder_id = getattr(self, "_google_drive_folder_id", "").strip()
+
+                if not (client_id and client_secret and refresh_token):
+                    _LOGGER.warning("Domolink Google Drive: Identifiants OAuth2 incomplets.")
+                    return
+
+                token_url = "https://oauth2.googleapis.com/token"
+                token_data = {
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "refresh_token": refresh_token,
+                    "grant_type": "refresh_token",
+                }
+                async with session.post(token_url, data=token_data, timeout=aiohttp.ClientTimeout(total=15)) as token_resp:
+                    if token_resp.status != 200:
+                        self._google_drive_status = "Erreur"
+                        _LOGGER.error("Domolink Google Drive: Échec rafraîchissement token OAuth: HTTP %s", token_resp.status)
+                        return
+                    token_json = await token_resp.json()
+                    access_token = token_json.get("access_token")
+
+                metadata = {"name": filename}
+                if folder_id:
+                    metadata["parents"] = [folder_id]
+
+                boundary = "==================DomolinkDriveBoundary=="
+                headers = {
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": f"multipart/related; boundary={boundary}",
+                }
+                metadata_str = json.dumps(metadata)
+                body = (
+                    f"--{boundary}\r\n"
+                    f"Content-Type: application/json; charset=UTF-8\r\n\r\n"
+                    f"{metadata_str}\r\n"
+                    f"--{boundary}\r\n"
+                    f"Content-Type: {mime_type}\r\n\r\n"
+                ).encode("utf-8") + file_bytes + f"\r\n--{boundary}--\r\n".encode("utf-8")
+
+                upload_url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart"
+                timeout = aiohttp.ClientTimeout(total=90 if is_video else 30)
+                async with session.post(upload_url, data=body, headers=headers, timeout=timeout) as up_resp:
+                    if up_resp.status in (200, 201):
+                        self._google_drive_status = "Connecté"
+                        _LOGGER.info("Domolink: %s téléversée sur Google Drive via API OAuth: %s", media_type.capitalize(), filename)
+                        self._log_event(f"Sauvegarde {media_type} Google Drive : {filename}")
+                    else:
+                        self._google_drive_status = "Erreur"
+                        _LOGGER.error("Domolink: Échec envoi Google Drive API (%s): HTTP %s", filename, up_resp.status)
+                        self._log_event(f"⚠️ Échec Google Drive {media_type}: {filename} (HTTP {up_resp.status})")
+
+        except Exception as e:
+            self._google_drive_status = "Erreur"
+            _LOGGER.error("Domolink: Erreur téléversement Google Drive de %s: %s", file_path, e)
+            self._log_event(f"⚠️ Erreur envoi Google Drive : {e}")
+
+        self.async_write_ha_state()
+
+    def _append_google_drive_log(self, message: str, level: str = "info"):
+        """Append an entry to Google Drive test log and notify state change."""
+        now_str = dt_now().strftime("%H:%M:%S")
+        if not hasattr(self, "_google_drive_test_logs") or self._google_drive_test_logs is None:
+            self._google_drive_test_logs = []
+        self._google_drive_test_logs.append({
+            "time": now_str,
+            "message": message,
+            "level": level,
+        })
+        if len(self._google_drive_test_logs) > 60:
+            self._google_drive_test_logs = self._google_drive_test_logs[-60:]
+        try:
+            self.async_write_ha_state()
+        except Exception:
+            pass
+
+    async def async_test_google_drive(self, call=None):
+        """Force a connection test to Google Drive with real-time log steps."""
+        if getattr(self, "_google_drive_test_running", False):
+            _LOGGER.debug("Domolink: Un test Google Drive est déjà en cours.")
+            return
+
+        self._google_drive_test_running = True
+        self._google_drive_test_logs = []
+        self._google_drive_test_result = {}
+        self._append_google_drive_log("🚀 Démarrage du diagnostic Google Drive...", "info")
+
+        self.hass.async_create_task(self._async_run_google_drive_test())
+
+    async def _async_run_google_drive_test(self):
+        """Run step-by-step diagnostic of Google Drive asynchronously."""
+        import time
+        import aiohttp
+        import base64
+        import json
+        from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+        start_time = time.time()
+        method = getattr(self, "_google_drive_method", "webhook")
+        folder_id = str(getattr(self, "_google_drive_folder_id", "") or "").strip()
+
+        try:
+            await asyncio.sleep(0.2)
+            if not getattr(self, "_google_drive_enabled", False):
+                self._append_google_drive_log("Le service Google Drive est désactivé dans la configuration.", "error")
+                self._google_drive_status = "Erreur"
+                self._google_drive_test_running = False
+                self._google_drive_test_result = {"success": False, "message": "Service désactivé."}
+                self.async_write_ha_state()
+                return
+
+            session = async_get_clientsession(self.hass)
+
+            if method == "webhook":
+                webhook_url = str(getattr(self, "_google_drive_webhook_url", "") or "").strip()
+                if not webhook_url:
+                    self._append_google_drive_log("Aucune URL Webhook Google Apps Script configurée.", "error")
+                    self._google_drive_status = "Erreur"
+                    self._google_drive_test_running = False
+                    self._google_drive_test_result = {"success": False, "message": "URL Webhook manquante."}
+                    self.async_write_ha_state()
+                    return
+
+                self._append_google_drive_log(f"1. Configuration Webhook : {webhook_url[:40]}...", "info")
+                await asyncio.sleep(0.3)
+
+                self._append_google_drive_log("2. Envoi de la sonde de test vers le script Google Drive...", "info")
+                probe_payload = {
+                    "probe": True,
+                    "filename": "domolink_probe.txt",
+                    "file_base64": base64.b64encode(b"Domolink Alarm Google Drive Probe Test").decode("utf-8"),
+                    "mime_type": "text/plain",
+                    "folder_id": folder_id,
+                }
+
+                try:
+                    async with session.post(webhook_url, json=probe_payload, timeout=aiohttp.ClientTimeout(total=20), allow_redirects=True) as resp:
+                        if resp.status in (200, 201):
+                            self._append_google_drive_log(f"   ✓ Réponse reçue du script Google Drive (HTTP {resp.status})", "success")
+                            self._append_google_drive_log("3. Validation de l'accès et des permissions de stockage...", "info")
+                            await asyncio.sleep(0.3)
+                            self._append_google_drive_log("   ✓ Droits de téléversement validés sur Google Drive.", "success")
+                        else:
+                            self._append_google_drive_log(f"   ✗ Le Webhook a retourné une erreur (HTTP {resp.status})", "error")
+                            self._google_drive_status = "Erreur"
+                            self._google_drive_test_running = False
+                            self._google_drive_test_result = {"success": False, "message": f"Erreur Webhook HTTP {resp.status}"}
+                            self.async_write_ha_state()
+                            return
+                except Exception as net_err:
+                    self._append_google_drive_log(f"   ✗ Impossible de joindre l'URL Webhook : {net_err}", "error")
+                    self._google_drive_status = "Erreur"
+                    self._google_drive_test_running = False
+                    self._google_drive_test_result = {"success": False, "message": str(net_err)}
+                    self.async_write_ha_state()
+                    return
+
+            elif method == "oauth":
+                client_id = str(getattr(self, "_google_drive_client_id", "") or "").strip()
+                client_secret = str(getattr(self, "_google_drive_client_secret", "") or "").strip()
+                refresh_token = str(getattr(self, "_google_drive_refresh_token", "") or "").strip()
+
+                if not (client_id and client_secret and refresh_token):
+                    self._append_google_drive_log("Paramètres OAuth2 incomplets (Client ID, Secret ou Refresh Token manquant).", "error")
+                    self._google_drive_status = "Erreur"
+                    self._google_drive_test_running = False
+                    self._google_drive_test_result = {"success": False, "message": "Identifiants OAuth2 incomplets."}
+                    self.async_write_ha_state()
+                    return
+
+                self._append_google_drive_log("1. Échange du Refresh Token avec l'API OAuth2 Google...", "info")
+                token_url = "https://oauth2.googleapis.com/token"
+                token_data = {
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "refresh_token": refresh_token,
+                    "grant_type": "refresh_token",
+                }
+                try:
+                    async with session.post(token_url, data=token_data, timeout=aiohttp.ClientTimeout(total=15)) as token_resp:
+                        if token_resp.status != 200:
+                            self._append_google_drive_log(f"   ✗ Échec de l'authentification OAuth2 (HTTP {token_resp.status})", "error")
+                            self._google_drive_status = "Erreur"
+                            self._google_drive_test_running = False
+                            self._google_drive_test_result = {"success": False, "message": f"Erreur OAuth2 HTTP {token_resp.status}"}
+                            self.async_write_ha_state()
+                            return
+                        token_json = await token_resp.json()
+                        access_token = token_json.get("access_token")
+                        self._append_google_drive_log("   ✓ Access Token OAuth2 généré avec succès.", "success")
+                except Exception as oauth_err:
+                    self._append_google_drive_log(f"   ✗ Erreur connexion OAuth2 : {oauth_err}", "error")
+                    self._google_drive_status = "Erreur"
+                    self._google_drive_test_running = False
+                    self._google_drive_test_result = {"success": False, "message": str(oauth_err)}
+                    self.async_write_ha_state()
+                    return
+
+                await asyncio.sleep(0.3)
+                if folder_id:
+                    self._append_google_drive_log(f"2. Vérification du dossier distant ({folder_id})...", "info")
+                    check_url = f"https://www.googleapis.com/drive/v3/files/{folder_id}?fields=id,name,mimeType"
+                    async with session.get(check_url, headers={"Authorization": f"Bearer {access_token}"}, timeout=aiohttp.ClientTimeout(total=10)) as f_resp:
+                        if f_resp.status == 200:
+                            f_info = await f_resp.json()
+                            self._append_google_drive_log(f"   ✓ Dossier trouvé : '{f_info.get('name', folder_id)}'", "success")
+                        else:
+                            self._append_google_drive_log(f"   ⚠️ Dossier introuvable ou inaccessible (HTTP {f_resp.status}), racine utilisée.", "warning")
+
+                await asyncio.sleep(0.3)
+                self._append_google_drive_log("3. Test d'écriture fichier sonde (multipart upload)...", "info")
+                probe_filename = f"domolink_probe_{int(time.time())}.txt"
+                boundary = "==================DomolinkDriveBoundary=="
+                headers = {
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": f"multipart/related; boundary={boundary}",
+                }
+                meta = {"name": probe_filename}
+                if folder_id:
+                    meta["parents"] = [folder_id]
+                probe_content = b"Domolink Probe Test File"
+                body = (
+                    f"--{boundary}\r\n"
+                    f"Content-Type: application/json; charset=UTF-8\r\n\r\n"
+                    f"{json.dumps(meta)}\r\n"
+                    f"--{boundary}\r\n"
+                    f"Content-Type: text/plain\r\n\r\n"
+                ).encode("utf-8") + probe_content + f"\r\n--{boundary}--\r\n".encode("utf-8")
+
+                upload_url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart"
+                created_file_id = None
+                async with session.post(upload_url, data=body, headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as up_resp:
+                    if up_resp.status not in (200, 201):
+                        self._append_google_drive_log(f"   ✗ Échec téléversement test (HTTP {up_resp.status})", "error")
+                        self._google_drive_status = "Erreur"
+                        self._google_drive_test_running = False
+                        self._google_drive_test_result = {"success": False, "message": f"Écriture refusée (HTTP {up_resp.status})"}
+                        self.async_write_ha_state()
+                        return
+                    up_json = await up_resp.json()
+                    created_file_id = up_json.get("id")
+                    self._append_google_drive_log("   ✓ Fichier test créé avec succès sur Google Drive.", "success")
+
+                if created_file_id:
+                    await asyncio.sleep(0.2)
+                    self._append_google_drive_log("4. Nettoyage du fichier test...", "info")
+                    del_url = f"https://www.googleapis.com/drive/v3/files/{created_file_id}"
+                    async with session.delete(del_url, headers={"Authorization": f"Bearer {access_token}"}, timeout=aiohttp.ClientTimeout(total=8)) as del_resp:
+                        self._append_google_drive_log("   ✓ Nettoyage effectué.", "success")
+
+            elapsed = round(time.time() - start_time, 2)
+            dest_desc = f"Dossier: {folder_id}" if folder_id else "Racine Google Drive"
+            self._append_google_drive_log(f"🎉 Connexion Google Drive validée avec succès ({elapsed}s) !", "success")
+            self._google_drive_status = "Connecté"
+            self._google_drive_test_running = False
+            self._google_drive_test_result = {
+                "success": True,
+                "message": "Connexion acceptée",
+                "save_path": dest_desc,
+                "elapsed": elapsed,
+            }
+            self._log_event(f"Test Google Drive réussi ({elapsed}s) : {dest_desc}")
+
+        except Exception as global_err:
+            _LOGGER.error("Domolink: Erreur test Google Drive: %s", global_err)
+            self._append_google_drive_log(f"Erreur inattendue : {global_err}", "error")
+            self._google_drive_status = "Erreur"
+            self._google_drive_test_running = False
+            self._google_drive_test_result = {"success": False, "message": str(global_err)}
+            self._log_event(f"⚠️ Erreur test Google Drive : {global_err}")
         finally:
             self.async_write_ha_state()
 
@@ -2901,6 +3293,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                         self.hass.async_create_task(self._async_upload_to_ftp(snapshot_path))
                     if getattr(self, "_webdav_enabled", False):
                         self.hass.async_create_task(self._async_upload_to_webdav(snapshot_path))
+                    if getattr(self, "_google_drive_enabled", False):
+                        self.hass.async_create_task(self._async_upload_to_google_drive(snapshot_path))
             except asyncio.TimeoutError:
                 _LOGGER.warning("Domolink: Timeout photo (12s) sur %s", camera)
             except Exception as e:
@@ -3058,6 +3452,10 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             CONF_TELEGRAM_ENABLED, CONF_TELEGRAM_TOKEN, CONF_TELEGRAM_CHAT_ID,
             CONF_FTP_ENABLED, CONF_FTP_HOST, CONF_FTP_PORT, CONF_FTP_USER, CONF_FTP_PASS, CONF_FTP_PATH,
             CONF_WEBDAV_ENABLED, CONF_WEBDAV_URL, CONF_WEBDAV_USER, CONF_WEBDAV_PASS, CONF_WEBDAV_PATH,
+            CONF_NAS_TYPE,
+            CONF_GOOGLE_DRIVE_ENABLED, CONF_GOOGLE_DRIVE_METHOD, CONF_GOOGLE_DRIVE_WEBHOOK_URL,
+            CONF_GOOGLE_DRIVE_CLIENT_ID, CONF_GOOGLE_DRIVE_CLIENT_SECRET, CONF_GOOGLE_DRIVE_REFRESH_TOKEN,
+            CONF_GOOGLE_DRIVE_FOLDER_ID,
             CONF_MEDIA_PATH, CONF_MEDIA_RETENTION_DAYS, CONF_MEDIA_MAX_SIZE_MB,
         }
         

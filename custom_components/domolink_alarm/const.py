@@ -138,3 +138,19 @@ CONF_ZONE_LABELS = "zone_labels"
 CONF_GLOBAL_CAMERAS = "global_cameras"
 CONF_GLOBAL_CAMERAS_LABELS = "global_cameras_labels"
 
+# NAS Profiles & Presets
+CONF_NAS_TYPE = "nas_type"
+DEFAULT_NAS_TYPE = "asustor"
+
+# Google Drive Cloud Backup
+CONF_GOOGLE_DRIVE_ENABLED = "google_drive_enabled"
+CONF_GOOGLE_DRIVE_METHOD = "google_drive_method"
+CONF_GOOGLE_DRIVE_WEBHOOK_URL = "google_drive_webhook_url"
+CONF_GOOGLE_DRIVE_CLIENT_ID = "google_drive_client_id"
+CONF_GOOGLE_DRIVE_CLIENT_SECRET = "google_drive_client_secret"
+CONF_GOOGLE_DRIVE_REFRESH_TOKEN = "google_drive_refresh_token"
+CONF_GOOGLE_DRIVE_FOLDER_ID = "google_drive_folder_id"
+
+DEFAULT_GOOGLE_DRIVE_ENABLED = False
+DEFAULT_GOOGLE_DRIVE_METHOD = "webhook"
+

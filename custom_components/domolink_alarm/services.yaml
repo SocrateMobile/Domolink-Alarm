@@ -141,3 +141,7 @@ clean_media:
   name: Nettoyer le stockage des médias
   description: Déclenche manuellement la purge des médias selon la durée de rétention en jours et le quota d'espace alloué en Mo.
 
+test_google_drive:
+  name: Tester la connexion Google Drive
+  description: Force un test complet de diagnostic de synchronisation avec Google Drive (Webhook ou API OAuth2) avec vérification des droits d'écriture.
+

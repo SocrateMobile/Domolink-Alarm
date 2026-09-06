@@ -1933,12 +1933,19 @@ class DomolinkPanel extends HTMLElement {
     const telegramStatus = attrs.telegram_status || 'Inconnu';
     const ftpStatus = attrs.ftp_status || 'Inconnu';
     const webdavStatus = attrs.webdav_status || (attrs.webdav_enabled ? 'Inconnu' : 'Désactivé');
+    const googleDriveStatus = attrs.google_drive_status || (attrs.google_drive_enabled ? 'Inconnu' : 'Désactivé');
+    const nasType = attrs.nas_type || 'asustor';
+    const nasLabels = { asustor: 'ASUSTOR', synology: 'Synology', qnap: 'QNAP', truenas: 'TrueNAS', freebox: 'Freebox', unraid: 'Unraid', generic: 'NAS' };
+    const nasName = nasLabels[nasType] || 'NAS';
     const camerasArmed = attrs.cameras_armed || false;
     if (attrs.ftp_test_running && this._showFtpTestConsole !== false) {
       this._showFtpTestConsole = true;
     }
     if (attrs.webdav_test_running && this._showWebdavTestConsole !== false) {
       this._showWebdavTestConsole = true;
+    }
+    if (attrs.google_drive_test_running && this._showGoogleDriveTestConsole !== false) {
+      this._showGoogleDriveTestConsole = true;
     }
 
     // 4. Alert Bottom Encadré
@@ -2285,7 +2292,7 @@ class DomolinkPanel extends HTMLElement {
                 <ha-icon icon="mdi:folder-network" style="--mdc-icon-size:20px;"></ha-icon>
               </div>
               <div style="flex-grow:1; min-width:0;">
-                <div style="font-size:10px; font-weight:800; color:var(--d-subtext); text-transform:uppercase; letter-spacing:0.5px;">Cloud FTP</div>
+                <div style="font-size:10px; font-weight:800; color:var(--d-subtext); text-transform:uppercase; letter-spacing:0.5px;">FTP ${this.escapeHtml(nasName)}</div>
                 <div style="font-size:12px; font-weight:800; color:var(--d-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${ftpStatus}</div>
               </div>
               <button class="btn-test-ftp" title="Tester la connexion au serveur FTP" style="padding:4px 7px; font-size:10px; font-weight:800; border-radius:8px; border:1px solid ${attrs.ftp_test_running ? 'rgba(245,158,11,0.5)' : 'rgba(59,130,246,0.4)'}; background:${attrs.ftp_test_running ? 'rgba(245,158,11,0.15)' : 'rgba(59,130,246,0.12)'}; color:${attrs.ftp_test_running ? '#f59e0b' : '#3b82f6'}; cursor:pointer; display:flex; align-items:center; gap:2px; transition:all 0.2s; white-space:nowrap;">
@@ -2306,6 +2313,21 @@ class DomolinkPanel extends HTMLElement {
               <button class="btn-test-webdav" title="Tester la synchronisation WebDAV" style="padding:4px 7px; font-size:10px; font-weight:800; border-radius:8px; border:1px solid ${attrs.webdav_test_running ? 'rgba(245,158,11,0.5)' : 'rgba(139,92,246,0.4)'}; background:${attrs.webdav_test_running ? 'rgba(245,158,11,0.15)' : 'rgba(139,92,246,0.12)'}; color:${attrs.webdav_test_running ? '#f59e0b' : '#a855f7'}; cursor:pointer; display:flex; align-items:center; gap:2px; transition:all 0.2s; white-space:nowrap;">
                 <ha-icon icon="${attrs.webdav_test_running ? 'mdi:loading' : 'mdi:cloud-check'}" style="--mdc-icon-size:13px; ${attrs.webdav_test_running ? 'animation: spin 1s linear infinite;' : ''}"></ha-icon>
                 <span>${attrs.webdav_test_running ? '...' : 'TEST'}</span>
+              </button>
+            </div>
+
+            <!-- Google Drive -->
+            <div style="background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border); padding:10px 12px; display:flex; align-items:center; gap:8px; box-shadow:0 2px 10px rgba(0,0,0,0.02); min-width:0;">
+              <div style="width:34px; height:34px; min-width:34px; border-radius:10px; background:${googleDriveStatus === 'Désactivé' ? 'var(--d-border)' : (googleDriveStatus === 'Connecté' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)')}; display:flex; align-items:center; justify-content:center; color:${googleDriveStatus === 'Désactivé' ? 'var(--d-subtext)' : (googleDriveStatus === 'Connecté' ? '#10b981' : '#ef4444')};">
+                <ha-icon icon="mdi:google-drive" style="--mdc-icon-size:20px;"></ha-icon>
+              </div>
+              <div style="flex-grow:1; min-width:0;">
+                <div style="font-size:10px; font-weight:800; color:var(--d-subtext); text-transform:uppercase; letter-spacing:0.5px;">Google Drive</div>
+                <div style="font-size:12px; font-weight:800; color:var(--d-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${googleDriveStatus}</div>
+              </div>
+              <button class="btn-test-gdrive" title="Tester la synchronisation Google Drive" style="padding:4px 7px; font-size:10px; font-weight:800; border-radius:8px; border:1px solid ${attrs.google_drive_test_running ? 'rgba(245,158,11,0.5)' : 'rgba(52,168,83,0.4)'}; background:${attrs.google_drive_test_running ? 'rgba(245,158,11,0.15)' : 'rgba(52,168,83,0.12)'}; color:${attrs.google_drive_test_running ? '#f59e0b' : '#34a853'}; cursor:pointer; display:flex; align-items:center; gap:2px; transition:all 0.2s; white-space:nowrap;">
+                <ha-icon icon="${attrs.google_drive_test_running ? 'mdi:loading' : 'mdi:cloud-check'}" style="--mdc-icon-size:13px; ${attrs.google_drive_test_running ? 'animation: spin 1s linear infinite;' : ''}"></ha-icon>
+                <span>${attrs.google_drive_test_running ? '...' : 'TEST'}</span>
               </button>
             </div>
             
@@ -2477,6 +2499,84 @@ class DomolinkPanel extends HTMLElement {
           </div>
           ` : ''}
 
+          <!-- Console de Test & Diagnostic Google Drive -->
+          ${this._showGoogleDriveTestConsole ? `
+          <div style="margin-top:14px; background:#0f172a; border:1px solid rgba(52,168,83,0.35); border-radius:14px; padding:12px 14px; box-shadow:0 8px 24px rgba(0,0,0,0.3); color:#f8fafc;">
+            <!-- Header -->
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:8px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <ha-icon icon="mdi:google-drive" style="--mdc-icon-size:18px; color:#4ade80;"></ha-icon>
+                <span style="font-size:12px; font-weight:800; letter-spacing:0.5px; text-transform:uppercase; color:#e2e8f0;">Diagnostic Google Drive (${attrs.google_drive_method === 'oauth' ? 'API OAuth2' : 'Webhook Script'})</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                ${attrs.google_drive_test_running ? `
+                  <span style="display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; color:#f59e0b; background:rgba(245,158,11,0.15); padding:2px 8px; border-radius:6px;">
+                    <ha-icon icon="mdi:loading" style="--mdc-icon-size:13px; animation:spin 1s linear infinite;"></ha-icon> En cours...
+                  </span>
+                ` : (attrs.google_drive_test_result && attrs.google_drive_test_result.success ? `
+                  <span style="display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; color:#10b981; background:rgba(16,185,129,0.15); padding:2px 8px; border-radius:6px;">
+                    <ha-icon icon="mdi:check-circle" style="--mdc-icon-size:13px;"></ha-icon> Connecté
+                  </span>
+                ` : (attrs.google_drive_test_result && attrs.google_drive_test_result.success === false ? `
+                  <span style="display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; color:#ef4444; background:rgba(239,68,68,0.15); padding:2px 8px; border-radius:6px;">
+                    <ha-icon icon="mdi:alert-circle" style="--mdc-icon-size:13px;"></ha-icon> Erreur
+                  </span>
+                ` : ''))}
+                <button class="btn-close-gdrive-test" title="Fermer la console" style="background:transparent; border:none; color:#94a3b8; cursor:pointer; padding:2px 6px; font-size:16px; font-weight:700; border-radius:4px; line-height:1;">
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <!-- Terminal logs window -->
+            <div id="gdrive-test-logs" style="background:#020617; border-radius:8px; padding:10px 12px; max-height:160px; min-height:80px; overflow-y:auto; font-family:'SF Mono', Monaco, Menlo, Consolas, monospace; font-size:11px; line-height:1.6; border:1px solid rgba(255,255,255,0.06);">
+              ${Array.isArray(attrs.google_drive_test_logs) && attrs.google_drive_test_logs.length > 0 ? attrs.google_drive_test_logs.map(log => {
+                const color = log.level === 'error' ? '#f87171' : (log.level === 'success' ? '#4ade80' : (log.level === 'warning' ? '#fbbf24' : '#86efac'));
+                const icon = log.level === 'error' ? '❌' : (log.level === 'success' ? '✅' : (log.level === 'warning' ? '⚠️' : '▶'));
+                return `<div style="color:${color}; margin-bottom:2px;">[${log.time || ''}] ${icon} ${this.escapeHtml(log.message || log.msg || '')}</div>`;
+              }).join('') : `
+                <div style="display:flex; align-items:center; gap:8px; color:#94a3b8; font-style:italic; padding:6px 0;">
+                  <ha-icon icon="mdi:loading" class="spin" style="--mdc-icon-size:15px; color:#4ade80;"></ha-icon>
+                  <span>Démarrage du test de synchronisation Google Drive...</span>
+                </div>
+              `}
+            </div>
+
+            <!-- Result Summary Banner -->
+            ${attrs.google_drive_test_result && attrs.google_drive_test_result.success ? `
+              <div style="margin-top:10px; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.4); border-radius:8px; padding:8px 12px; display:flex; align-items:center; gap:10px;">
+                <ha-icon icon="mdi:cloud-check" style="--mdc-icon-size:22px; color:#10b981; flex-shrink:0;"></ha-icon>
+                <div style="font-size:11px; color:#e2e8f0; line-height:1.4;">
+                  <strong style="color:#10b981;">Connexion Google Drive acceptée avec succès !</strong><br>
+                  <span>Dossier de sauvegarde : </span>
+                  <code style="background:rgba(0,0,0,0.4); color:#4ade80; padding:2px 6px; border-radius:4px; font-weight:700; font-size:11px;">${this.escapeHtml(attrs.google_drive_test_result.save_path || 'Racine Google Drive')}</code>
+                </div>
+              </div>
+            ` : (attrs.google_drive_test_result && attrs.google_drive_test_result.success === false ? `
+              <div style="margin-top:10px; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.4); border-radius:8px; padding:8px 12px; display:flex; align-items:center; gap:10px;">
+                <ha-icon icon="mdi:alert-octagon" style="--mdc-icon-size:22px; color:#ef4444; flex-shrink:0;"></ha-icon>
+                <div style="font-size:11px; color:#e2e8f0; line-height:1.4;">
+                  <strong style="color:#ef4444;">Échec de la connexion Google Drive :</strong>
+                  <div style="color:#fca5a5; margin-top:2px;">${this.escapeHtml(attrs.google_drive_test_result.message || 'Erreur inconnue')}</div>
+                </div>
+              </div>
+            ` : '')}
+
+            <!-- Footer actions -->
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+              <span style="font-size:10px; color:#64748b;">Mode : ${attrs.google_drive_method === 'oauth' ? 'OAuth2 Google Cloud' : 'Apps Script Webhook'}</span>
+              <div style="display:flex; gap:8px;">
+                <button class="btn-test-gdrive" style="background:rgba(52,168,83,0.15); border:1px solid rgba(52,168,83,0.4); color:#4ade80; padding:5px 12px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:5px;">
+                  <ha-icon icon="mdi:refresh" style="--mdc-icon-size:13px;"></ha-icon> Relancer
+                </button>
+                <button class="btn-close-gdrive-test" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#cbd5e1; padding:5px 12px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">
+                  Fermer
+                </button>
+              </div>
+            </div>
+          </div>
+          ` : ''}
+
           <!-- Bouton Test d'enregistrement vidéo (Colonne centrale) -->
           <div style="margin-top:14px;">
             ${attrs.camera_test_running ? testProgressHTML : `
@@ -2544,7 +2644,7 @@ class DomolinkPanel extends HTMLElement {
       </div>
     `;
 
-    const armCacheKey = `${state}_${attrs.last_user}_${attrs.triggered_by}_${this._selectedCameraIndex}_${totalSensorsCount}_${activeTriggers.length}_${isArmed}_${telegramStatus}_${ftpStatus}_${webdavStatus}_${camerasArmed}_${attrs.camera_test_running}_${JSON.stringify(attrs.camera_test_info || {})}_${attrs.ftp_test_running}_${this._showFtpTestConsole}_${(attrs.ftp_test_logs || []).length}_${JSON.stringify(attrs.ftp_test_result || {})}_${attrs.webdav_test_running}_${this._showWebdavTestConsole}_${(attrs.webdav_test_logs || []).length}_${JSON.stringify(attrs.webdav_test_result || {})}`;
+    const armCacheKey = `${state}_${attrs.last_user}_${attrs.triggered_by}_${this._selectedCameraIndex}_${totalSensorsCount}_${activeTriggers.length}_${isArmed}_${telegramStatus}_${ftpStatus}_${webdavStatus}_${googleDriveStatus}_${camerasArmed}_${attrs.camera_test_running}_${JSON.stringify(attrs.camera_test_info || {})}_${attrs.ftp_test_running}_${this._showFtpTestConsole}_${(attrs.ftp_test_logs || []).length}_${JSON.stringify(attrs.ftp_test_result || {})}_${attrs.webdav_test_running}_${this._showWebdavTestConsole}_${(attrs.webdav_test_logs || []).length}_${JSON.stringify(attrs.webdav_test_result || {})}_${attrs.google_drive_test_running}_${this._showGoogleDriveTestConsole}_${(attrs.google_drive_test_logs || []).length}_${JSON.stringify(attrs.google_drive_test_result || {})}`;
     if (this._lastArmKey !== armCacheKey) {
       this._lastArmKey = armCacheKey;
       container.innerHTML = html;
@@ -2758,6 +2858,44 @@ class DomolinkPanel extends HTMLElement {
           const webdavLogEl = container.querySelector('#webdav-test-logs');
           if (webdavLogEl) {
             webdavLogEl.scrollTop = webdavLogEl.scrollHeight;
+          }
+        }, 50);
+      }
+
+      // Test Google Drive Connection Buttons
+      const triggerTestGoogleDrive = async () => {
+        this._showGoogleDriveTestConsole = true;
+        this._lastArmKey = '';
+        this.render();
+        try {
+          await this._hass.callService('domolink_alarm', 'test_google_drive', {});
+        } catch (err) {
+          console.error("Erreur lors du lancement du test Google Drive:", err);
+          alert("Erreur lors du lancement du test Google Drive : " + (err.message || err));
+        }
+      };
+
+      container.querySelectorAll('.btn-test-gdrive').forEach(btn => {
+        btn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          triggerTestGoogleDrive();
+        });
+      });
+
+      container.querySelectorAll('.btn-close-gdrive-test').forEach(btn => {
+        btn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          this._showGoogleDriveTestConsole = false;
+          this._lastArmKey = '';
+          this.render();
+        });
+      });
+
+      if (this._showGoogleDriveTestConsole) {
+        setTimeout(() => {
+          const gdriveLogEl = container.querySelector('#gdrive-test-logs');
+          if (gdriveLogEl) {
+            gdriveLogEl.scrollTop = gdriveLogEl.scrollHeight;
           }
         }, 50);
       }
@@ -3211,6 +3349,14 @@ class DomolinkPanel extends HTMLElement {
       webdav_user: c.webdav_user || "",
       webdav_pass: c.webdav_pass || "",
       webdav_path: c.webdav_path || "domolink/alarm",
+      nas_type: c.nas_type || "asustor",
+      google_drive_enabled: Boolean(c.google_drive_enabled),
+      google_drive_method: c.google_drive_method || "webhook",
+      google_drive_webhook_url: c.google_drive_webhook_url || "",
+      google_drive_client_id: c.google_drive_client_id || "",
+      google_drive_client_secret: c.google_drive_client_secret || "",
+      google_drive_refresh_token: c.google_drive_refresh_token || "",
+      google_drive_folder_id: c.google_drive_folder_id || "",
       media_retention_days: c.media_retention_days !== undefined ? c.media_retention_days : 30,
       media_max_size_mb: c.media_max_size_mb !== undefined ? c.media_max_size_mb : 1024,
       media_path: c.media_path || "domolink_media",
@@ -3409,17 +3555,31 @@ class DomolinkPanel extends HTMLElement {
         <div class="config-card">
           <div class="config-card-title"><ha-icon icon="mdi:radar" style="color:#3b82f6;"></ha-icon> Capteurs d'Intrusion & Sécurité</div>
           ${this._renderEntityListField("Capteurs d'Ouverture", "Portes, fenêtres, baies vitrées et garages déclenchant l'alarme", "opening_sensors", ["binary_sensor", "sensor"], "mdi:door-open")}
+          ${this._renderLabelsField("Étiquettes Capteurs d'Ouverture", "Sélection automatique par étiquette HA (ex: fenetre, porte)", "opening_sensors_labels", "mdi:tag-outline")}
+
           ${this._renderEntityListField("Capteurs Mode Nuit", "Capteurs périmétriques surveillés pendant le sommeil", "night_sensors", ["binary_sensor", "sensor"], "mdi:weather-night")}
+          ${this._renderLabelsField("Étiquettes Capteurs Mode Nuit", "Sélection automatique par étiquette HA (ex: perimetre)", "night_sensors_labels", "mdi:tag-outline")}
+
           ${this._renderEntityListField("Capteurs de Mouvement", "Radars et détecteurs volumétriques intérieurs", "motion_sensors", ["binary_sensor", "sensor"], "mdi:motion-sensor")}
+          ${this._renderLabelsField("Étiquettes Détecteurs de Mouvement", "Sélection automatique par étiquette HA (ex: mouvement, radar)", "motion_sensors_labels", "mdi:tag-outline")}
+
           ${this._renderEntityListField("Capteurs de Sabotage (Tamper)", "Protection anti-arrachement active 24h/24", "tamper_sensors", ["binary_sensor", "sensor"], "mdi:shield-alert")}
+          ${this._renderLabelsField("Étiquettes Capteurs Sabotage", "Sélection automatique par étiquette HA (ex: sabotage)", "tamper_sensors_labels", "mdi:tag-outline")}
+
           ${this._renderEntityListField("Capteurs Techniques", "Fumée, monoxyde de carbone, gaz, fuite d'eau", "safety_sensors", ["binary_sensor", "sensor"], "mdi:fire-alert")}
+          ${this._renderLabelsField("Étiquettes Capteurs Techniques", "Sélection automatique par étiquette HA (ex: technique, fumee)", "safety_sensors_labels", "mdi:tag-outline")}
         </div>
 
         <div class="config-card">
           <div class="config-card-title"><ha-icon icon="mdi:cctv" style="color:#10b981;"></ha-icon> Vidéosurveillance & Claviers</div>
           ${this._renderEntityListField("Caméras de Sécurité", "Caméras enregistrant des clichés et vidéos en cas d'intrusion", "cameras", ["camera"], "mdi:cctv")}
+          ${this._renderLabelsField("Étiquettes Caméras de Sécurité", "Sélection automatique par étiquette HA (ex: camera, video)", "cameras_labels", "mdi:tag-outline")}
+
           ${this._renderEntityListField("Activation Caméras à l'Armement", "Interrupteurs ou entités activant l'alimentation des caméras", "cameras_arm_entities", ["switch", "camera", "alarm_control_panel"], "mdi:camera-switch")}
+          ${this._renderLabelsField("Étiquettes Activation Caméras", "Sélection automatique par étiquette HA", "cameras_arm_entities_labels", "mdi:tag-outline")}
+
           ${this._renderEntityListField("Claviers Physiques / Déportés", "Claviers muraux ou panneaux tiers synchronisés", "keypads", ["alarm_control_panel", "sensor"], "mdi:dialpad")}
+          ${this._renderLabelsField("Étiquettes Claviers", "Sélection automatique par étiquette HA", "keypads_labels", "mdi:tag-outline")}
         </div>
       `;
     } else if (this._configSubTab === 'actuators') {
@@ -3427,14 +3587,23 @@ class DomolinkPanel extends HTMLElement {
         <div class="config-card">
           <div class="config-card-title"><ha-icon icon="mdi:bullhorn" style="color:#ef4444;"></ha-icon> Dissuasion & Sirènes</div>
           ${this._renderEntityListField("Sirènes d'Alarme", "Sirènes intérieures et extérieures à déclencher", "sirens", ["switch", "siren"], "mdi:bullhorn")}
+          ${this._renderLabelsField("Étiquettes Sirènes", "Sélection automatique par étiquette HA (ex: sirene)", "sirens_labels", "mdi:tag-outline")}
+
           ${this._renderEntityListField("Éclairages d'Urgence", "Lumières à faire clignoter ou allumer en continu lors d'une intrusion", "lights", ["light"], "mdi:alarm-light")}
+          ${this._renderLabelsField("Étiquettes Éclairages", "Sélection automatique par étiquette HA (ex: lumiere_alarme)", "lights_labels", "mdi:tag-outline")}
+
           ${this._renderEntityListField("Haut-parleurs & Annonces Vocales", "Enceintes diffusant des messages dissuasifs TTS", "media_players", ["media_player"], "mdi:speaker")}
+          ${this._renderLabelsField("Étiquettes Haut-parleurs", "Sélection automatique par étiquette HA (ex: enceinte)", "media_players_labels", "mdi:tag-outline")}
         </div>
 
         <div class="config-card">
           <div class="config-card-title"><ha-icon icon="mdi:bell-badge" style="color:#f59e0b;"></ha-icon> Notifications & Alertes Mobiles</div>
           ${this._renderEntityListField("Services de Notification", "Services d'envoi de notifications push (HA Companion, etc.)", "notify_services", ["notify", "script"], "mdi:bell-ring")}
+          ${this._renderLabelsField("Étiquettes Services Notification", "Sélection automatique par étiquette HA (ex: notification)", "notify_services_labels", "mdi:tag-outline")}
+
           ${this._renderEntityListField("Contacts d'Urgence", "Destinataires secondaires prévenus en cas de confirmation d'intrusion", "emergency_contact", ["notify", "script"], "mdi:account-alert")}
+          ${this._renderLabelsField("Étiquettes Contacts d'Urgence", "Sélection automatique par étiquette HA", "emergency_contact_labels", "mdi:tag-outline")}
+
           ${this._renderTextField("Free Mobile — Utilisateur", "Identifiant abonné Free Mobile pour alertes SMS directes (Optionnel)", "free_mobile_user", "mdi:cellphone-message")}
           ${this._renderPasswordField("Free Mobile — Clé API", "Clé d'accès API notifications SMS Free Mobile", "free_mobile_pass", "mdi:key")}
           ${this._renderLabelsField("iCloud — Noms des Appareils", "Noms des appareils Apple à faire sonner en urgence (Find My)", "icloud_devices", "mdi:apple")}
@@ -3443,6 +3612,7 @@ class DomolinkPanel extends HTMLElement {
         <div class="config-card">
           <div class="config-card-title"><ha-icon icon="mdi:home-clock" style="color:#8b5cf6;"></ha-icon> Simulation de Présence</div>
           ${this._renderEntityListField("Appareils Rejoués", "Lumières, volets et prises rejouant vos habitudes passées", "presence_simulation_entities", ["light", "switch", "cover"], "mdi:lightbulb-multiple")}
+          ${this._renderLabelsField("Étiquettes Simulation de Présence", "Sélection automatique par étiquette HA (ex: simulation)", "presence_simulation_labels", "mdi:tag-outline")}
         </div>
       `;
     } else if (this._configSubTab === 'zones') {
@@ -3451,6 +3621,7 @@ class DomolinkPanel extends HTMLElement {
           <div class="config-card-title"><ha-icon icon="mdi:map-marker-radius" style="color:#f59e0b;"></ha-icon> Zones de Surveillance Ciblée</div>
           ${this._renderLabelsField("Étiquettes des Zones (Labels)", "Noms des zones créées dans Home Assistant (ex: Jardin, Étage, Salon)", "zone_labels", "mdi:tag-multiple")}
           ${this._renderEntityListField("Caméras Globales", "Caméras capturant des clichés quelle que soit la zone déclenchée", "global_cameras", ["camera"], "mdi:earth")}
+          ${this._renderLabelsField("Étiquettes Caméras Globales", "Sélection automatique par étiquette HA", "global_cameras_labels", "mdi:tag-outline")}
         </div>
       `;
     } else if (this._configSubTab === 'logic') {
@@ -3458,6 +3629,7 @@ class DomolinkPanel extends HTMLElement {
         <div class="config-card">
           <div class="config-card-title"><ha-icon icon="mdi:account-lock" style="color:#10b981;"></ha-icon> Utilisateurs, Codes PIN & Badges</div>
           ${this._renderEntityListField("Personnes & Présence", "Membres du foyer pour l'armement/désarmement géolocalisé", "persons", ["person"], "mdi:account-group")}
+          ${this._renderLabelsField("Étiquettes Personnes", "Sélection automatique par étiquette HA", "persons_labels", "mdi:tag-outline")}
           ${this._renderTextField("Utilisateurs & Codes PIN", "Format : Prénom:CodePIN séparés par des virgules (ex: Jean:1234, Marie:5678)", "users_codes", "mdi:account-key")}
           ${this._renderTextField("Code sous contrainte (Duress)", "Code secret désarmant l'alarme tout en envoyant une alerte silencieuse", "duress_code", "mdi:shield-alert-outline")}
           ${this._renderTextField("Badges RFID", "Format : IdentifiantBadge:Nom séparés par des virgules (ex: 04-7A-5B:Jean, 8F-B2:Marie)", "rfid_tags", "mdi:nfc-variant")}
@@ -3534,9 +3706,36 @@ class DomolinkPanel extends HTMLElement {
         </div>
 
         <div class="config-card">
-          <div class="config-card-title"><ha-icon icon="mdi:server-network" style="color:#10b981;"></ha-icon> Serveur FTP (NAS Asustor / Synology / Cloud)</div>
-          ${this._renderToggleField("Activer le transfert FTP", "Téléverse automatiquement photos et vidéos lors des déclenchements", "ftp_enabled", "mdi:upload-network")}
-          ${this._renderTextField("Hôte FTP", "Adresse IP locale ou nom de domaine du NAS", "ftp_host", "mdi:ip-network", "text", "192.168.1.50")}
+          <div class="config-card-title"><ha-icon icon="mdi:nas" style="color:#f59e0b;"></ha-icon> Profil & Constructeur de NAS</div>
+          <div style="font-size:12px; color:var(--d-subtext); margin-bottom:12px;">
+            Sélectionnez votre modèle de NAS pour adapter les protocoles recommandés, ports et arborescences types :
+          </div>
+          <div class="nas-selector-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(120px, 1fr)); gap:10px; margin-bottom:8px;">
+            ${[
+              { key: "asustor", label: "ASUSTOR", icon: "mdi:server", desc: "ADM • FTP 21 / WebDAV 8001" },
+              { key: "synology", label: "Synology", icon: "mdi:nas", desc: "DSM • FTP 21 / WebDAV 5006" },
+              { key: "qnap", label: "QNAP", icon: "mdi:server-network", desc: "QTS • FTP 21 / WebDAV 5001" },
+              { key: "truenas", label: "TrueNAS", icon: "mdi:harddisk", desc: "SCALE/CORE • WebDAV" },
+              { key: "freebox", label: "Freebox", icon: "mdi:router-wireless", desc: "Delta/Ultra • FTP 21" },
+              { key: "unraid", label: "Unraid", icon: "mdi:server-security", desc: "Unraid OS • FTP/WebDAV" },
+              { key: "generic", label: "Autre NAS", icon: "mdi:cog-box", desc: "Configuration libre" }
+            ].map(nas => {
+              const active = (this._configDraft.nas_type || "asustor") === nas.key;
+              return `
+                <div class="nas-profile-card ${active ? 'active' : ''}" data-nas="${nas.key}" style="border-radius:12px; padding:10px 8px; cursor:pointer; border:1px solid ${active ? '#f59e0b' : 'var(--d-border)'}; background:${active ? 'rgba(245,158,11,0.14)' : 'var(--d-card-bg)'}; text-align:center; transition:all 0.2s ease;">
+                  <ha-icon icon="${nas.icon}" style="--mdc-icon-size:24px; color:${active ? '#f59e0b' : 'var(--d-subtext)'};"></ha-icon>
+                  <div style="font-size:13px; font-weight:800; color:${active ? '#f59e0b' : 'var(--d-text)'}; margin-top:4px;">${nas.label}</div>
+                  <div style="font-size:10px; color:var(--d-subtext); margin-top:2px;">${nas.desc}</div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+
+        <div class="config-card">
+          <div class="config-card-title"><ha-icon icon="mdi:server-network" style="color:#10b981;"></ha-icon> Serveur FTP — ${{"asustor": "ASUSTOR", "synology": "Synology", "qnap": "QNAP", "truenas": "TrueNAS", "freebox": "Freebox", "unraid": "Unraid"}[this._configDraft.nas_type || "asustor"] || "NAS / Serveur"}</div>
+          ${this._renderToggleField("Activer le transfert FTP", "Téléverse automatiquement photos et vidéos lors des déclenchements d'alarme", "ftp_enabled", "mdi:upload-network")}
+          ${this._renderTextField("Hôte FTP", "Adresse IP locale ou nom d'hôte du NAS", "ftp_host", "mdi:ip-network", "text", this._configDraft.nas_type === 'freebox' ? 'mafreebox.freebox.fr' : '192.168.1.50')}
           ${this._renderNumberField("Port FTP", "Port de connexion FTP standard", "ftp_port", "mdi:numeric", 1, 65535, 1, "")}
           ${this._renderTextField("Identifiant FTP", "Nom d'utilisateur du compte NAS", "ftp_user", "mdi:account")}
           ${this._renderPasswordField("Mot de passe FTP", "Mot de passe du compte FTP", "ftp_pass", "mdi:lock")}
@@ -3544,10 +3743,10 @@ class DomolinkPanel extends HTMLElement {
         </div>
 
         <div class="config-card">
-          <div class="config-card-title"><ha-icon icon="mdi:cloud-sync" style="color:#8b5cf6;"></ha-icon> Sauvegarde Multi-Cloud WebDAV / Nextcloud / Synology</div>
-          ${this._renderToggleField("Activer la sauvegarde WebDAV", "Téléverse automatiquement photos et vidéos sur votre serveur WebDAV / Nextcloud", "webdav_enabled", "mdi:cloud-upload")}
-          ${this._renderTextField("URL du serveur WebDAV", "Ex: https://cloud.domaine.fr/remote.php/dav/files/utilisateur/", "webdav_url", "mdi:web", "text", "https://cloud.domaine.fr/remote.php/dav/files/user/")}
-          ${this._renderTextField("Identifiant WebDAV", "Nom d'utilisateur Nextcloud / WebDAV", "webdav_user", "mdi:account")}
+          <div class="config-card-title"><ha-icon icon="mdi:cloud-sync" style="color:#8b5cf6;"></ha-icon> Sauvegarde Multi-Cloud WebDAV / Nextcloud / NAS</div>
+          ${this._renderToggleField("Activer la sauvegarde WebDAV", "Téléverse automatiquement photos et vidéos sur votre serveur WebDAV / Nextcloud / NAS", "webdav_enabled", "mdi:cloud-upload")}
+          ${this._renderTextField("URL du serveur WebDAV", "Ex: https://nas.local:5006/ ou https://cloud.domaine.fr/remote.php/dav/files/user/", "webdav_url", "mdi:web", "text", "https://cloud.domaine.fr/remote.php/dav/files/user/")}
+          ${this._renderTextField("Identifiant WebDAV", "Nom d'utilisateur WebDAV / Nextcloud", "webdav_user", "mdi:account")}
           ${this._renderPasswordField("Mot de passe / Token d'application", "Mot de passe de compte ou token d'application WebDAV", "webdav_pass", "mdi:lock")}
           ${this._renderTextField("Dossier distant de sauvegarde", "Chemin relatif sur le serveur (ex: domolink/alarm)", "webdav_path", "mdi:folder-network", "text", "domolink/alarm")}
           <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--d-border-light); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
@@ -3557,6 +3756,41 @@ class DomolinkPanel extends HTMLElement {
             <button class="btn-test-webdav-cfg" id="btn-test-webdav-cfg" style="padding:8px 14px; border-radius:10px; border:1px solid rgba(139,92,246,0.4); background:rgba(139,92,246,0.12); color:#a855f7; font-size:12px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:6px; transition:all 0.2s;">
               <ha-icon icon="mdi:cloud-check" style="--mdc-icon-size:16px;"></ha-icon>
               <span>Tester la connexion WebDAV</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="config-card">
+          <div class="config-card-title"><ha-icon icon="mdi:google-drive" style="color:#34a853;"></ha-icon> Sauvegarde Cloud Google Drive</div>
+          ${this._renderToggleField("Activer la sauvegarde Google Drive", "Téléverse automatiquement les clichés et vidéos vers Google Drive", "google_drive_enabled", "mdi:cloud-upload")}
+          ${this._renderSelectField("Méthode de synchronisation", "Mode de liaison avec Google Drive", "google_drive_method", "mdi:transfer", [
+            { value: "webhook", label: "Webhook Google Apps Script (Recommandé — Simple & Sans OAuth)" },
+            { value: "oauth", label: "API Google Drive REST / OAuth2 (Google Cloud Console)" },
+          ])}
+
+          ${(this._configDraft.google_drive_method || 'webhook') === 'webhook' ? `
+            ${this._renderTextField("URL du Webhook Google Apps Script", "URL de déploiement Web App Google Apps Script", "google_drive_webhook_url", "mdi:link-variant", "text", "https://script.google.com/macros/s/.../exec")}
+            ${this._renderTextField("ID de dossier Google Drive (Optionnel)", "ID du dossier cible (laissez vide pour enregistrer à la racine)", "google_drive_folder_id", "mdi:folder-google-drive", "text", "")}
+            <div style="margin-top:10px; background:rgba(52,168,83,0.08); border:1px solid rgba(52,168,83,0.25); border-radius:10px; padding:10px 12px; font-size:11px; line-height:1.5; color:var(--d-text);">
+              <div style="font-weight:800; color:#34a853; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
+                <ha-icon icon="mdi:information" style="--mdc-icon-size:16px;"></ha-icon> Configuration Webhook en 1 minute
+              </div>
+              Dans <a href="https://script.google.com" target="_blank" style="color:#38bdf8; text-decoration:underline; font-weight:700;">script.google.com</a>, créez un projet avec <code>doPost(e)</code>, déployez-le en <strong>Application Web</strong> accessible à <em>« Tout le monde »</em> et collez son URL ci-dessus.
+            </div>
+          ` : `
+            ${this._renderTextField("Google Client ID", "Client ID OAuth 2.0 Google Cloud", "google_drive_client_id", "mdi:account-key")}
+            ${this._renderPasswordField("Google Client Secret", "Code secret Client Secret OAuth 2.0", "google_drive_client_secret", "mdi:key")}
+            ${this._renderPasswordField("Google Refresh Token", "Refresh token OAuth2 avec scope drive.file", "google_drive_refresh_token", "mdi:refresh-auto")}
+            ${this._renderTextField("ID de dossier Google Drive (Optionnel)", "ID du dossier cible (laissez vide pour enregistrer à la racine)", "google_drive_folder_id", "mdi:folder-google-drive", "text", "")}
+          `}
+
+          <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--d-border-light); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+            <div style="font-size:12px; color:var(--d-subtext);">
+              Testez la synchronisation avec votre Google Drive avant d'enregistrer la configuration
+            </div>
+            <button class="btn-test-gdrive-cfg" id="btn-test-gdrive-cfg" style="padding:8px 14px; border-radius:10px; border:1px solid rgba(52,168,83,0.4); background:rgba(52,168,83,0.12); color:#34a853; font-size:12px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:6px; transition:all 0.2s;">
+              <ha-icon icon="mdi:google-drive" style="--mdc-icon-size:16px;"></ha-icon>
+              <span>Tester la connexion Google Drive</span>
             </button>
           </div>
         </div>
@@ -3581,7 +3815,7 @@ class DomolinkPanel extends HTMLElement {
             <div>
               <div style="font-size:18px; font-weight:800; color:var(--d-text); display:flex; align-items:center; gap:8px;">
                 Centre de Configuration
-                <span class="nav-badge-pill badge-version">v0.9.60</span>
+                <span class="nav-badge-pill badge-version">v0.9.61</span>
               </div>
               <div style="font-size:12px; color:var(--d-subtext); margin-top:3px;">
                 Modifiez vos équipements, délais, notifications et sauvegardes en toute simplicité
@@ -3799,6 +4033,41 @@ class DomolinkPanel extends HTMLElement {
         this._hass.callService('domolink_alarm', 'test_webdav', {});
       });
     }
+
+    // Google Drive Test from Config Tab
+    const gdriveCfgBtn = container.querySelector('#btn-test-gdrive-cfg');
+    if (gdriveCfgBtn) {
+      gdriveCfgBtn.addEventListener('click', () => {
+        this._showGoogleDriveTestConsole = true;
+        this._activeTab = 'arm';
+        this.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.getAttribute('data-tab') === 'arm'));
+        this.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'pane-arm'));
+        this._lastArmKey = '';
+        this.render();
+        this._hass.callService('domolink_alarm', 'test_google_drive', {});
+      });
+    }
+
+    // Multi-NAS Profile Cards Selection
+    container.querySelectorAll('.nas-profile-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const nas = card.getAttribute('data-nas');
+        if (!nas) return;
+        this._configDraft.nas_type = nas;
+        if (nas === 'freebox' && (!this._configDraft.ftp_host || this._configDraft.ftp_host === '192.168.1.50')) {
+          this._configDraft.ftp_host = 'mafreebox.freebox.fr';
+          this._configDraft.ftp_port = 21;
+          this._configDraft.ftp_user = 'freebox';
+        } else if (nas === 'synology') {
+          if (!this._configDraft.ftp_port) this._configDraft.ftp_port = 21;
+        } else if (nas === 'asustor') {
+          if (!this._configDraft.ftp_port) this._configDraft.ftp_port = 21;
+        } else if (nas === 'qnap') {
+          if (!this._configDraft.ftp_port) this._configDraft.ftp_port = 21;
+        }
+        this._renderParamTab(alarmEntity);
+      });
+    });
   }
 
   // ─── Dynamic Navigation Badges ──────────────────
@@ -3986,10 +4255,12 @@ class DomolinkPanel extends HTMLElement {
     if (elParam) {
       const isFtp = Boolean(attrs.ftp_enabled);
       const isDav = Boolean(attrs.webdav_enabled);
-      const cloudLabel = (isFtp && isDav) ? 'MULTI-CLOUD' : (isDav ? 'WEBDAV' : (isFtp ? 'FTP' : 'LOCAL'));
+      const isGdrive = Boolean(attrs.google_drive_enabled);
+      const countCloud = (isFtp ? 1 : 0) + (isDav ? 1 : 0) + (isGdrive ? 1 : 0);
+      const cloudLabel = countCloud > 1 ? 'MULTI-CLOUD' : (isGdrive ? 'G-DRIVE' : (isDav ? 'WEBDAV' : (isFtp ? 'FTP' : 'LOCAL')));
       elParam.innerHTML = `
         <div class="nav-badge-stack">
-          <span class="nav-badge-pill badge-version">v0.9.60</span>
+          <span class="nav-badge-pill badge-version">v0.9.61</span>
           <span class="nav-badge-pill badge-neutral">${cloudLabel}</span>
         </div>
       `;
