@@ -1111,7 +1111,7 @@ class DomolinkPanel extends HTMLElement {
     const telegramStatus = attrs.telegram_status || 'Inconnu';
     const ftpStatus = attrs.ftp_status || 'Inconnu';
     const camerasArmed = attrs.cameras_armed || false;
-    if (attrs.ftp_test_running) {
+    if (attrs.ftp_test_running && this._showFtpTestConsole !== false) {
       this._showFtpTestConsole = true;
     }
 
@@ -1514,8 +1514,12 @@ class DomolinkPanel extends HTMLElement {
               ${Array.isArray(attrs.ftp_test_logs) && attrs.ftp_test_logs.length > 0 ? attrs.ftp_test_logs.map(log => {
                 const color = log.level === 'error' ? '#f87171' : (log.level === 'success' ? '#4ade80' : (log.level === 'warning' ? '#fbbf24' : '#94a3b8'));
                 const icon = log.level === 'error' ? '❌' : (log.level === 'success' ? '✅' : (log.level === 'warning' ? '⚠️' : '▶'));
-                return `<div style="color:${color}; margin-bottom:2px;"><span style="color:#64748b; margin-right:6px;">[${log.time || ''}]</span> <span style="margin-right:4px;">${icon}</span> ${this.escapeHtml(log.message || '')}</div>`;
-              }).join('') : `<div style="color:#64748b; font-style:italic;">Démarrage du test...</div>`}
+              }).join('') : `
+                <div style="display:flex; align-items:center; gap:8px; color:#94a3b8; font-style:italic; padding:6px 0;">
+                  <ha-icon icon="mdi:loading" class="spin" style="--mdc-icon-size:15px; color:#38bdf8;"></ha-icon>
+                  <span>Démarrage du test de connexion FTP...</span>
+                </div>
+              `}
             </div>
 
             <!-- Result Summary Banner -->
@@ -1755,11 +1759,12 @@ class DomolinkPanel extends HTMLElement {
       const triggerTestFtp = async () => {
         this._showFtpTestConsole = true;
         this._lastArmKey = '';
-        this._renderAlarmTab(attrs);
+        this.render();
         try {
           await this._hass.callService('domolink_alarm', 'test_ftp', {});
         } catch (err) {
           console.error("Erreur lors du lancement du test FTP:", err);
+          alert("Erreur lors du lancement du test FTP : " + (err.message || err));
         }
       };
 
@@ -1775,7 +1780,7 @@ class DomolinkPanel extends HTMLElement {
           ev.stopPropagation();
           this._showFtpTestConsole = false;
           this._lastArmKey = '';
-          this._renderAlarmTab(attrs);
+          this.render();
         });
       });
 

@@ -559,8 +559,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             "camera_test_info": getattr(self, "_camera_test_info", {}),
             "ftp_host": getattr(self, "_ftp_host", ""),
             "ftp_test_running": getattr(self, "_ftp_test_running", False),
-            "ftp_test_logs": getattr(self, "_ftp_test_logs", []),
-            "ftp_test_result": getattr(self, "_ftp_test_result", {}),
+            "ftp_test_logs": list(getattr(self, "_ftp_test_logs", [])),
+            "ftp_test_result": dict(getattr(self, "_ftp_test_result", {})),
         }
 
     async def async_bypass_sensor(self, entity_id: str):
@@ -2108,6 +2108,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
     async def _async_run_ftp_test(self):
         """Run FTP test in executor and report logs thread-safely."""
         def log_step(msg, level="info"):
+            _LOGGER.info("Domolink FTP test: %s", msg)
             self.hass.loop.call_soon_threadsafe(self._append_ftp_log, msg, level)
 
         def run_test_sync():
