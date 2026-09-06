@@ -128,3 +128,7 @@ media_action:
       required: false
       selector:
         text: {}
+
+test_ftp:
+  name: Tester la connexion FTP
+  description: Force un test complet de connexion au serveur FTP avec diagnostic détaillé, vérification de l'arborescence domolink/alarm et test des droits d'écriture.

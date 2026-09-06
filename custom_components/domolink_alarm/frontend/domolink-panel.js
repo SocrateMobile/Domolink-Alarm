@@ -362,6 +362,13 @@ class DomolinkPanel extends HTMLElement {
           0% { transform: translateX(-100%); }
           100% { transform: translateX(100%); }
         }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .spin {
+          animation: spin 1s linear infinite;
+        }
         .camera-img-stream {
           width: 100%;
           height: 100%;
@@ -1104,6 +1111,9 @@ class DomolinkPanel extends HTMLElement {
     const telegramStatus = attrs.telegram_status || 'Inconnu';
     const ftpStatus = attrs.ftp_status || 'Inconnu';
     const camerasArmed = attrs.cameras_armed || false;
+    if (attrs.ftp_test_running) {
+      this._showFtpTestConsole = true;
+    }
 
     // 4. Alert Bottom Encadré
     let alertTitle = 'ALERTE';
@@ -1444,14 +1454,18 @@ class DomolinkPanel extends HTMLElement {
             </div>
             
             <!-- FTP -->
-            <div style="flex:1; background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border); padding:10px 12px; display:flex; align-items:center; gap:10px; box-shadow:0 2px 10px rgba(0,0,0,0.02);">
-              <div style="width:36px; height:36px; border-radius:10px; background:${ftpStatus === 'Désactivé' ? 'var(--d-border)' : (ftpStatus === 'Connecté' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)')}; display:flex; align-items:center; justify-content:center; color:${ftpStatus === 'Désactivé' ? 'var(--d-subtext)' : (ftpStatus === 'Connecté' ? '#10b981' : '#ef4444')};">
+            <div style="flex:1; background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border); padding:10px 12px; display:flex; align-items:center; gap:8px; box-shadow:0 2px 10px rgba(0,0,0,0.02); min-width:0;">
+              <div style="width:36px; height:36px; min-width:36px; border-radius:10px; background:${ftpStatus === 'Désactivé' ? 'var(--d-border)' : (ftpStatus === 'Connecté' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)')}; display:flex; align-items:center; justify-content:center; color:${ftpStatus === 'Désactivé' ? 'var(--d-subtext)' : (ftpStatus === 'Connecté' ? '#10b981' : '#ef4444')};">
                 <ha-icon icon="mdi:folder-network"></ha-icon>
               </div>
               <div style="flex-grow:1; min-width:0;">
                 <div style="font-size:10px; font-weight:800; color:var(--d-subtext); text-transform:uppercase; letter-spacing:0.5px;">Cloud FTP</div>
                 <div style="font-size:12px; font-weight:800; color:var(--d-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${ftpStatus}</div>
               </div>
+              <button class="btn-test-ftp" title="Tester la connexion au serveur FTP" style="padding:4px 8px; font-size:10px; font-weight:800; border-radius:8px; border:1px solid ${attrs.ftp_test_running ? 'rgba(245,158,11,0.5)' : 'rgba(59,130,246,0.4)'}; background:${attrs.ftp_test_running ? 'rgba(245,158,11,0.15)' : 'rgba(59,130,246,0.12)'}; color:${attrs.ftp_test_running ? '#f59e0b' : '#3b82f6'}; cursor:pointer; display:flex; align-items:center; gap:3px; transition:all 0.2s; white-space:nowrap;">
+                <ha-icon icon="${attrs.ftp_test_running ? 'mdi:loading' : 'mdi:lan-connect'}" style="--mdc-icon-size:13px; ${attrs.ftp_test_running ? 'animation: spin 1s linear infinite;' : ''}"></ha-icon>
+                <span>${attrs.ftp_test_running ? 'TEST...' : 'TEST'}</span>
+              </button>
             </div>
             
             <!-- Cameras -->
@@ -1465,6 +1479,79 @@ class DomolinkPanel extends HTMLElement {
               </div>
             </div>
           </div>
+
+          <!-- Console de Test & Diagnostic FTP -->
+          ${this._showFtpTestConsole ? `
+          <div style="margin-top:14px; background:#0f172a; border:1px solid rgba(59,130,246,0.35); border-radius:14px; padding:12px 14px; box-shadow:0 8px 24px rgba(0,0,0,0.3); color:#f8fafc;">
+            <!-- Header -->
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:8px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <ha-icon icon="mdi:console-network" style="--mdc-icon-size:18px; color:#38bdf8;"></ha-icon>
+                <span style="font-size:12px; font-weight:800; letter-spacing:0.5px; text-transform:uppercase; color:#e2e8f0;">Diagnostic de Connexion FTP</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                ${attrs.ftp_test_running ? `
+                  <span style="display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; color:#f59e0b; background:rgba(245,158,11,0.15); padding:2px 8px; border-radius:6px;">
+                    <ha-icon icon="mdi:loading" style="--mdc-icon-size:13px; animation:spin 1s linear infinite;"></ha-icon> En cours...
+                  </span>
+                ` : (attrs.ftp_test_result && attrs.ftp_test_result.success ? `
+                  <span style="display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; color:#10b981; background:rgba(16,185,129,0.15); padding:2px 8px; border-radius:6px;">
+                    <ha-icon icon="mdi:check-circle" style="--mdc-icon-size:13px;"></ha-icon> Connecté
+                  </span>
+                ` : (attrs.ftp_test_result && attrs.ftp_test_result.success === false ? `
+                  <span style="display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; color:#ef4444; background:rgba(239,68,68,0.15); padding:2px 8px; border-radius:6px;">
+                    <ha-icon icon="mdi:alert-circle" style="--mdc-icon-size:13px;"></ha-icon> Erreur
+                  </span>
+                ` : ''))}
+                <button class="btn-close-ftp-test" title="Fermer la console" style="background:transparent; border:none; color:#94a3b8; cursor:pointer; padding:2px 6px; font-size:16px; font-weight:700; border-radius:4px; line-height:1;">
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <!-- Terminal logs window -->
+            <div id="ftp-test-logs" style="background:#020617; border-radius:8px; padding:10px 12px; max-height:160px; min-height:80px; overflow-y:auto; font-family:'SF Mono', Monaco, Menlo, Consolas, monospace; font-size:11px; line-height:1.6; border:1px solid rgba(255,255,255,0.06);">
+              ${Array.isArray(attrs.ftp_test_logs) && attrs.ftp_test_logs.length > 0 ? attrs.ftp_test_logs.map(log => {
+                const color = log.level === 'error' ? '#f87171' : (log.level === 'success' ? '#4ade80' : (log.level === 'warning' ? '#fbbf24' : '#94a3b8'));
+                const icon = log.level === 'error' ? '❌' : (log.level === 'success' ? '✅' : (log.level === 'warning' ? '⚠️' : '▶'));
+                return `<div style="color:${color}; margin-bottom:2px;"><span style="color:#64748b; margin-right:6px;">[${log.time || ''}]</span> <span style="margin-right:4px;">${icon}</span> ${this.escapeHtml(log.message || '')}</div>`;
+              }).join('') : `<div style="color:#64748b; font-style:italic;">Démarrage du test...</div>`}
+            </div>
+
+            <!-- Result Summary Banner -->
+            ${attrs.ftp_test_result && attrs.ftp_test_result.success ? `
+              <div style="margin-top:10px; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.4); border-radius:8px; padding:8px 12px; display:flex; align-items:center; gap:10px;">
+                <ha-icon icon="mdi:folder-check" style="--mdc-icon-size:22px; color:#10b981; flex-shrink:0;"></ha-icon>
+                <div style="font-size:11px; color:#e2e8f0; line-height:1.4;">
+                  <strong style="color:#10b981;">Connexion FTP acceptée avec succès !</strong><br>
+                  <span>Chemin de sauvegarde sur le serveur : </span>
+                  <code style="background:rgba(0,0,0,0.4); color:#38bdf8; padding:2px 6px; border-radius:4px; font-weight:700; font-size:11px;">${this.escapeHtml(attrs.ftp_test_result.save_path || 'domolink/alarm')}</code>
+                </div>
+              </div>
+            ` : (attrs.ftp_test_result && attrs.ftp_test_result.success === false ? `
+              <div style="margin-top:10px; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.4); border-radius:8px; padding:8px 12px; display:flex; align-items:center; gap:10px;">
+                <ha-icon icon="mdi:alert-octagon" style="--mdc-icon-size:22px; color:#ef4444; flex-shrink:0;"></ha-icon>
+                <div style="font-size:11px; color:#e2e8f0; line-height:1.4;">
+                  <strong style="color:#ef4444;">Échec de la connexion FTP :</strong>
+                  <div style="color:#fca5a5; margin-top:2px;">${this.escapeHtml(attrs.ftp_test_result.message || 'Erreur inconnue')}</div>
+                </div>
+              </div>
+            ` : '')}
+
+            <!-- Footer actions -->
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+              <span style="font-size:10px; color:#64748b;">Hôte : ${this.escapeHtml(attrs.ftp_host || 'NAS')}</span>
+              <div style="display:flex; gap:8px;">
+                <button class="btn-test-ftp" style="background:rgba(59,130,246,0.15); border:1px solid rgba(59,130,246,0.4); color:#60a5fa; padding:5px 12px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:5px;">
+                  <ha-icon icon="mdi:refresh" style="--mdc-icon-size:13px;"></ha-icon> Relancer
+                </button>
+                <button class="btn-close-ftp-test" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#cbd5e1; padding:5px 12px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">
+                  Fermer
+                </button>
+              </div>
+            </div>
+          </div>
+          ` : ''}
 
           <!-- Bouton Test d'enregistrement vidéo (Colonne centrale) -->
           <div style="margin-top:14px;">
@@ -1528,7 +1615,7 @@ class DomolinkPanel extends HTMLElement {
       </div>
     `;
 
-    const armCacheKey = `${state}_${attrs.last_user}_${attrs.triggered_by}_${this._selectedCameraIndex}_${totalSensorsCount}_${activeTriggers.length}_${isArmed}_${telegramStatus}_${ftpStatus}_${camerasArmed}_${attrs.camera_test_running}_${JSON.stringify(attrs.camera_test_info || {})}`;
+    const armCacheKey = `${state}_${attrs.last_user}_${attrs.triggered_by}_${this._selectedCameraIndex}_${totalSensorsCount}_${activeTriggers.length}_${isArmed}_${telegramStatus}_${ftpStatus}_${camerasArmed}_${attrs.camera_test_running}_${JSON.stringify(attrs.camera_test_info || {})}_${attrs.ftp_test_running}_${this._showFtpTestConsole}_${(attrs.ftp_test_logs || []).length}_${JSON.stringify(attrs.ftp_test_result || {})}`;
     if (this._lastArmKey !== armCacheKey) {
       this._lastArmKey = armCacheKey;
       container.innerHTML = html;
@@ -1663,6 +1750,43 @@ class DomolinkPanel extends HTMLElement {
       container.querySelectorAll('.btn-test-cameras-record').forEach(btn => {
         btn.addEventListener('click', triggerTestCameras);
       });
+
+      // Test FTP Connection Buttons
+      const triggerTestFtp = async () => {
+        this._showFtpTestConsole = true;
+        this._lastArmKey = '';
+        this._renderAlarmTab(attrs);
+        try {
+          await this._hass.callService('domolink_alarm', 'test_ftp', {});
+        } catch (err) {
+          console.error("Erreur lors du lancement du test FTP:", err);
+        }
+      };
+
+      container.querySelectorAll('.btn-test-ftp').forEach(btn => {
+        btn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          triggerTestFtp();
+        });
+      });
+
+      container.querySelectorAll('.btn-close-ftp-test').forEach(btn => {
+        btn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          this._showFtpTestConsole = false;
+          this._lastArmKey = '';
+          this._renderAlarmTab(attrs);
+        });
+      });
+
+      if (this._showFtpTestConsole) {
+        setTimeout(() => {
+          const ftpLogEl = container.querySelector('#ftp-test-logs');
+          if (ftpLogEl) {
+            ftpLogEl.scrollTop = ftpLogEl.scrollHeight;
+          }
+        }, 50);
+      }
     }
   }
 
