@@ -3633,6 +3633,106 @@ class DomolinkPanel extends HTMLElement {
     `;
   }
 
+  _getGoogleAppsScriptCode() {
+    return `/**
+ * =========================================================================
+ *  DOMOLINK ALARM — Google Apps Script Webhook pour Sauvegarde Google Drive
+ * =========================================================================
+ * 
+ * Instructions de déploiement en 1 minute :
+ * 1. Rendez-vous sur https://script.google.com et créez un "Nouveau projet".
+ * 2. Remplacez TOUT le code existant par ce script.
+ * 3. Cliquez sur "Déployer" (en haut à droite) > "Nouveau déploiement".
+ * 4. Cliquez sur l'engrenage "Sélectionner le type" > choisissez "Application Web".
+ * 5. Configurez impérativement :
+ *    - Exécuter en tant que : "Moi" (votre compte Google)
+ *    - Qui a accès : "Tout le monde" (Anyone)
+ * 6. Cliquez sur "Déployer", autorisez les accès Google Drive.
+ * 7. Copiez l'URL de l'application Web (se terminant par /exec) et collez-la dans Domolink Alarm !
+ */
+
+function doPost(e) {
+  try {
+    if (!e || !e.postData || !e.postData.contents) {
+      return ContentService.createTextOutput(JSON.stringify({
+        success: false,
+        code: 400,
+        message: "Corps de requête vide."
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    var data = JSON.parse(e.postData.contents);
+
+    // 1. Sonde de test diagnostic Domolink Alarm
+    if (data.probe === true) {
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        code: 200,
+        status: "ok",
+        message: "Diagnostic Domolink Alarm réussi : Webhook Google Drive opérationnel !"
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // 2. Traitement du fichier média
+    var filename = data.filename || ("domolink_" + Utilities.formatDate(new Date(), "GMT", "yyyyMMdd_HHmmss") + ".jpg");
+    var mimeType = data.mime_type || "image/jpeg";
+    var folderId = (data.folder_id || "").toString().trim();
+    var fileBase64 = data.file_base64;
+
+    if (!fileBase64) {
+      return ContentService.createTextOutput(JSON.stringify({
+        success: false,
+        code: 400,
+        message: "Contenu base64 manquant."
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    var fileBytes = Utilities.base64Decode(fileBase64);
+    var blob = Utilities.newBlob(fileBytes, mimeType, filename);
+
+    // 3. Dossier cible
+    var targetFolder;
+    if (folderId !== "") {
+      try {
+        targetFolder = DriveApp.getFolderById(folderId);
+      } catch (err) {
+        targetFolder = null;
+      }
+    }
+    if (!targetFolder) {
+      var folderName = "Domolink Alarm";
+      var folders = DriveApp.getFoldersByName(folderName);
+      targetFolder = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
+    }
+
+    // 4. Enregistrement sur Drive
+    var driveFile = targetFolder.createFile(blob);
+    return ContentService.createTextOutput(JSON.stringify({
+      success: true,
+      code: 200,
+      file_id: driveFile.getId(),
+      file_name: driveFile.getName(),
+      file_url: driveFile.getUrl()
+    })).setMimeType(ContentService.MimeType.JSON);
+
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      code: 500,
+      message: err.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doGet(e) {
+  return ContentService.createTextOutput(JSON.stringify({
+    success: true,
+    status: "online",
+    service: "Domolink Alarm Google Drive Webhook"
+  })).setMimeType(ContentService.MimeType.JSON);
+}`;
+  }
+
   _renderTestBadge(testResult) {
     if (!testResult) {
       return `<span style="display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:12px; font-size:10px; font-weight:700; background:rgba(148,163,184,0.12); color:var(--d-subtext); border:1px solid rgba(148,163,184,0.25);">Non testé</span>`;
@@ -3922,25 +4022,45 @@ class DomolinkPanel extends HTMLElement {
           <div style="font-size:12px; color:var(--d-subtext); margin-bottom:12px;">
             Sélectionnez votre modèle de NAS pour adapter les protocoles recommandés, ports et arborescences types :
           </div>
-          <div class="nas-selector-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(120px, 1fr)); gap:10px; margin-bottom:8px;">
+          <div class="nas-selector-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:10px; margin-bottom:8px;">
             ${[
-              { key: "asustor", label: "ASUSTOR", icon: "mdi:server", desc: "ADM • FTP 21 / WebDAV 8001" },
-              { key: "synology", label: "Synology", icon: "mdi:nas", desc: "DSM • FTP 21 / WebDAV 5006" },
-              { key: "qnap", label: "QNAP", icon: "mdi:server-network", desc: "QTS • FTP 21 / WebDAV 5001" },
-              { key: "truenas", label: "TrueNAS", icon: "mdi:harddisk", desc: "SCALE/CORE • WebDAV" },
-              { key: "freebox", label: "Freebox", icon: "mdi:router-wireless", desc: "Delta/Ultra • FTP 21" },
-              { key: "unraid", label: "Unraid", icon: "mdi:server-security", desc: "Unraid OS • FTP/WebDAV" },
-              { key: "generic", label: "Autre NAS", icon: "mdi:cog-box", desc: "Configuration libre" }
+              { key: "asustor", label: "ASUSTOR", icon: "mdi:server", desc: "ADM • FTP 21 / WebDAV 8001", proto: "both" },
+              { key: "synology", label: "Synology", icon: "mdi:nas", desc: "DSM • FTP 21 / WebDAV 5006", proto: "both" },
+              { key: "qnap", label: "QNAP", icon: "mdi:server-network", desc: "QTS • FTP 21 / WebDAV 5001", proto: "both" },
+              { key: "truenas", label: "TrueNAS", icon: "mdi:harddisk", desc: "SCALE/CORE • WebDAV", proto: "webdav" },
+              { key: "freebox", label: "Freebox", icon: "mdi:router-wireless", desc: "Delta/Ultra • FTP 21", proto: "ftp" },
+              { key: "unraid", label: "Unraid", icon: "mdi:server-security", desc: "Unraid OS • FTP/WebDAV", proto: "both" },
+              { key: "generic", label: "Autre NAS", icon: "mdi:cog-box", desc: "Configuration libre", proto: "both" }
             ].map(nas => {
               const active = curNas === nas.key;
               const nasRes = nasResults[nas.key] || nasResults[`${nas.key}_ftp`] || nasResults[`${nas.key}_webdav`];
               return `
-                <div class="nas-profile-card ${active ? 'active' : ''}" data-nas="${nas.key}" style="border-radius:12px; padding:10px 8px; cursor:pointer; border:1px solid ${active ? '#f59e0b' : 'var(--d-border)'}; background:${active ? 'rgba(245,158,11,0.14)' : 'var(--d-card-bg)'}; text-align:center; transition:all 0.2s ease;">
-                  <ha-icon icon="${nas.icon}" style="--mdc-icon-size:24px; color:${active ? '#f59e0b' : 'var(--d-subtext)'};"></ha-icon>
-                  <div style="font-size:13px; font-weight:800; color:${active ? '#f59e0b' : 'var(--d-text)'}; margin-top:4px;">${nas.label}</div>
-                  <div style="font-size:10px; color:var(--d-subtext); margin-top:2px;">${nas.desc}</div>
-                  <div class="nas-test-badge-container" data-nas="${nas.key}" style="margin-top:6px;">
-                    ${this._renderTestBadge(nasRes)}
+                <div class="nas-profile-card ${active ? 'active' : ''}" data-nas="${nas.key}" style="border-radius:12px; padding:10px 8px; cursor:pointer; border:1.5px solid ${active ? '#f59e0b' : 'var(--d-border)'}; background:${active ? 'rgba(245,158,11,0.14)' : 'var(--d-card-bg)'}; text-align:center; transition:all 0.2s ease; display:flex; flex-direction:column; justify-content:space-between;">
+                  <div>
+                    <ha-icon icon="${nas.icon}" style="--mdc-icon-size:24px; color:${active ? '#f59e0b' : 'var(--d-subtext)'};"></ha-icon>
+                    <div style="font-size:13px; font-weight:800; color:${active ? '#f59e0b' : 'var(--d-text)'}; margin-top:4px;">${nas.label}</div>
+                    <div style="font-size:10px; color:var(--d-subtext); margin-top:2px;">${nas.desc}</div>
+                    <div class="nas-test-badge-container" data-nas="${nas.key}" style="margin-top:6px;">
+                      ${this._renderTestBadge(nasRes)}
+                    </div>
+                  </div>
+                  <div style="margin-top:8px; display:flex; align-items:center; justify-content:center; gap:4px;">
+                    ${nas.proto === 'ftp' ? `
+                      <button type="button" class="btn-nas-card-test" data-nas="${nas.key}" data-proto="ftp" title="Tester FTP pour ${nas.label}" style="width:100%; padding:4px 6px; border-radius:7px; border:1px solid rgba(16,185,129,0.4); background:rgba(16,185,129,0.14); color:#10b981; font-size:10.5px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:3px;">
+                        <ha-icon icon="mdi:lightning-bolt" style="--mdc-icon-size:12px;"></ha-icon> <span>Tester FTP</span>
+                      </button>
+                    ` : (nas.proto === 'webdav' ? `
+                      <button type="button" class="btn-nas-card-test" data-nas="${nas.key}" data-proto="webdav" title="Tester WebDAV pour ${nas.label}" style="width:100%; padding:4px 6px; border-radius:7px; border:1px solid rgba(139,92,246,0.4); background:rgba(139,92,246,0.14); color:#a855f7; font-size:10.5px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:3px;">
+                        <ha-icon icon="mdi:lightning-bolt" style="--mdc-icon-size:12px;"></ha-icon> <span>Tester WebDAV</span>
+                      </button>
+                    ` : `
+                      <button type="button" class="btn-nas-card-test" data-nas="${nas.key}" data-proto="ftp" title="Tester FTP pour ${nas.label}" style="flex:1; padding:4px 3px; border-radius:6px; border:1px solid rgba(16,185,129,0.4); background:rgba(16,185,129,0.12); color:#10b981; font-size:10px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:2px;">
+                        <ha-icon icon="mdi:server-network" style="--mdc-icon-size:11px;"></ha-icon> <span>FTP</span>
+                      </button>
+                      <button type="button" class="btn-nas-card-test" data-nas="${nas.key}" data-proto="webdav" title="Tester WebDAV pour ${nas.label}" style="flex:1; padding:4px 3px; border-radius:6px; border:1px solid rgba(139,92,246,0.4); background:rgba(139,92,246,0.12); color:#a855f7; font-size:10px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:2px;">
+                        <ha-icon icon="mdi:cloud-check" style="--mdc-icon-size:11px;"></ha-icon> <span>WebDAV</span>
+                      </button>
+                    `)}
                   </div>
                 </div>
               `;
@@ -3952,14 +4072,18 @@ class DomolinkPanel extends HTMLElement {
               <span id="nas-card-status-badge">${this._renderTestBadge(curNasStatus)}</span>
             </div>
             <div style="display:flex; align-items:center; gap:8px;">
-              <button type="button" class="btn-nas-quick-test-ftp" data-nas="${curNas}" style="padding:6px 12px; border-radius:8px; border:1px solid rgba(16,185,129,0.4); background:rgba(16,185,129,0.12); color:#10b981; font-size:11px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:5px; transition:all 0.2s;">
-                <ha-icon icon="mdi:server-network" style="--mdc-icon-size:14px;"></ha-icon>
-                <span>Tester FTP</span>
-              </button>
-              <button type="button" class="btn-nas-quick-test-webdav" data-nas="${curNas}" style="padding:6px 12px; border-radius:8px; border:1px solid rgba(139,92,246,0.4); background:rgba(139,92,246,0.12); color:#a855f7; font-size:11px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:5px; transition:all 0.2s;">
-                <ha-icon icon="mdi:cloud-check" style="--mdc-icon-size:14px;"></ha-icon>
-                <span>Tester WebDAV</span>
-              </button>
+              ${curNas !== 'truenas' ? `
+                <button type="button" class="btn-nas-quick-test-ftp" data-nas="${curNas}" style="padding:6px 12px; border-radius:8px; border:1px solid rgba(16,185,129,0.4); background:rgba(16,185,129,0.12); color:#10b981; font-size:11px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:5px; transition:all 0.2s;">
+                  <ha-icon icon="mdi:server-network" style="--mdc-icon-size:14px;"></ha-icon>
+                  <span>Tester FTP (${curNasLabel})</span>
+                </button>
+              ` : ''}
+              ${curNas !== 'freebox' ? `
+                <button type="button" class="btn-nas-quick-test-webdav" data-nas="${curNas}" style="padding:6px 12px; border-radius:8px; border:1px solid rgba(139,92,246,0.4); background:rgba(139,92,246,0.12); color:#a855f7; font-size:11px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:5px; transition:all 0.2s;">
+                  <ha-icon icon="mdi:cloud-check" style="--mdc-icon-size:14px;"></ha-icon>
+                  <span>Tester WebDAV (${curNasLabel})</span>
+                </button>
+              ` : ''}
             </div>
           </div>
         `)}
@@ -4021,11 +4145,30 @@ class DomolinkPanel extends HTMLElement {
           ${(this._configDraft.google_drive_method || 'webhook') === 'webhook' ? `
             ${this._renderTextField("URL du Webhook Google Apps Script", "URL de déploiement Web App Google Apps Script", "google_drive_webhook_url", "mdi:link-variant", "text", "https://script.google.com/macros/s/.../exec")}
             ${this._renderTextField("ID de dossier Google Drive (Optionnel)", "ID du dossier cible (laissez vide pour enregistrer à la racine)", "google_drive_folder_id", "mdi:folder-google-drive", "text", "")}
-            <div style="margin-top:10px; background:rgba(52,168,83,0.08); border:1px solid rgba(52,168,83,0.25); border-radius:10px; padding:10px 12px; font-size:11px; line-height:1.5; color:var(--d-text);">
-              <div style="font-weight:800; color:#34a853; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
-                <ha-icon icon="mdi:information" style="--mdc-icon-size:16px;"></ha-icon> Configuration Webhook en 1 minute
+            <div style="margin-top:12px; background:rgba(52,168,83,0.08); border:1px solid rgba(52,168,83,0.25); border-radius:12px; padding:12px 14px; font-size:11.5px; line-height:1.5; color:var(--d-text);">
+              <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
+                <div style="font-weight:800; color:#34a853; display:flex; align-items:center; gap:6px; font-size:12.5px;">
+                  <ha-icon icon="mdi:google-drive" style="--mdc-icon-size:18px;"></ha-icon> Guide & Déploiement Webhook en 1 minute
+                </div>
+                <button type="button" id="btn-copy-google-script" style="padding:6px 14px; border-radius:8px; border:1px solid rgba(52,168,83,0.5); background:#34a853; color:#fff; font-size:11.5px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:0 2px 8px rgba(52,168,83,0.25); transition:all 0.2s;">
+                  <ha-icon icon="mdi:content-copy" style="--mdc-icon-size:15px;"></ha-icon>
+                  <span id="btn-copy-google-script-text">Copier le Google Script</span>
+                </button>
               </div>
-              Dans <a href="https://script.google.com" target="_blank" style="color:#38bdf8; text-decoration:underline; font-weight:700;">script.google.com</a>, créez un projet avec <code>doPost(e)</code>, déployez-le en <strong>Application Web</strong> accessible à <em>« Tout le monde »</em> et collez son URL ci-dessus.
+              <div>
+                <strong>Étapes simples pour autoriser l'accès :</strong>
+                <ol style="margin:6px 0 8px 18px; padding:0; display:flex; flex-direction:column; gap:3px;">
+                  <li>Cliquez sur <strong>« Copier le Google Script »</strong> ci-dessus.</li>
+                  <li>Ouvrez <a href="https://script.google.com" target="_blank" style="color:#38bdf8; text-decoration:underline; font-weight:700;">script.google.com</a> et créez un <em>« Nouveau projet »</em>.</li>
+                  <li>Collez le code dans l'éditeur (remplacez tout le contenu existant).</li>
+                  <li>Cliquez sur <strong>Déployer ➔ Nouveau déploiement</strong>, sélectionnez <em>« Application Web »</em>, configurez <strong>« Exécuter en tant que : Moi »</strong> et <strong>« Qui a accès : Tout le monde »</strong>.</li>
+                  <li>Autorisez l'accès Google Drive à la première exécution, puis collez l'URL Webhook (terminant par <code>/exec</code>) dans le champ ci-dessus.</li>
+                </ol>
+              </div>
+              <details style="margin-top:8px; border-top:1px dashed rgba(52,168,83,0.3); padding-top:6px; cursor:pointer;">
+                <summary style="font-size:11px; font-weight:700; color:#34a853;">Afficher / Masquer le code JavaScript du script Google</summary>
+                <pre style="margin-top:8px; padding:10px; border-radius:8px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.08); font-size:10.5px; overflow-x:auto; color:#a7f3d0; line-height:1.4;">${this.escapeHtml(this._getGoogleAppsScriptCode())}</pre>
+              </details>
             </div>
           ` : `
             ${this._renderTextField("Google Client ID", "Client ID OAuth 2.0 Google Cloud", "google_drive_client_id", "mdi:account-key")}
@@ -4064,7 +4207,7 @@ class DomolinkPanel extends HTMLElement {
             <div>
               <div style="font-size:18px; font-weight:800; color:var(--d-text); display:flex; align-items:center; gap:8px;">
                 Centre de Configuration
-                <span class="nav-badge-pill badge-version">v0.9.64</span>
+                <span class="nav-badge-pill badge-version">v0.9.65</span>
               </div>
               <div style="font-size:12px; color:var(--d-subtext); margin-top:3px;">
                 Modifiez vos équipements, délais, notifications et sauvegardes en toute simplicité
@@ -4365,37 +4508,89 @@ class DomolinkPanel extends HTMLElement {
     if (saveTop) saveTop.addEventListener('click', () => handleSave(saveTop));
     if (saveBottom) saveBottom.addEventListener('click', () => handleSave(saveBottom));
 
-    // ─── Inline NAS Diagnostic Tests (FTP & WebDAV) ──────────────────
-    const runFtpTestInline = async (targetBtn) => {
+    // ─── Unified NAS Diagnostic Tests (Per-NAS FTP & WebDAV) ─────────
+    const runNasTest = async (nasKey, proto = 'ftp', targetBtn = null) => {
       const curNas = this._configDraft.nas_type || 'asustor';
-      const hostInput = container.querySelector('input[data-field="ftp_host"]');
-      const portInput = container.querySelector('input[data-field="ftp_port"]');
-      const userInput = container.querySelector('input[data-field="ftp_user"]');
-      const passInput = container.querySelector('input[data-field="ftp_pass"]');
-      const pathInput = container.querySelector('input[data-field="ftp_path"]');
-      const enabledInput = container.querySelector('input[data-field="ftp_enabled"]');
+      const targetNas = nasKey || curNas;
+      const isCurActive = (targetNas === curNas);
 
-      const ftpPayload = {
-        nas_type: curNas,
-        ftp_host: hostInput ? hostInput.value.trim() : (this._configDraft.ftp_host || ''),
-        ftp_port: portInput ? parseInt(portInput.value, 10) || 21 : (this._configDraft.ftp_port || 21),
-        ftp_user: userInput ? userInput.value.trim() : (this._configDraft.ftp_user || ''),
-        ftp_pass: passInput ? passInput.value : (this._configDraft.ftp_pass || ''),
-        ftp_path: pathInput ? pathInput.value.trim() : (this._configDraft.ftp_path || '/'),
-        ftp_enabled: enabledInput ? Boolean(enabledInput.checked) : true,
-      };
-
-      const badgeFtp = container.querySelector('#ftp-test-inline-badge');
-      const msgFtp = container.querySelector('#ftp-test-inline-msg');
-      const badgeNas = container.querySelector('#nas-card-status-badge');
-      const cardBadge = container.querySelector(`.nas-test-badge-container[data-nas="${curNas}"]`);
-
-      if (badgeFtp) badgeFtp.innerHTML = this._renderTestBadge({ loading: true });
-      if (msgFtp) {
-        msgFtp.innerHTML = '<span style="color:#3b82f6;">Diagnostic de connexion FTP en cours...</span>';
+      // If testing current active NAS, harvest unblurred inputs
+      if (isCurActive) {
+        container.querySelectorAll('.config-input, .config-select:not(.config-entity-picker)').forEach(input => {
+          const field = input.getAttribute('data-field');
+          if (field) {
+            let val = input.value;
+            if (input.type === 'number') val = parseFloat(val) || 0;
+            this._configDraft[field] = val;
+            this._syncDraftToNasConfig(field, val);
+          }
+        });
+        container.querySelectorAll('.config-toggle').forEach(chk => {
+          const field = chk.getAttribute('data-field');
+          if (field) {
+            const val = Boolean(chk.checked);
+            this._configDraft[field] = val;
+            this._syncDraftToNasConfig(field, val);
+          }
+        });
       }
-      if (badgeNas) badgeNas.innerHTML = this._renderTestBadge({ loading: true });
+
+      if (!this._configDraft.nas_configs) this._configDraft.nas_configs = {};
+      const targetCfg = this._configDraft.nas_configs[targetNas] || {};
+
+      let payload = null;
+      let serviceName = '';
+
+      if (proto === 'ftp') {
+        serviceName = 'test_ftp';
+        const hostInput = isCurActive ? container.querySelector('input[data-field="ftp_host"]') : null;
+        const portInput = isCurActive ? container.querySelector('input[data-field="ftp_port"]') : null;
+        const userInput = isCurActive ? container.querySelector('input[data-field="ftp_user"]') : null;
+        const passInput = isCurActive ? container.querySelector('input[data-field="ftp_pass"]') : null;
+        const pathInput = isCurActive ? container.querySelector('input[data-field="ftp_path"]') : null;
+        const enabledInput = isCurActive ? container.querySelector('input[data-field="ftp_enabled"]') : null;
+
+        payload = {
+          nas_type: targetNas,
+          ftp_host: hostInput ? hostInput.value.trim() : (targetCfg.ftp_host !== undefined ? targetCfg.ftp_host : (targetNas === 'freebox' ? 'mafreebox.freebox.fr' : '')),
+          ftp_port: portInput ? parseInt(portInput.value, 10) || 21 : (targetCfg.ftp_port || 21),
+          ftp_user: userInput ? userInput.value.trim() : (targetCfg.ftp_user !== undefined ? targetCfg.ftp_user : (targetNas === 'freebox' ? 'freebox' : '')),
+          ftp_pass: passInput ? passInput.value : (targetCfg.ftp_pass || ''),
+          ftp_path: pathInput ? pathInput.value.trim() : (targetCfg.ftp_path || '/'),
+          ftp_enabled: enabledInput ? Boolean(enabledInput.checked) : (targetCfg.ftp_enabled !== undefined ? targetCfg.ftp_enabled : true),
+        };
+      } else {
+        serviceName = 'test_webdav';
+        const urlInput = isCurActive ? container.querySelector('input[data-field="webdav_url"]') : null;
+        const userInput = isCurActive ? container.querySelector('input[data-field="webdav_user"]') : null;
+        const passInput = isCurActive ? container.querySelector('input[data-field="webdav_pass"]') : null;
+        const pathInput = isCurActive ? container.querySelector('input[data-field="webdav_path"]') : null;
+        const enabledInput = isCurActive ? container.querySelector('input[data-field="webdav_enabled"]') : null;
+
+        payload = {
+          nas_type: targetNas,
+          webdav_url: urlInput ? urlInput.value.trim() : (targetCfg.webdav_url || ''),
+          webdav_user: userInput ? userInput.value.trim() : (targetCfg.webdav_user || ''),
+          webdav_pass: passInput ? passInput.value : (targetCfg.webdav_pass || ''),
+          webdav_path: pathInput ? pathInput.value.trim() : (targetCfg.webdav_path || 'domolink/alarm'),
+          webdav_enabled: enabledInput ? Boolean(enabledInput.checked) : (targetCfg.webdav_enabled !== undefined ? targetCfg.webdav_enabled : true),
+        };
+      }
+
+      const cardBadge = container.querySelector(`.nas-test-badge-container[data-nas="${targetNas}"]`);
       if (cardBadge) cardBadge.innerHTML = this._renderTestBadge({ loading: true });
+
+      const badgeInline = proto === 'webdav' ? container.querySelector('#webdav-test-inline-badge') : container.querySelector('#ftp-test-inline-badge');
+      const msgInline = proto === 'webdav' ? container.querySelector('#webdav-test-inline-msg') : container.querySelector('#ftp-test-inline-msg');
+      const badgeNas = container.querySelector('#nas-card-status-badge');
+
+      if (isCurActive) {
+        if (badgeInline) badgeInline.innerHTML = this._renderTestBadge({ loading: true });
+        if (badgeNas) badgeNas.innerHTML = this._renderTestBadge({ loading: true });
+        if (msgInline) {
+          msgInline.innerHTML = `<span style="color:#3b82f6;">Diagnostic de connexion ${proto.toUpperCase()} (${targetNas.toUpperCase()}) en cours...</span>`;
+        }
+      }
 
       if (targetBtn) {
         targetBtn.disabled = true;
@@ -4409,44 +4604,48 @@ class DomolinkPanel extends HTMLElement {
             const wsResp = await this._hass.callWS({
               type: 'call_service',
               domain: 'domolink_alarm',
-              service: 'test_ftp',
-              service_data: ftpPayload,
+              service: serviceName,
+              service_data: payload,
               return_response: true,
             });
             if (wsResp && wsResp.response) {
               result = wsResp.response;
             }
           } catch (wsErr) {
-            console.warn("callWS test_ftp fallback:", wsErr);
+            console.warn(`callWS ${serviceName} fallback:`, wsErr);
           }
         }
         if (!result) {
-          await this._hass.callService('domolink_alarm', 'test_ftp', ftpPayload);
+          await this._hass.callService('domolink_alarm', serviceName, payload);
           await new Promise(r => setTimeout(r, 600));
           const latestEntity = this._hass.states[alarmEntity.entity_id];
           const latestResults = latestEntity?.attributes?.nas_test_results || {};
-          result = latestResults[curNas] || latestResults[`${curNas}_ftp`] || latestEntity?.attributes?.ftp_test_result;
+          result = latestResults[targetNas] || latestResults[`${targetNas}_${proto}`] || (proto === 'webdav' ? latestEntity?.attributes?.webdav_test_result : latestEntity?.attributes?.ftp_test_result);
         }
 
         if (result) {
-          if (badgeFtp) badgeFtp.innerHTML = this._renderTestBadge(result);
-          if (msgFtp) {
-            msgFtp.textContent = result.message || (result.success ? "Connexion acceptée" : (result.result_label || `Erreur ${result.code || ''}`));
-            msgFtp.style.color = result.success ? '#10b981' : '#ef4444';
-          }
-          if (badgeNas) badgeNas.innerHTML = this._renderTestBadge(result);
           if (cardBadge) cardBadge.innerHTML = this._renderTestBadge(result);
+          if (isCurActive) {
+            if (badgeInline) badgeInline.innerHTML = this._renderTestBadge(result);
+            if (badgeNas) badgeNas.innerHTML = this._renderTestBadge(result);
+            if (msgInline) {
+              msgInline.textContent = result.message || (result.success ? "Connexion acceptée" : (result.result_label || `Erreur ${result.code || ''}`));
+              msgInline.style.color = result.success ? '#10b981' : '#ef4444';
+            }
+          }
         }
       } catch (err) {
-        console.error("Erreur test FTP:", err);
+        console.error(`Erreur test ${proto}:`, err);
         const errObj = { success: false, code: 500, result_label: "Erreur 500", message: err.message || String(err) };
-        if (badgeFtp) badgeFtp.innerHTML = this._renderTestBadge(errObj);
-        if (msgFtp) {
-          msgFtp.textContent = `Erreur lors du test : ${err.message || err}`;
-          msgFtp.style.color = '#ef4444';
-        }
-        if (badgeNas) badgeNas.innerHTML = this._renderTestBadge(errObj);
         if (cardBadge) cardBadge.innerHTML = this._renderTestBadge(errObj);
+        if (isCurActive) {
+          if (badgeInline) badgeInline.innerHTML = this._renderTestBadge(errObj);
+          if (badgeNas) badgeNas.innerHTML = this._renderTestBadge(errObj);
+          if (msgInline) {
+            msgInline.textContent = `Erreur lors du test : ${err.message || err}`;
+            msgInline.style.color = '#ef4444';
+          }
+        }
       } finally {
         if (targetBtn) {
           targetBtn.disabled = false;
@@ -4455,112 +4654,78 @@ class DomolinkPanel extends HTMLElement {
       }
     };
 
-    const runWebdavTestInline = async (targetBtn) => {
-      const curNas = this._configDraft.nas_type || 'asustor';
-      const urlInput = container.querySelector('input[data-field="webdav_url"]');
-      const userInput = container.querySelector('input[data-field="webdav_user"]');
-      const passInput = container.querySelector('input[data-field="webdav_pass"]');
-      const pathInput = container.querySelector('input[data-field="webdav_path"]');
-      const enabledInput = container.querySelector('input[data-field="webdav_enabled"]');
-
-      const webdavPayload = {
-        nas_type: curNas,
-        webdav_url: urlInput ? urlInput.value.trim() : (this._configDraft.webdav_url || ''),
-        webdav_user: userInput ? userInput.value.trim() : (this._configDraft.webdav_user || ''),
-        webdav_pass: passInput ? passInput.value : (this._configDraft.webdav_pass || ''),
-        webdav_path: pathInput ? pathInput.value.trim() : (this._configDraft.webdav_path || 'domolink/alarm'),
-        webdav_enabled: enabledInput ? Boolean(enabledInput.checked) : true,
-      };
-
-      const badgeWd = container.querySelector('#webdav-test-inline-badge');
-      const msgWd = container.querySelector('#webdav-test-inline-msg');
-      const badgeNas = container.querySelector('#nas-card-status-badge');
-      const cardBadge = container.querySelector(`.nas-test-badge-container[data-nas="${curNas}"]`);
-
-      if (badgeWd) badgeWd.innerHTML = this._renderTestBadge({ loading: true });
-      if (msgWd) {
-        msgWd.innerHTML = '<span style="color:#3b82f6;">Diagnostic de connexion WebDAV en cours...</span>';
-      }
-      if (badgeNas) badgeNas.innerHTML = this._renderTestBadge({ loading: true });
-      if (cardBadge) cardBadge.innerHTML = this._renderTestBadge({ loading: true });
-
-      if (targetBtn) {
-        targetBtn.disabled = true;
-        targetBtn.style.opacity = '0.6';
-      }
-
-      try {
-        let result = null;
-        if (this._hass && this._hass.callWS) {
-          try {
-            const wsResp = await this._hass.callWS({
-              type: 'call_service',
-              domain: 'domolink_alarm',
-              service: 'test_webdav',
-              service_data: webdavPayload,
-              return_response: true,
-            });
-            if (wsResp && wsResp.response) {
-              result = wsResp.response;
-            }
-          } catch (wsErr) {
-            console.warn("callWS test_webdav fallback:", wsErr);
-          }
-        }
-        if (!result) {
-          await this._hass.callService('domolink_alarm', 'test_webdav', webdavPayload);
-          await new Promise(r => setTimeout(r, 600));
-          const latestEntity = this._hass.states[alarmEntity.entity_id];
-          const latestResults = latestEntity?.attributes?.nas_test_results || {};
-          result = latestResults[curNas] || latestResults[`${curNas}_webdav`] || latestEntity?.attributes?.webdav_test_result;
-        }
-
-        if (result) {
-          if (badgeWd) badgeWd.innerHTML = this._renderTestBadge(result);
-          if (msgWd) {
-            msgWd.textContent = result.message || (result.success ? "Connexion acceptée" : (result.result_label || `Erreur ${result.code || ''}`));
-            msgWd.style.color = result.success ? '#10b981' : '#ef4444';
-          }
-          if (badgeNas) badgeNas.innerHTML = this._renderTestBadge(result);
-          if (cardBadge) cardBadge.innerHTML = this._renderTestBadge(result);
-        }
-      } catch (err) {
-        console.error("Erreur test WebDAV:", err);
-        const errObj = { success: false, code: 500, result_label: "Erreur 500", message: err.message || String(err) };
-        if (badgeWd) badgeWd.innerHTML = this._renderTestBadge(errObj);
-        if (msgWd) {
-          msgWd.textContent = `Erreur lors du test : ${err.message || err}`;
-          msgWd.style.color = '#ef4444';
-        }
-        if (badgeNas) badgeNas.innerHTML = this._renderTestBadge(errObj);
-        if (cardBadge) cardBadge.innerHTML = this._renderTestBadge(errObj);
-      } finally {
-        if (targetBtn) {
-          targetBtn.disabled = false;
-          targetBtn.style.opacity = '1';
-        }
-      }
-    };
+    // Direct per-card NAS Test Buttons
+    container.querySelectorAll('.btn-nas-card-test').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const nasKey = btn.getAttribute('data-nas');
+        const proto = btn.getAttribute('data-proto') || 'ftp';
+        runNasTest(nasKey, proto, btn);
+      });
+    });
 
     // FTP Test from Config Tab (Inline)
     const ftpInlineBtn = container.querySelector('#btn-test-ftp-inline');
     if (ftpInlineBtn) {
-      ftpInlineBtn.addEventListener('click', () => runFtpTestInline(ftpInlineBtn));
+      ftpInlineBtn.addEventListener('click', () => runNasTest(this._configDraft.nas_type, 'ftp', ftpInlineBtn));
     }
 
     // WebDAV Test from Config Tab (Inline)
     const webdavCfgBtn = container.querySelector('#btn-test-webdav-cfg');
     if (webdavCfgBtn) {
-      webdavCfgBtn.addEventListener('click', () => runWebdavTestInline(webdavCfgBtn));
+      webdavCfgBtn.addEventListener('click', () => runNasTest(this._configDraft.nas_type, 'webdav', webdavCfgBtn));
     }
 
     // Quick Test Buttons in Profile Card
     container.querySelectorAll('.btn-nas-quick-test-ftp').forEach(btn => {
-      btn.addEventListener('click', () => runFtpTestInline(btn));
+      btn.addEventListener('click', () => runNasTest(btn.getAttribute('data-nas') || this._configDraft.nas_type, 'ftp', btn));
     });
     container.querySelectorAll('.btn-nas-quick-test-webdav').forEach(btn => {
-      btn.addEventListener('click', () => runWebdavTestInline(btn));
+      btn.addEventListener('click', () => runNasTest(btn.getAttribute('data-nas') || this._configDraft.nas_type, 'webdav', btn));
     });
+
+    // Copy Google Apps Script Button
+    const copyGscriptBtn = container.querySelector('#btn-copy-google-script');
+    if (copyGscriptBtn) {
+      copyGscriptBtn.addEventListener('click', () => {
+        const code = this._getGoogleAppsScriptCode();
+        const textSpan = copyGscriptBtn.querySelector('#btn-copy-google-script-text');
+        const iconEl = copyGscriptBtn.querySelector('ha-icon');
+        
+        const notifyCopied = () => {
+          if (textSpan) textSpan.textContent = "✓ Script Copié !";
+          if (iconEl) iconEl.setAttribute('icon', 'mdi:check-circle');
+          copyGscriptBtn.style.background = '#10b981';
+          copyGscriptBtn.style.borderColor = '#10b981';
+          setTimeout(() => {
+            if (textSpan) textSpan.textContent = "Copier le Google Script";
+            if (iconEl) iconEl.setAttribute('icon', 'mdi:content-copy');
+            copyGscriptBtn.style.background = '#34a853';
+            copyGscriptBtn.style.borderColor = 'rgba(52,168,83,0.5)';
+          }, 3000);
+        };
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(code).then(notifyCopied).catch(() => {
+            const ta = document.createElement('textarea');
+            ta.value = code;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            notifyCopied();
+          });
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = code;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          notifyCopied();
+        }
+      });
+    }
 
     // Google Drive Test from Config Tab
     const gdriveCfgBtn = container.querySelector('#btn-test-gdrive-cfg');
@@ -4841,7 +5006,7 @@ class DomolinkPanel extends HTMLElement {
       const cloudLabel = countCloud > 1 ? 'MULTI-CLOUD' : (isGdrive ? 'G-DRIVE' : (isDav ? 'WEBDAV' : (isFtp ? 'FTP' : 'LOCAL')));
       elParam.innerHTML = `
         <div class="nav-badge-stack">
-          <span class="nav-badge-pill badge-version">v0.9.64</span>
+          <span class="nav-badge-pill badge-version">v0.9.65</span>
           <span class="nav-badge-pill badge-neutral">${cloudLabel}</span>
         </div>
       `;
