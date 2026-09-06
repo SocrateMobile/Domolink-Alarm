@@ -1,5 +1,6 @@
 """Interfaces with Domolink Alarm."""
 import os
+import re
 import random
 import logging
 import datetime
@@ -1042,11 +1043,23 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 import ftplib
                 try:
                     with ftplib.FTP() as ftp:
-                        ftp.connect(self._ftp_host, int(self._ftp_port), timeout=5)
-                        ftp.login(self._ftp_user, self._ftp_pass)
+                        ftp.encoding = "utf-8"
+                        ftp.connect(self._ftp_host, int(self._ftp_port), timeout=10)
+                        ftp.login(str(self._ftp_user or ""), str(self._ftp_pass or ""))
+                        # Ensure domolink/alarm exists
+                        for base_folder in ["domolink", "alarm"]:
+                            try:
+                                ftp.cwd(base_folder)
+                            except Exception:
+                                try:
+                                    ftp.mkd(base_folder)
+                                    ftp.cwd(base_folder)
+                                except Exception:
+                                    pass
                         ftp.quit()
                     return "Connecté"
-                except Exception:
+                except Exception as e:
+                    _LOGGER.debug("Domolink FTP health check error: %s", e)
                     return "Erreur"
             self._ftp_status = await self.hass.async_add_executor_job(check_ftp)
         else:
@@ -1704,6 +1717,23 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             _LOGGER.debug("Domolink: Erreur lecture médias: %s", e)
             return []
 
+    def _get_media_filenames(self, camera_entity: str):
+        """Construct media filenames: [nom de la caméra] - [Année] - [jour] - [heure du déclenchement]."""
+        st = self.hass.states.get(camera_entity)
+        cam_name = (st.attributes.get("friendly_name") if st else None) or camera_entity
+        if cam_name.startswith("camera."):
+            cam_name = cam_name[7:]
+        safe_cam = re.sub(r'[\\/*?:"<>|]', '-', cam_name).strip()
+        safe_cam = re.sub(r'\s+', ' ', safe_cam)
+        if not safe_cam:
+            safe_cam = "Camera"
+
+        now = dt_now()
+        date_str = now.strftime("%Y-%m-%d")
+        time_str = now.strftime("%Hh%Mm%Ss")
+        base_name = f"{safe_cam} - {date_str} - {time_str}"
+        return f"{base_name}.jpg", f"{base_name}.mp4"
+
     async def _async_watch_and_fix_video(self, expected_mp4_path, duration=30, timeout=90):
         """Watch for .mp4.tmp files written by HA and ensure valid finalized .mp4."""
         # Wait for the recording duration to finish before inspecting or touching files
@@ -1797,7 +1827,6 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
     async def _async_run_cameras_test(self):
         """Run sequential snapshot and 30s video recording for each camera."""
         import shutil
-        from datetime import datetime as _dt
         import time
 
         self._is_testing_cameras = True
@@ -1824,8 +1853,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         for idx, camera in enumerate(self._cameras):
             st = self.hass.states.get(camera)
             cam_name = st.attributes.get("friendly_name", camera) if st else camera
-            safe_cam = camera.replace(".", "_")
-            ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+            snapshot_filename, video_filename = self._get_media_filenames(camera)
             
             self._camera_test_info["current"] = idx + 1
             self._camera_test_info["camera_name"] = cam_name
@@ -1840,7 +1868,6 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
             # 1. Snapshot
             self._log_event(f"📸 Test ({idx+1}/{total_cams}) : Capture photo sur {cam_name}")
-            snapshot_filename = f"domolink_test_{ts}_{safe_cam}.jpg"
             snapshot_path = os.path.join(media_dir, snapshot_filename)
 
             try:
@@ -1884,7 +1911,6 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             self.async_write_ha_state()
             
             self._log_event(f"🎥 Test ({idx+1}/{total_cams}) : Enregistrement 30s sur {cam_name}...")
-            video_filename = f"domolink_test_{ts}_{safe_cam}.mp4"
             record_path = os.path.join(media_dir, video_filename)
 
             try:
@@ -1974,17 +2000,29 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self.async_write_ha_state()
 
     def _upload_to_ftp_sync(self, file_path):
-        """Upload photo or video to FTP synchronously (to be run in executor)."""
+        """Upload photo or video to FTP in domolink/alarm/[custom_path]."""
         import ftplib
         try:
             with ftplib.FTP() as ftp:
+                ftp.encoding = "utf-8"
                 ftp.connect(self._ftp_host, int(self._ftp_port), timeout=25)
-                ftp.login(self._ftp_user, self._ftp_pass)
+                ftp.login(str(self._ftp_user or ""), str(self._ftp_pass or ""))
 
-                # Robust directory navigation: handles Asustor/Synology/Linux FTP paths
-                remote_dir = str(self._ftp_path or "").strip()
-                if remote_dir and remote_dir != "/":
-                    parts = [p for p in remote_dir.split('/') if p]
+                # 1. Ensure domolink/alarm directory structure exists on FTP
+                for base_dir in ["domolink", "alarm"]:
+                    try:
+                        ftp.cwd(base_dir)
+                    except Exception:
+                        try:
+                            ftp.mkd(base_dir)
+                            ftp.cwd(base_dir)
+                        except Exception as err:
+                            _LOGGER.warning("Domolink FTP: Impossible de créer/accéder à '%s': %s", base_dir, err)
+
+                # 2. If user configured a custom path in settings, append it inside domolink/alarm/
+                custom_dir = str(self._ftp_path or "").strip()
+                if custom_dir and custom_dir != "/":
+                    parts = [p for p in custom_dir.split('/') if p and p not in ("domolink", "alarm")]
                     for part in parts:
                         try:
                             ftp.cwd(part)
@@ -1993,7 +2031,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                                 ftp.mkd(part)
                                 ftp.cwd(part)
                             except Exception as mkd_err:
-                                _LOGGER.warning("Domolink FTP: Impossible d'accéder au dossier '%s': %s", part, mkd_err)
+                                _LOGGER.warning("Domolink FTP: Impossible d'accéder au sous-dossier '%s': %s", part, mkd_err)
 
                 filename = os.path.basename(file_path)
                 with open(file_path, "rb") as f:
@@ -2034,9 +2072,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             target_cameras = list(self._cameras)
 
         import shutil
-        from datetime import datetime as _dt
 
-        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
         media_dir = self.hass.config.path(f"www/{self._media_path}")
         try:
             os.makedirs(media_dir, exist_ok=True)
@@ -2047,10 +2083,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._log_event(f"Capture photo & vidéo{zone_desc} sur {len(target_cameras)} caméra(s)")
 
         async def _capture_single_camera(camera, idx):
-            safe_cam = camera.replace(".", "_")
-            snapshot_filename = f"domolink_{ts}_{safe_cam}.jpg"
+            snapshot_filename, video_filename = self._get_media_filenames(camera)
             snapshot_path = os.path.join(media_dir, snapshot_filename)
-            video_filename = f"domolink_{ts}_{safe_cam}.mp4"
             record_path = os.path.join(media_dir, video_filename)
 
             # Wake up camera
