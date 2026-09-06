@@ -148,11 +148,18 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
         """Handle camera test recording service call."""
         await entity.async_test_cameras_recording(call)
 
+    async def async_handle_test_ftp(call):
+        """Handle FTP test service call."""
+        await entity.async_test_ftp(call)
+
     hass.services.async_register(
         DOMAIN, "media_action", async_handle_media_action
     )
     hass.services.async_register(
         DOMAIN, "test_cameras_recording", async_handle_test_cameras
+    )
+    hass.services.async_register(
+        DOMAIN, "test_ftp", async_handle_test_ftp
     )
     hass.services.async_register(
         DOMAIN, "bypass_sensor", async_handle_bypass_sensor
@@ -244,6 +251,9 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._ftp_status = "Désactivé"
         self._cameras_armed = False
         self._is_testing_cameras = False
+        self._ftp_test_running = False
+        self._ftp_test_logs = []
+        self._ftp_test_result = {}
 
         self._load_config()
 
@@ -547,6 +557,10 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             "disarm_cooldown": self._disarm_cooldown_task is not None,
             "camera_test_running": getattr(self, "_is_testing_cameras", False),
             "camera_test_info": getattr(self, "_camera_test_info", {}),
+            "ftp_host": getattr(self, "_ftp_host", ""),
+            "ftp_test_running": getattr(self, "_ftp_test_running", False),
+            "ftp_test_logs": getattr(self, "_ftp_test_logs", []),
+            "ftp_test_result": getattr(self, "_ftp_test_result", {}),
         }
 
     async def async_bypass_sensor(self, entity_id: str):
@@ -2060,6 +2074,202 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             self._log_event(f"⚠️ Échec transfert FTP {media_type}: {filename}")
             self._ftp_status = "Erreur"
         self.async_write_ha_state()
+
+    def _append_ftp_log(self, message: str, level: str = "info"):
+        """Append an entry to FTP test log and notify state change."""
+        now_str = dt_now().strftime("%H:%M:%S")
+        if not hasattr(self, "_ftp_test_logs") or self._ftp_test_logs is None:
+            self._ftp_test_logs = []
+        self._ftp_test_logs.append({
+            "time": now_str,
+            "message": message,
+            "level": level,
+        })
+        if len(self._ftp_test_logs) > 60:
+            self._ftp_test_logs = self._ftp_test_logs[-60:]
+        try:
+            self.async_write_ha_state()
+        except Exception:
+            pass
+
+    async def async_test_ftp(self, call=None):
+        """Force a connection test to the FTP server with real-time log steps."""
+        if getattr(self, "_ftp_test_running", False):
+            _LOGGER.debug("Domolink: Un test FTP est déjà en cours.")
+            return
+
+        self._ftp_test_running = True
+        self._ftp_test_logs = []
+        self._ftp_test_result = {}
+        self._append_ftp_log("🚀 Démarrage du diagnostic de connexion FTP...", "info")
+
+        self.hass.async_create_task(self._async_run_ftp_test())
+
+    async def _async_run_ftp_test(self):
+        """Run FTP test in executor and report logs thread-safely."""
+        def log_step(msg, level="info"):
+            self.hass.loop.call_soon_threadsafe(self._append_ftp_log, msg, level)
+
+        def run_test_sync():
+            import ftplib
+            import time
+            import io
+
+            time.sleep(0.3)
+            if not getattr(self, "_ftp_enabled", False):
+                log_step("Le service FTP est désactivé dans la configuration de Domolink.", "error")
+                return False, "Le service FTP est désactivé dans la configuration de l'alarme.", ""
+
+            if not self._ftp_host:
+                log_step("Aucune adresse de serveur FTP renseignée dans la configuration.", "error")
+                return False, "Adresse du serveur FTP manquante.", ""
+
+            port = int(self._ftp_port or 21)
+            host = str(self._ftp_host).strip()
+            user = str(self._ftp_user or "").strip()
+            password = str(self._ftp_pass or "")
+
+            log_step(f"1. Configuration : Hôte={host}, Port={port}, Utilisateur='{user}'", "info")
+            time.sleep(0.35)
+
+            log_step(f"2. Connexion réseau au serveur {host}:{port}...", "info")
+            ftp = ftplib.FTP()
+            ftp.encoding = "utf-8"
+            try:
+                ftp.connect(host, port, timeout=10)
+                log_step("   ✓ Connexion TCP établie avec succès.", "success")
+            except Exception as e:
+                log_step(f"   ✗ Échec de connexion réseau : {e}", "error")
+                try:
+                    ftp.close()
+                except Exception:
+                    pass
+                return False, f"Impossible de joindre le serveur {host}:{port} ({e})", ""
+
+            time.sleep(0.35)
+            log_step(f"3. Authentification de l'utilisateur '{user}'...", "info")
+            try:
+                ftp.login(user, password)
+                log_step("   ✓ Authentification acceptée par le serveur FTP.", "success")
+            except Exception as e:
+                log_step(f"   ✗ Échec d'authentification : {e}", "error")
+                try:
+                    ftp.quit()
+                except Exception:
+                    pass
+                return False, f"Identifiants incorrects ou refusés ({e})", ""
+
+            time.sleep(0.35)
+            log_step("4. Contrôle de l'arborescence des répertoires...", "info")
+
+            # Verify / create 'domolink'
+            try:
+                ftp.cwd("domolink")
+                log_step("   ✓ Dossier 'domolink' accessible.", "success")
+            except Exception:
+                try:
+                    ftp.mkd("domolink")
+                    ftp.cwd("domolink")
+                    log_step("   ✓ Dossier 'domolink' créé avec succès.", "success")
+                except Exception as mkd_err:
+                    log_step(f"   ✗ Impossible d'accéder ou créer 'domolink' : {mkd_err}", "error")
+                    try:
+                        ftp.quit()
+                    except Exception:
+                        pass
+                    return False, f"Permissions insuffisantes pour créer 'domolink' ({mkd_err})", ""
+
+            time.sleep(0.3)
+            # Verify / create 'alarm'
+            try:
+                ftp.cwd("alarm")
+                log_step("   ✓ Sous-dossier 'alarm' accessible.", "success")
+            except Exception:
+                try:
+                    ftp.mkd("alarm")
+                    ftp.cwd("alarm")
+                    log_step("   ✓ Sous-dossier 'alarm' créé avec succès.", "success")
+                except Exception as mkd_err:
+                    log_step(f"   ✗ Impossible d'accéder ou créer 'alarm' : {mkd_err}", "error")
+                    try:
+                        ftp.quit()
+                    except Exception:
+                        pass
+                    return False, f"Permissions insuffisantes pour créer 'alarm' ({mkd_err})", ""
+
+            time.sleep(0.3)
+            # Verify / create custom path if configured
+            save_path = "domolink/alarm"
+            custom_dir = str(self._ftp_path or "").strip()
+            if custom_dir and custom_dir != "/":
+                parts = [p for p in custom_dir.split('/') if p and p not in ("domolink", "alarm")]
+                for part in parts:
+                    try:
+                        ftp.cwd(part)
+                        log_step(f"   ✓ Sous-dossier personnalisé '{part}' accessible.", "info")
+                    except Exception:
+                        try:
+                            ftp.mkd(part)
+                            ftp.cwd(part)
+                            log_step(f"   ✓ Sous-dossier personnalisé '{part}' créé.", "success")
+                        except Exception as custom_err:
+                            log_step(f"   ✗ Impossible d'accéder ou créer '{part}' : {custom_err}", "warning")
+                if parts:
+                    save_path = f"domolink/alarm/{'/'.join(parts)}"
+
+            time.sleep(0.3)
+            log_step("5. Test des permissions d'écriture...", "info")
+            try:
+                probe_data = io.BytesIO(b"Domolink Alarm write probe test")
+                ftp.storbinary("STOR .domolink_test_probe", probe_data)
+                try:
+                    ftp.delete(".domolink_test_probe")
+                except Exception:
+                    pass
+                log_step("   ✓ Droits d'écriture validés (fichier test créé et nettoyé).", "success")
+            except Exception as write_err:
+                log_step(f"   ✗ Erreur d'écriture sur le serveur : {write_err}", "error")
+                try:
+                    ftp.quit()
+                except Exception:
+                    pass
+                return False, f"Droits d'écriture insuffisants ({write_err})", save_path
+
+            time.sleep(0.3)
+            try:
+                ftp.quit()
+            except Exception:
+                pass
+
+            log_step(f"6. Chemin de sauvegarde validé : {save_path}", "success")
+            log_step("🎉 Connexion FTP acceptée et validée avec succès !", "success")
+            return True, "Connexion acceptée", save_path
+
+        try:
+            success, msg, save_path = await self.hass.async_add_executor_job(run_test_sync)
+            self._ftp_test_running = False
+            self._ftp_status = "Connecté" if success else "Erreur"
+            self._ftp_test_result = {
+                "success": success,
+                "message": msg,
+                "save_path": save_path,
+            }
+            if success:
+                self._log_event(f"Test FTP réussi (Dossier: {save_path})")
+            else:
+                self._log_event(f"⚠️ Échec du test FTP : {msg}")
+        except Exception as e:
+            self._ftp_test_running = False
+            self._ftp_status = "Erreur"
+            self._ftp_test_result = {
+                "success": False,
+                "message": str(e),
+                "save_path": "",
+            }
+            self._append_ftp_log(f"Erreur inattendue : {e}", "error")
+            self._log_event(f"⚠️ Erreur test FTP : {e}")
+        finally:
+            self.async_write_ha_state()
 
     async def _async_capture_cameras(self, triggering_entity=None):
         """Asynchronously capture photos and trigger recordings with targeted zone cameras (parallel & robust)."""
