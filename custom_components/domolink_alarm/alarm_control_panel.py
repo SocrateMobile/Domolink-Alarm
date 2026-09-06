@@ -101,7 +101,18 @@ from .const import (
     CONF_FTP_USER,
     CONF_FTP_PASS,
     CONF_FTP_PATH,
+    CONF_WEBDAV_ENABLED,
+    CONF_WEBDAV_URL,
+    CONF_WEBDAV_USER,
+    CONF_WEBDAV_PASS,
+    CONF_WEBDAV_PATH,
+    DEFAULT_WEBDAV_ENABLED,
+    DEFAULT_WEBDAV_PATH,
     CONF_MEDIA_PATH,
+    CONF_MEDIA_RETENTION_DAYS,
+    CONF_MEDIA_MAX_SIZE_MB,
+    DEFAULT_MEDIA_RETENTION_DAYS,
+    DEFAULT_MEDIA_MAX_SIZE_MB,
     DEFAULT_EXIT_DELAY,
     DEFAULT_ENTRY_DELAY,
     DEFAULT_SIREN_DURATION,
@@ -201,6 +212,14 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
         """Handle FTP test service call."""
         await entity.async_test_ftp(call)
 
+    async def async_handle_test_webdav(call):
+        """Handle WebDAV test service call."""
+        await entity.async_test_webdav(call)
+
+    async def async_handle_clean_media(call):
+        """Handle clean media service call."""
+        await entity.async_clean_media(call)
+
     hass.services.async_register(
         DOMAIN, "media_action", async_handle_media_action
     )
@@ -209,6 +228,12 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
     )
     hass.services.async_register(
         DOMAIN, "test_ftp", async_handle_test_ftp
+    )
+    hass.services.async_register(
+        DOMAIN, "test_webdav", async_handle_test_webdav
+    )
+    hass.services.async_register(
+        DOMAIN, "clean_media", async_handle_clean_media
     )
     hass.services.async_register(
         DOMAIN, "bypass_sensor", async_handle_bypass_sensor
@@ -298,11 +323,23 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
         self._telegram_status = "Désactivé"
         self._ftp_status = "Désactivé"
+        self._webdav_status = "Désactivé"
         self._cameras_armed = False
         self._is_testing_cameras = False
         self._ftp_test_running = False
         self._ftp_test_logs = []
         self._ftp_test_result = {}
+        self._webdav_test_running = False
+        self._webdav_test_logs = []
+        self._webdav_test_result = {}
+        self._media_storage_stats = {
+            "bytes": 0,
+            "mb": 0.0,
+            "max_mb": 1024,
+            "retention_days": 30,
+            "count": 0,
+            "percent": 0.0,
+        }
 
         self._load_config()
 
@@ -503,6 +540,16 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._global_cameras = get_merged("global_cameras", "global_cameras_labels", ["camera"])
         self._media_path = options.get("media_path", data.get("media_path", "domolink_media")).strip().strip("/")
         
+        self._webdav_enabled = bool(options.get(CONF_WEBDAV_ENABLED, data.get(CONF_WEBDAV_ENABLED, DEFAULT_WEBDAV_ENABLED)))
+        self._webdav_url = str(options.get(CONF_WEBDAV_URL, data.get(CONF_WEBDAV_URL, "")) or "").strip()
+        self._webdav_user = str(options.get(CONF_WEBDAV_USER, data.get(CONF_WEBDAV_USER, "")) or "").strip()
+        self._webdav_pass = str(options.get(CONF_WEBDAV_PASS, data.get(CONF_WEBDAV_PASS, "")) or "").strip()
+        self._webdav_path = str(options.get(CONF_WEBDAV_PATH, data.get(CONF_WEBDAV_PATH, DEFAULT_WEBDAV_PATH)) or DEFAULT_WEBDAV_PATH).strip().strip("/")
+        self._webdav_status = "Connecté" if (self._webdav_enabled and self._webdav_url) else "Désactivé"
+
+        self._media_retention_days = int(options.get(CONF_MEDIA_RETENTION_DAYS, data.get(CONF_MEDIA_RETENTION_DAYS, DEFAULT_MEDIA_RETENTION_DAYS)) or 0)
+        self._media_max_size_mb = int(options.get(CONF_MEDIA_MAX_SIZE_MB, data.get(CONF_MEDIA_MAX_SIZE_MB, DEFAULT_MEDIA_MAX_SIZE_MB)) or 0)
+        
         # Migration & Loading of iCloud devices
         icloud_devs = options.get("icloud_devices", data.get("icloud_devices", []))
         self._icloud_devices = icloud_devs if isinstance(icloud_devs, list) else []
@@ -610,6 +657,18 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             "ftp_test_running": getattr(self, "_ftp_test_running", False),
             "ftp_test_logs": list(getattr(self, "_ftp_test_logs", [])),
             "ftp_test_result": dict(getattr(self, "_ftp_test_result", {})),
+            "webdav_status": getattr(self, "_webdav_status", "Désactivé"),
+            "webdav_url": getattr(self, "_webdav_url", ""),
+            "webdav_path": getattr(self, "_webdav_path", ""),
+            "webdav_test_running": getattr(self, "_webdav_test_running", False),
+            "webdav_test_logs": list(getattr(self, "_webdav_test_logs", [])),
+            "webdav_test_result": dict(getattr(self, "_webdav_test_result", {})),
+            "media_storage_bytes": self._media_storage_stats.get("bytes", 0),
+            "media_storage_mb": self._media_storage_stats.get("mb", 0.0),
+            "media_storage_max_mb": self._media_max_size_mb,
+            "media_storage_retention_days": self._media_retention_days,
+            "media_storage_count": self._media_storage_stats.get("count", 0),
+            "media_storage_percent": self._media_storage_stats.get("percent", 0.0),
             "installed_config": self._get_installed_config(),
         }
 
@@ -694,7 +753,14 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             CONF_FTP_USER: str(_val(CONF_FTP_USER, "") or ""),
             CONF_FTP_PASS: str(_val(CONF_FTP_PASS, "") or ""),
             CONF_FTP_PATH: str(_val(CONF_FTP_PATH, DEFAULT_FTP_PATH) or DEFAULT_FTP_PATH),
+            CONF_WEBDAV_ENABLED: bool(_val(CONF_WEBDAV_ENABLED, DEFAULT_WEBDAV_ENABLED)),
+            CONF_WEBDAV_URL: str(_val(CONF_WEBDAV_URL, "") or ""),
+            CONF_WEBDAV_USER: str(_val(CONF_WEBDAV_USER, "") or ""),
+            CONF_WEBDAV_PASS: str(_val(CONF_WEBDAV_PASS, "") or ""),
+            CONF_WEBDAV_PATH: str(_val(CONF_WEBDAV_PATH, DEFAULT_WEBDAV_PATH) or DEFAULT_WEBDAV_PATH),
             CONF_MEDIA_PATH: str(_val(CONF_MEDIA_PATH, DEFAULT_MEDIA_PATH) or DEFAULT_MEDIA_PATH),
+            CONF_MEDIA_RETENTION_DAYS: int(_val(CONF_MEDIA_RETENTION_DAYS, DEFAULT_MEDIA_RETENTION_DAYS) or DEFAULT_MEDIA_RETENTION_DAYS),
+            CONF_MEDIA_MAX_SIZE_MB: int(_val(CONF_MEDIA_MAX_SIZE_MB, DEFAULT_MEDIA_MAX_SIZE_MB) or DEFAULT_MEDIA_MAX_SIZE_MB),
         }
 
     async def async_bypass_sensor(self, entity_id: str):
@@ -763,8 +829,10 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             if not os.path.exists(media_abs):
                 os.makedirs(media_abs, exist_ok=True)
                 _LOGGER.info("Domolink: Répertoire médias créé: %s", media_abs)
+            await self.hass.async_add_executor_job(self._purge_old_media_files)
         except Exception as e:
-            _LOGGER.error("Domolink: Impossible de créer le répertoire médias: %s", e)
+            _LOGGER.error("Domolink: Impossible d'initialiser le stockage médias: %s", e)
+
 
         # Track sensor changes
         all_sensors = list(set(
@@ -1844,11 +1912,126 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         if self._cameras:
             self.hass.async_create_task(self._async_capture_cameras(triggering_entity))
 
+    def _update_media_storage_stats(self):
+        """Update media storage usage statistics."""
+        try:
+            media_dir = self.hass.config.path(f"www/{self._media_path}")
+            total_bytes = 0
+            count = 0
+            if os.path.exists(media_dir):
+                for fname in os.listdir(media_dir):
+                    if not fname.startswith('.') and fname.lower().endswith(('.jpg', '.jpeg', '.png', '.mp4', '.webm', '.ogg')):
+                        fpath = os.path.join(media_dir, fname)
+                        if os.path.isfile(fpath):
+                            total_bytes += os.path.getsize(fpath)
+                            count += 1
+            mb = round(total_bytes / (1024 * 1024), 2)
+            max_mb = self._media_max_size_mb if self._media_max_size_mb > 0 else 1024
+            percent = round((mb / max_mb) * 100, 1) if max_mb > 0 else 0.0
+            self._media_storage_stats = {
+                "bytes": total_bytes,
+                "mb": mb,
+                "max_mb": self._media_max_size_mb,
+                "retention_days": self._media_retention_days,
+                "count": count,
+                "percent": min(100.0, percent),
+            }
+        except Exception as e:
+            _LOGGER.debug("Domolink: Erreur stats stockage: %s", e)
+
+    def _purge_old_media_files(self) -> dict:
+        """Purge media files exceeding retention days and max storage MB quota (FIFO)."""
+        import time
+        media_dir = self.hass.config.path(f"www/{self._media_path}")
+        if not os.path.exists(media_dir):
+            self._update_media_storage_stats()
+            return {"deleted": 0, "freed_bytes": 0}
+
+        deleted_count = 0
+        freed_bytes = 0
+        now_ts = time.time()
+        retention_sec = (self._media_retention_days * 86400) if self._media_retention_days > 0 else 0
+        max_bytes = (self._media_max_size_mb * 1024 * 1024) if self._media_max_size_mb > 0 else 0
+
+        # Collect all valid alarm media files with stats
+        all_files = []
+        try:
+            for fname in os.listdir(media_dir):
+                if not fname.startswith('.') and fname.lower().endswith(('.jpg', '.jpeg', '.png', '.mp4', '.webm', '.ogg')):
+                    fpath = os.path.join(media_dir, fname)
+                    if os.path.isfile(fpath):
+                        try:
+                            st = os.stat(fpath)
+                            all_files.append({
+                                "path": fpath,
+                                "name": fname,
+                                "size": st.st_size,
+                                "mtime": st.st_mtime,
+                            })
+                        except Exception:
+                            pass
+        except Exception as e:
+            _LOGGER.error("Domolink: Erreur lors du scan pour purge: %s", e)
+            return {"deleted": 0, "freed_bytes": 0}
+
+        # 1. Purge by retention days (if configured)
+        remaining_files = []
+        if retention_sec > 0:
+            for item in all_files:
+                if (now_ts - item["mtime"]) > retention_sec:
+                    try:
+                        os.remove(item["path"])
+                        deleted_count += 1
+                        freed_bytes += item["size"]
+                        _LOGGER.info("Domolink: Purge média expiré (> %d j): %s", self._media_retention_days, item["name"])
+                    except Exception as err:
+                        _LOGGER.debug("Domolink: Erreur suppression %s: %s", item["path"], err)
+                else:
+                    remaining_files.append(item)
+        else:
+            remaining_files = all_files
+
+        # 2. Purge by quota MB (FIFO - delete oldest until below 90% quota)
+        if max_bytes > 0:
+            total_remaining_bytes = sum(f["size"] for f in remaining_files)
+            target_bytes = int(max_bytes * 0.90)  # Aim for 90% of quota
+            if total_remaining_bytes > max_bytes:
+                # Sort oldest first (FIFO)
+                remaining_files.sort(key=lambda x: x["mtime"])
+                for item in remaining_files:
+                    if total_remaining_bytes <= target_bytes:
+                        break
+                    try:
+                        os.remove(item["path"])
+                        deleted_count += 1
+                        freed_bytes += item["size"]
+                        total_remaining_bytes -= item["size"]
+                        _LOGGER.info("Domolink: Purge quota FIFO: %s", item["name"])
+                    except Exception as err:
+                        _LOGGER.debug("Domolink: Erreur suppression FIFO %s: %s", item["path"], err)
+
+        # Invalidate media cache and update storage stats
+        self._media_files_cache_ts = 0
+        self._update_media_storage_stats()
+        
+        if deleted_count > 0:
+            freed_mb = round(freed_bytes / (1024 * 1024), 1)
+            self._log_event(f"🧹 Purge médias : {deleted_count} fichier(s) supprimé(s) ({freed_mb} Mo libérés)")
+
+        return {"deleted": deleted_count, "freed_bytes": freed_bytes}
+
+    async def async_clean_media(self, call=None):
+        """Service handler to clean / purge old media files on demand."""
+        result = await self.hass.async_add_executor_job(self._purge_old_media_files)
+        self.async_write_ha_state()
+        return result
+
     def _list_media_files(self):
         """List all media files in the configured media directory (for the JS gallery)."""
         try:
             media_dir = self.hass.config.path(f"www/{self._media_path}")
             if not os.path.exists(media_dir):
+                self._update_media_storage_stats()
                 return []
             files = []
             for fname in sorted(os.listdir(media_dir), reverse=True):
@@ -1860,6 +2043,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                             "size": os.path.getsize(fpath),
                             "modified": os.path.getmtime(fpath),
                         })
+            self._update_media_storage_stats()
             return files[:200]  # Cap at 200 to avoid huge HA state
         except Exception as e:
             _LOGGER.debug("Domolink: Erreur lecture médias: %s", e)
@@ -1899,6 +2083,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 _LOGGER.debug("Domolink: Video OK: %s", expected_mp4_path)
                 if getattr(self, "_ftp_enabled", False):
                     self.hass.async_create_task(self._async_upload_to_ftp(expected_mp4_path))
+                if getattr(self, "_webdav_enabled", False):
+                    self.hass.async_create_task(self._async_upload_to_webdav(expected_mp4_path))
                 return
             # If HA left a .tmp file after recording finished, check stability and rename
             for tmp in (tmp_path, alt_tmp):
@@ -1914,6 +2100,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                             self._log_event(f"Vidéo sauvegardée: {os.path.basename(expected_mp4_path)}")
                             if getattr(self, "_ftp_enabled", False):
                                 self.hass.async_create_task(self._async_upload_to_ftp(expected_mp4_path))
+                            if getattr(self, "_webdav_enabled", False):
+                                self.hass.async_create_task(self._async_upload_to_webdav(expected_mp4_path))
                             return
                     except Exception as e:
                         _LOGGER.debug("Domolink: Erreur finalisation tmp: %s", e)
@@ -1941,8 +2129,10 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             try:
                 os.remove(file_path)
                 self._media_files_cache_ts = 0  # Invalidate cache
+                self._update_media_storage_stats()
                 self._log_event(f"Média supprimé: {filename}")
                 _LOGGER.info("Domolink: Fichier supprimé: %s", file_path)
+                self.async_write_ha_state()
             except Exception as e:
                 raise HomeAssistantError(f"Impossible de supprimer: {e}")
         
@@ -1953,8 +2143,10 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             try:
                 os.rename(file_path, new_path)
                 self._media_files_cache_ts = 0  # Invalidate cache
+                self._update_media_storage_stats()
                 self._log_event(f"Média renommé: {filename} → {new_name}")
                 _LOGGER.info("Domolink: Fichier renommé: %s → %s", file_path, new_path)
+                self.async_write_ha_state()
             except Exception as e:
                 raise HomeAssistantError(f"Impossible de renommer: {e}")
         else:
@@ -2047,6 +2239,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                         pass
                     if getattr(self, "_ftp_enabled", False):
                         self.hass.async_create_task(self._async_upload_to_ftp(snapshot_path))
+                    if getattr(self, "_webdav_enabled", False):
+                        self.hass.async_create_task(self._async_upload_to_webdav(snapshot_path))
                 self._log_event(f"✅ Photo test enregistrée ({cam_name})")
             except asyncio.TimeoutError:
                 self._log_event(f"⚠️ Timeout photo (15s) sur {cam_name}")
@@ -2406,6 +2600,238 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         finally:
             self.async_write_ha_state()
 
+    async def _async_upload_to_webdav(self, file_path):
+        """Upload photo or video to WebDAV / Nextcloud asynchronously."""
+        if not getattr(self, "_webdav_enabled", False) or not getattr(self, "_webdav_url", ""):
+            return
+
+        is_video = file_path.lower().endswith(('.mp4', '.webm', '.ogg'))
+        media_type = "vidéo" if is_video else "photo"
+        filename = os.path.basename(file_path)
+
+        try:
+            import aiohttp
+            from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+            session = async_get_clientsession(self.hass)
+            auth = None
+            if self._webdav_user and self._webdav_pass:
+                auth = aiohttp.BasicAuth(self._webdav_user, self._webdav_pass)
+
+            base_url = self._webdav_url.rstrip("/")
+            
+            # Ensure target directories exist via MKCOL
+            target_path = getattr(self, "_webdav_path", "domolink/alarm").strip().strip("/")
+            dirs = [d for d in target_path.split("/") if d]
+            cur_url = base_url
+            for d in dirs:
+                cur_url = f"{cur_url}/{d}"
+                try:
+                    async with session.request("MKCOL", cur_url, auth=auth, timeout=aiohttp.ClientTimeout(total=8)) as mkcol_resp:
+                        pass
+                except Exception:
+                    pass
+
+            file_url = f"{cur_url}/{filename}"
+            content_type = "video/mp4" if is_video else "image/jpeg"
+
+            def _read_file():
+                with open(file_path, "rb") as f:
+                    return f.read()
+
+            file_data = await self.hass.async_add_executor_job(_read_file)
+
+            async with session.put(
+                file_url,
+                data=file_data,
+                headers={"Content-Type": content_type},
+                auth=auth,
+                timeout=aiohttp.ClientTimeout(total=60 if is_video else 20)
+            ) as put_resp:
+                if put_resp.status in (200, 201, 204):
+                    self._webdav_status = "Connecté"
+                    _LOGGER.info("Domolink: %s téléversée sur WebDAV avec succès: %s", media_type.capitalize(), filename)
+                    self._log_event(f"Sauvegarde {media_type} WebDAV : {filename}")
+                else:
+                    self._webdav_status = "Erreur"
+                    _LOGGER.error("Domolink: Échec téléversement WebDAV (%s): Code %s", filename, put_resp.status)
+                    self._log_event(f"⚠️ Échec transfert WebDAV {media_type}: {filename} (HTTP {put_resp.status})")
+        except Exception as e:
+            self._webdav_status = "Erreur"
+            _LOGGER.error("Domolink: Erreur lors de l'envoi WebDAV de %s: %s", file_path, e)
+            self._log_event(f"⚠️ Erreur envoi WebDAV : {e}")
+
+        self.async_write_ha_state()
+
+    def _append_webdav_log(self, message: str, level: str = "info"):
+        """Append an entry to WebDAV test log and notify state change."""
+        now_str = dt_now().strftime("%H:%M:%S")
+        if not hasattr(self, "_webdav_test_logs") or self._webdav_test_logs is None:
+            self._webdav_test_logs = []
+        self._webdav_test_logs.append({
+            "time": now_str,
+            "message": message,
+            "level": level,
+        })
+        if len(self._webdav_test_logs) > 60:
+            self._webdav_test_logs = self._webdav_test_logs[-60:]
+        try:
+            self.async_write_ha_state()
+        except Exception:
+            pass
+
+    async def async_test_webdav(self, call=None):
+        """Force a connection test to the WebDAV server with real-time log steps."""
+        if getattr(self, "_webdav_test_running", False):
+            _LOGGER.debug("Domolink: Un test WebDAV est déjà en cours.")
+            return
+
+        self._webdav_test_running = True
+        self._webdav_test_logs = []
+        self._webdav_test_result = {}
+        self._append_webdav_log("🚀 Démarrage du diagnostic WebDAV / Nextcloud...", "info")
+
+        self.hass.async_create_task(self._async_run_webdav_test())
+
+    async def _async_run_webdav_test(self):
+        """Run step-by-step diagnostic of WebDAV server asynchronously."""
+        import time
+        import aiohttp
+        from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+        start_time = time.time()
+        url = str(getattr(self, "_webdav_url", "") or "").strip()
+        user = str(getattr(self, "_webdav_user", "") or "").strip()
+        passwd = str(getattr(self, "_webdav_pass", "") or "")
+        path = str(getattr(self, "_webdav_path", "domolink/alarm") or "domolink/alarm").strip().strip("/")
+
+        try:
+            await asyncio.sleep(0.2)
+            if not getattr(self, "_webdav_enabled", False):
+                self._append_webdav_log("Le service WebDAV est désactivé dans la configuration.", "error")
+                self._webdav_status = "Erreur"
+                self._webdav_test_running = False
+                self._webdav_test_result = {"success": False, "message": "Service WebDAV désactivé."}
+                self.async_write_ha_state()
+                return
+
+            if not url:
+                self._append_webdav_log("Aucune URL WebDAV configurée.", "error")
+                self._webdav_status = "Erreur"
+                self._webdav_test_running = False
+                self._webdav_test_result = {"success": False, "message": "URL WebDAV manquante."}
+                self.async_write_ha_state()
+                return
+
+            if not (url.startswith("http://") or url.startswith("https://")):
+                self._append_webdav_log("URL invalide (doit débuter par http:// ou https://)", "error")
+                self._webdav_status = "Erreur"
+                self._webdav_test_running = False
+                self._webdav_test_result = {"success": False, "message": "URL invalide (http:// ou https:// requis)."}
+                self.async_write_ha_state()
+                return
+
+            self._append_webdav_log(f"1. Configuration : URL={url}, Utilisateur='{user}'", "info")
+            await asyncio.sleep(0.3)
+
+            # Step 2: Connection & Auth
+            self._append_webdav_log("2. Connexion réseau et authentification...", "info")
+            session = async_get_clientsession(self.hass)
+            auth = aiohttp.BasicAuth(user, passwd) if user and passwd else None
+            base_url = url.rstrip("/")
+
+            try:
+                async with session.request("PROPFIND", base_url, headers={"Depth": "0"}, auth=auth, timeout=aiohttp.ClientTimeout(total=12)) as resp:
+                    if resp.status in (401, 403):
+                        self._append_webdav_log(f"   ✗ Authentification rejetée (Code {resp.status})", "error")
+                        self._webdav_status = "Erreur"
+                        self._webdav_test_running = False
+                        self._webdav_test_result = {"success": False, "message": f"Identifiants invalides (HTTP {resp.status})"}
+                        self.async_write_ha_state()
+                        return
+                    elif resp.status in (200, 207, 405):
+                        self._append_webdav_log(f"   ✓ Connexion et accès autorisés (HTTP {resp.status})", "success")
+                    else:
+                        self._append_webdav_log(f"   ⚠️ Réponse serveur inattendue (HTTP {resp.status}), poursuite...", "warning")
+            except Exception as conn_err:
+                self._append_webdav_log(f"   ✗ Impossible de joindre le serveur WebDAV : {conn_err}", "error")
+                self._webdav_status = "Erreur"
+                self._webdav_test_running = False
+                self._webdav_test_result = {"success": False, "message": f"Erreur réseau: {conn_err}"}
+                self.async_write_ha_state()
+                return
+
+            await asyncio.sleep(0.3)
+            # Step 3: Directory creation
+            self._append_webdav_log(f"3. Vérification de l'arborescence '{path}'...", "info")
+            dirs = [d for d in path.split("/") if d]
+            cur_url = base_url
+            for d in dirs:
+                cur_url = f"{cur_url}/{d}"
+                try:
+                    async with session.request("MKCOL", cur_url, auth=auth, timeout=aiohttp.ClientTimeout(total=8)) as mk_resp:
+                        pass
+                except Exception:
+                    pass
+            self._append_webdav_log("   ✓ Arborescence distante vérifiée.", "success")
+
+            await asyncio.sleep(0.3)
+            # Step 4: Write test
+            self._append_webdav_log("4. Test des permissions d'écriture (PUT)...", "info")
+            test_file = f"domolink_probe_{int(time.time())}.txt"
+            test_url = f"{cur_url}/{test_file}"
+            test_data = b"Domolink Alarm WebDAV Probe Test"
+
+            try:
+                async with session.put(test_url, data=test_data, headers={"Content-Type": "text/plain"}, auth=auth, timeout=aiohttp.ClientTimeout(total=12)) as put_resp:
+                    if put_resp.status not in (200, 201, 204):
+                        self._append_webdav_log(f"   ✗ Échec écriture fichier test (Code {put_resp.status})", "error")
+                        self._webdav_status = "Erreur"
+                        self._webdav_test_running = False
+                        self._webdav_test_result = {"success": False, "message": f"Écriture refusée (HTTP {put_resp.status})"}
+                        self.async_write_ha_state()
+                        return
+                    self._append_webdav_log("   ✓ Droits d'écriture validés.", "success")
+            except Exception as put_err:
+                self._append_webdav_log(f"   ✗ Erreur d'écriture : {put_err}", "error")
+                self._webdav_status = "Erreur"
+                self._webdav_test_running = False
+                self._webdav_test_result = {"success": False, "message": f"Erreur d'écriture: {put_err}"}
+                self.async_write_ha_state()
+                return
+
+            await asyncio.sleep(0.2)
+            # Step 5: Clean test file
+            self._append_webdav_log("5. Nettoyage du fichier de test (DELETE)...", "info")
+            try:
+                async with session.delete(test_url, auth=auth, timeout=aiohttp.ClientTimeout(total=8)) as del_resp:
+                    self._append_webdav_log("   ✓ Nettoyage effectué.", "success")
+            except Exception:
+                self._append_webdav_log("   ℹ Nettoyage ignoré (non critique).", "info")
+
+            elapsed = round(time.time() - start_time, 2)
+            self._append_webdav_log(f"6. Chemin de sauvegarde validé : {path}", "success")
+            self._append_webdav_log(f"🎉 Connexion WebDAV acceptée et validée avec succès ({elapsed}s) !", "success")
+            self._webdav_status = "Connecté"
+            self._webdav_test_running = False
+            self._webdav_test_result = {
+                "success": True,
+                "message": "Connexion acceptée",
+                "save_path": path,
+                "elapsed": elapsed,
+            }
+            self._log_event(f"Test WebDAV réussi ({elapsed}s) : {path}")
+
+        except Exception as global_err:
+            _LOGGER.error("Domolink: Erreur test WebDAV: %s", global_err)
+            self._append_webdav_log(f"Erreur inattendue : {global_err}", "error")
+            self._webdav_status = "Erreur"
+            self._webdav_test_running = False
+            self._webdav_test_result = {"success": False, "message": str(global_err)}
+            self._log_event(f"⚠️ Erreur test WebDAV : {global_err}")
+        finally:
+            self.async_write_ha_state()
+
     async def _async_capture_cameras(self, triggering_entity=None):
         """Asynchronously capture photos and trigger recordings with targeted zone cameras (parallel & robust)."""
         if not self._cameras:
@@ -2473,6 +2899,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                         self.hass.async_create_task(self._async_upload_to_telegram(snapshot_path))
                     if getattr(self, "_ftp_enabled", False):
                         self.hass.async_create_task(self._async_upload_to_ftp(snapshot_path))
+                    if getattr(self, "_webdav_enabled", False):
+                        self.hass.async_create_task(self._async_upload_to_webdav(snapshot_path))
             except asyncio.TimeoutError:
                 _LOGGER.warning("Domolink: Timeout photo (12s) sur %s", camera)
             except Exception as e:
@@ -2493,6 +2921,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         # Launch all camera captures in parallel
         tasks = [_capture_single_camera(cam, i) for i, cam in enumerate(target_cameras)]
         await asyncio.gather(*tasks, return_exceptions=True)
+        # Purge storage after new captures
+        self.hass.async_create_task(self.hass.async_add_executor_job(self._purge_old_media_files))
 
     # ─── Siren / Lights Off ───────────────────────────────────────
 
@@ -2627,7 +3057,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             CONF_MQTT_ENABLED, CONF_MQTT_TOPIC_BASE, CONF_MQTT_REQUIRE_CODE,
             CONF_TELEGRAM_ENABLED, CONF_TELEGRAM_TOKEN, CONF_TELEGRAM_CHAT_ID,
             CONF_FTP_ENABLED, CONF_FTP_HOST, CONF_FTP_PORT, CONF_FTP_USER, CONF_FTP_PASS, CONF_FTP_PATH,
-            CONF_MEDIA_PATH,
+            CONF_WEBDAV_ENABLED, CONF_WEBDAV_URL, CONF_WEBDAV_USER, CONF_WEBDAV_PASS, CONF_WEBDAV_PATH,
+            CONF_MEDIA_PATH, CONF_MEDIA_RETENTION_DAYS, CONF_MEDIA_MAX_SIZE_MB,
         }
         
         updated = False

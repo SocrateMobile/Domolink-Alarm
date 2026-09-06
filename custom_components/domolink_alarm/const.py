@@ -115,11 +115,26 @@ DEFAULT_FTP_PATH = "/"
 CONF_CAMERAS_ARM_ENTITIES = "cameras_arm_entities"
 CONF_CAMERAS_ARM_ENTITIES_LABELS = "cameras_arm_entities_labels"
 
-# Media Storage
+# WebDAV Cloud Backup
+CONF_WEBDAV_ENABLED = "webdav_enabled"
+CONF_WEBDAV_URL = "webdav_url"
+CONF_WEBDAV_USER = "webdav_user"
+CONF_WEBDAV_PASS = "webdav_pass"
+CONF_WEBDAV_PATH = "webdav_path"
+
+DEFAULT_WEBDAV_ENABLED = False
+DEFAULT_WEBDAV_PATH = "domolink/alarm"
+
+# Media Storage & Retention
 CONF_MEDIA_PATH = "media_path"
 DEFAULT_MEDIA_PATH = "domolink_media"
+CONF_MEDIA_RETENTION_DAYS = "media_retention_days"
+CONF_MEDIA_MAX_SIZE_MB = "media_max_size_mb"
+DEFAULT_MEDIA_RETENTION_DAYS = 30
+DEFAULT_MEDIA_MAX_SIZE_MB = 1024
 
 # Zones & Targeted Cameras
 CONF_ZONE_LABELS = "zone_labels"
 CONF_GLOBAL_CAMERAS = "global_cameras"
 CONF_GLOBAL_CAMERAS_LABELS = "global_cameras_labels"
+
