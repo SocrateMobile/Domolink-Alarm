@@ -132,10 +132,80 @@ media_action:
 test_ftp:
   name: Tester la connexion FTP
   description: Force un test complet de connexion au serveur FTP avec diagnostic détaillé, vérification de l'arborescence domolink/alarm et test des droits d'écriture.
+  fields:
+    nas_type:
+      name: Type de NAS
+      description: Identifiant du profil NAS testé (ex: asustor, synology, qnap, truenas, freebox, unraid, generic).
+      required: false
+      selector:
+        text: {}
+    ftp_host:
+      name: Hôte FTP
+      description: Adresse IP ou nom d'hôte du serveur FTP.
+      required: false
+      selector:
+        text: {}
+    ftp_port:
+      name: Port FTP
+      description: Port TCP du serveur FTP.
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 65535
+    ftp_user:
+      name: Utilisateur FTP
+      description: Nom d'utilisateur pour l'authentification.
+      required: false
+      selector:
+        text: {}
+    ftp_pass:
+      name: Mot de passe FTP
+      description: Mot de passe FTP.
+      required: false
+      selector:
+        text: {}
+    ftp_path:
+      name: Dossier distant
+      description: Répertoire racine ou sous-dossier distant.
+      required: false
+      selector:
+        text: {}
 
 test_webdav:
   name: Tester la connexion WebDAV
   description: Force un test complet de connexion au serveur Cloud WebDAV / Nextcloud avec diagnostic étape par étape, création de dossier et test d'écriture/suppression.
+  fields:
+    nas_type:
+      name: Type de NAS
+      description: Identifiant du profil NAS testé (ex: asustor, synology, qnap, truenas, freebox, unraid, generic).
+      required: false
+      selector:
+        text: {}
+    webdav_url:
+      name: URL WebDAV
+      description: URL complète du serveur WebDAV ou Nextcloud.
+      required: false
+      selector:
+        text: {}
+    webdav_user:
+      name: Utilisateur WebDAV
+      description: Nom d'utilisateur WebDAV.
+      required: false
+      selector:
+        text: {}
+    webdav_pass:
+      name: Mot de passe WebDAV
+      description: Mot de passe ou token WebDAV.
+      required: false
+      selector:
+        text: {}
+    webdav_path:
+      name: Dossier distant
+      description: Chemin distant relatif.
+      required: false
+      selector:
+        text: {}
 
 clean_media:
   name: Nettoyer le stockage des médias
