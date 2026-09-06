@@ -96,6 +96,21 @@ update_settings:
         number:
           min: 10
           max: 1800
+    ftp_protocol:
+      name: Protocole FTP
+      description: Protocole de transfert (ftp, ftps, sftp, samba).
+      required: false
+      selector:
+        select:
+          options:
+            - label: FTP (Standard)
+              value: ftp
+            - label: FTPS (SSL/TLS explicite)
+              value: ftps
+            - label: SFTP (SSH File Transfer)
+              value: sftp
+            - label: SAMBA (Partage Windows/SMB)
+              value: samba
 
 test_cameras_recording:
   name: Tester l'enregistrement des caméras
@@ -139,6 +154,21 @@ test_ftp:
       required: false
       selector:
         text: {}
+    ftp_protocol:
+      name: Protocole
+      description: Protocole de transfert (ftp, ftps, sftp, samba).
+      required: false
+      selector:
+        select:
+          options:
+            - label: FTP (Standard)
+              value: ftp
+            - label: FTPS (SSL/TLS explicite)
+              value: ftps
+            - label: SFTP (SSH File Transfer)
+              value: sftp
+            - label: SAMBA (Partage Windows/SMB)
+              value: samba
     ftp_host:
       name: Hôte FTP
       description: Adresse IP ou nom d'hôte du serveur FTP.

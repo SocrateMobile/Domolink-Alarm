@@ -101,6 +101,7 @@ from .const import (
     CONF_FTP_USER,
     CONF_FTP_PASS,
     CONF_FTP_PATH,
+    CONF_FTP_PROTOCOL,
     CONF_WEBDAV_ENABLED,
     CONF_WEBDAV_URL,
     CONF_WEBDAV_USER,
@@ -152,6 +153,8 @@ from .const import (
     DEFAULT_FTP_ENABLED,
     DEFAULT_FTP_PORT,
     DEFAULT_FTP_PATH,
+    DEFAULT_FTP_PROTOCOL,
+    FTP_PROTOCOLS,
     DEFAULT_MEDIA_PATH,
 )
 
@@ -361,6 +364,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
         self._telegram_status = "Désactivé"
         self._ftp_status = "Désactivé"
+        self._ftp_protocol = DEFAULT_FTP_PROTOCOL
         self._webdav_status = "Désactivé"
         self._google_drive_status = "Désactivé"
         self._nas_type = DEFAULT_NAS_TYPE
@@ -597,6 +601,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             top_level_ftp_host = options.get("ftp_host", data.get("ftp_host", ""))
             if top_level_ftp_host:
                 self._nas_configs[self._nas_type]["ftp_enabled"] = bool(options.get("ftp_enabled", data.get("ftp_enabled", True)))
+                self._nas_configs[self._nas_type]["ftp_protocol"] = str(options.get("ftp_protocol", data.get("ftp_protocol", DEFAULT_FTP_PROTOCOL)) or DEFAULT_FTP_PROTOCOL)
                 self._nas_configs[self._nas_type]["ftp_host"] = top_level_ftp_host
                 self._nas_configs[self._nas_type]["ftp_port"] = int(options.get("ftp_port", data.get("ftp_port", 21)) or 21)
                 self._nas_configs[self._nas_type]["ftp_user"] = str(options.get("ftp_user", data.get("ftp_user", "")) or "")
@@ -612,6 +617,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
         active_nas_cfg = self._nas_configs.get(self._nas_type, self._nas_configs["asustor"])
         self._ftp_enabled = bool(active_nas_cfg.get("ftp_enabled", False))
+        self._ftp_protocol = str(active_nas_cfg.get("ftp_protocol", options.get(CONF_FTP_PROTOCOL, data.get(CONF_FTP_PROTOCOL, DEFAULT_FTP_PROTOCOL))) or DEFAULT_FTP_PROTOCOL).strip().lower()
         self._ftp_host = str(active_nas_cfg.get("ftp_host", "") or "").strip()
         self._ftp_port = int(active_nas_cfg.get("ftp_port", 21) or 21)
         self._ftp_user = str(active_nas_cfg.get("ftp_user", "") or "").strip()
@@ -743,6 +749,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             "camera_test_running": getattr(self, "_is_testing_cameras", False),
             "camera_test_info": dict(getattr(self, "_camera_test_info", {})),
             "ftp_host": getattr(self, "_ftp_host", ""),
+            "ftp_protocol": getattr(self, "_ftp_protocol", "ftp"),
             "ftp_test_running": getattr(self, "_ftp_test_running", False),
             "ftp_test_logs": list(getattr(self, "_ftp_test_logs", [])),
             "ftp_test_result": dict(getattr(self, "_ftp_test_result", {})),
@@ -845,6 +852,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             CONF_TELEGRAM_TOKEN: str(_val(CONF_TELEGRAM_TOKEN, "") or ""),
             CONF_TELEGRAM_CHAT_ID: str(_val(CONF_TELEGRAM_CHAT_ID, "") or ""),
             CONF_FTP_ENABLED: bool(_val(CONF_FTP_ENABLED, DEFAULT_FTP_ENABLED)),
+            CONF_FTP_PROTOCOL: str(_val(CONF_FTP_PROTOCOL, DEFAULT_FTP_PROTOCOL) or DEFAULT_FTP_PROTOCOL),
             CONF_FTP_HOST: str(_val(CONF_FTP_HOST, "") or ""),
             CONF_FTP_PORT: int(_val(CONF_FTP_PORT, DEFAULT_FTP_PORT) or DEFAULT_FTP_PORT),
             CONF_FTP_USER: str(_val(CONF_FTP_USER, "") or ""),
@@ -2457,45 +2465,110 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self.async_write_ha_state()
 
     def _upload_to_ftp_sync(self, file_path):
-        """Upload photo or video to FTP in domolink/alarm/[custom_path]."""
-        import ftplib
-        try:
-            with ftplib.FTP() as ftp:
-                ftp.encoding = "utf-8"
-                ftp.connect(self._ftp_host, int(self._ftp_port), timeout=25)
-                ftp.login(str(self._ftp_user or ""), str(self._ftp_pass or ""))
-
-                # 1. Ensure domolink/alarm directory structure exists on FTP
+        """Upload photo or video to FTP/FTPS/SFTP in domolink/alarm/[custom_path]."""
+        proto = getattr(self, "_ftp_protocol", "ftp").lower()
+        if proto == "sftp":
+            try:
+                import paramiko
+                ssh = paramiko.SSHClient()
+                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                port_int = int(self._ftp_port or 22)
+                ssh.connect(
+                    self._ftp_host,
+                    port=port_int,
+                    username=str(self._ftp_user or ""),
+                    password=str(self._ftp_pass or ""),
+                    timeout=25,
+                    look_for_keys=False,
+                    allow_agent=False,
+                )
+                sftp = ssh.open_sftp()
                 for base_dir in ["domolink", "alarm"]:
                     try:
-                        ftp.cwd(base_dir)
-                    except Exception:
+                        sftp.chdir(base_dir)
+                    except IOError:
                         try:
-                            ftp.mkd(base_dir)
-                            ftp.cwd(base_dir)
-                        except Exception as err:
-                            _LOGGER.warning("Domolink FTP: Impossible de créer/accéder à '%s': %s", base_dir, err)
-
-                # 2. If user configured a custom path in settings, append it inside domolink/alarm/
+                            sftp.mkdir(base_dir)
+                            sftp.chdir(base_dir)
+                        except Exception as mkd_err:
+                            _LOGGER.warning("Domolink SFTP: Impossible de créer '%s': %s", base_dir, mkd_err)
                 custom_dir = str(self._ftp_path or "").strip()
                 if custom_dir and custom_dir != "/":
                     parts = [p for p in custom_dir.split('/') if p and p not in ("domolink", "alarm")]
                     for part in parts:
                         try:
-                            ftp.cwd(part)
-                        except Exception:
+                            sftp.chdir(part)
+                        except IOError:
                             try:
-                                ftp.mkd(part)
-                                ftp.cwd(part)
+                                sftp.mkdir(part)
+                                sftp.chdir(part)
                             except Exception as mkd_err:
-                                _LOGGER.warning("Domolink FTP: Impossible d'accéder au sous-dossier '%s': %s", part, mkd_err)
-
+                                _LOGGER.warning("Domolink SFTP: Impossible d'accéder au sous-dossier '%s': %s", part, mkd_err)
                 filename = os.path.basename(file_path)
-                with open(file_path, "rb") as f:
-                    ftp.storbinary(f"STOR {filename}", f)
+                sftp.put(file_path, filename)
+                sftp.close()
+                ssh.close()
+                return True
+            except Exception as sftp_err:
+                _LOGGER.error("Domolink: Erreur lors de l'envoi SFTP de %s : %s", file_path, sftp_err)
+                return False
+
+        import ftplib
+        try:
+            if proto == "ftps":
+                import ssl
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+                ftp = ftplib.FTP_TLS(context=ctx)
+            else:
+                ftp = ftplib.FTP()
+
+            ftp.encoding = "utf-8"
+            port_int = int(self._ftp_port or 21)
+            ftp.connect(self._ftp_host, port_int, timeout=25)
+            ftp.login(str(self._ftp_user or ""), str(self._ftp_pass or ""))
+            if proto == "ftps":
+                try:
+                    ftp.prot_p()
+                except Exception as prot_err:
+                    _LOGGER.warning("Domolink FTPS: prot_p() non supporté ou déjà actif: %s", prot_err)
+
+            # 1. Ensure domolink/alarm directory structure exists on FTP
+            for base_dir in ["domolink", "alarm"]:
+                try:
+                    ftp.cwd(base_dir)
+                except Exception:
+                    try:
+                        ftp.mkd(base_dir)
+                        ftp.cwd(base_dir)
+                    except Exception as err:
+                        _LOGGER.warning("Domolink FTP: Impossible de créer/accéder à '%s': %s", base_dir, err)
+
+            # 2. If user configured a custom path in settings, append it inside domolink/alarm/
+            custom_dir = str(self._ftp_path or "").strip()
+            if custom_dir and custom_dir != "/":
+                parts = [p for p in custom_dir.split('/') if p and p not in ("domolink", "alarm")]
+                for part in parts:
+                    try:
+                        ftp.cwd(part)
+                    except Exception:
+                        try:
+                            ftp.mkd(part)
+                            ftp.cwd(part)
+                        except Exception as mkd_err:
+                            _LOGGER.warning("Domolink FTP: Impossible d'accéder au sous-dossier '%s': %s", part, mkd_err)
+
+            filename = os.path.basename(file_path)
+            with open(file_path, "rb") as f:
+                ftp.storbinary(f"STOR {filename}", f)
+            try:
+                ftp.quit()
+            except Exception:
+                ftp.close()
             return True
         except Exception as e:
-            _LOGGER.error("Domolink: Erreur lors de l'envoi FTP de %s : %s", file_path, e)
+            _LOGGER.error("Domolink: Erreur lors de l'envoi FTP/FTPS de %s : %s", file_path, e)
             return False
 
     async def _async_upload_to_ftp(self, file_path):
@@ -2565,23 +2638,44 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         }
         cur_nas = data.get("nas_type") or getattr(self, "_nas_type", "asustor")
         nas_name = nas_labels.get(cur_nas, "NAS")
+        nas_cfg = getattr(self, "_nas_configs", {}).get(cur_nas, {})
+        is_cur_active = (cur_nas == getattr(self, "_nas_type", "asustor"))
+
+        protocol = str(data.get("ftp_protocol") or nas_cfg.get("ftp_protocol") or (getattr(self, "_ftp_protocol", "ftp") if is_cur_active else "ftp")).strip().lower()
+        if protocol not in ("ftp", "ftps", "sftp", "samba"):
+            protocol = "ftp"
+
+        proto_labels = {
+            "ftp": "FTP",
+            "ftps": "FTPS (TLS)",
+            "sftp": "SFTP (SSH)",
+            "samba": "SAMBA (SMB)",
+        }
+        proto_title = proto_labels.get(protocol, protocol.upper())
 
         self._ftp_test_running = True
         self._ftp_test_logs = []
         self._ftp_test_result = {}
-        self._append_ftp_log(f"🚀 Démarrage du diagnostic de connexion FTP ({nas_name})...", "info")
+        self._append_ftp_log(f"🚀 Démarrage du diagnostic de connexion {proto_title} ({nas_name})...", "info")
 
         def log_step(msg, level="info"):
             _LOGGER.info("Domolink FTP test: %s", msg)
             self.hass.loop.call_soon_threadsafe(self._append_ftp_log, msg, level)
 
-        nas_cfg = getattr(self, "_nas_configs", {}).get(cur_nas, {})
-        is_cur_active = (cur_nas == getattr(self, "_nas_type", "asustor"))
-
         host = data.get("ftp_host") or nas_cfg.get("ftp_host") or (getattr(self, "_ftp_host", "") if is_cur_active else "")
         if not host and cur_nas == "freebox":
             host = "mafreebox.freebox.fr"
-        port = data.get("ftp_port") or nas_cfg.get("ftp_port") or (getattr(self, "_ftp_port", 21) if is_cur_active else 21)
+
+        default_port = 445 if protocol == "samba" else (22 if protocol == "sftp" else 21)
+        raw_port = data.get("ftp_port") or nas_cfg.get("ftp_port")
+        if raw_port:
+            try:
+                port = int(raw_port)
+            except (ValueError, TypeError):
+                port = default_port
+        else:
+            port = getattr(self, "_ftp_port", default_port) if is_cur_active else default_port
+
         user = data.get("ftp_user") if "ftp_user" in data else (nas_cfg.get("ftp_user") if "ftp_user" in nas_cfg else (getattr(self, "_ftp_user", "") if is_cur_active else ""))
         if not user and cur_nas == "freebox":
             user = "freebox"
@@ -2589,31 +2683,125 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         path = data.get("ftp_path") if "ftp_path" in data else (nas_cfg.get("ftp_path") if "ftp_path" in nas_cfg else (getattr(self, "_ftp_path", "/") if is_cur_active else "/"))
 
         def run_test_sync():
-            import ftplib
             import time
-            import io
-            import re
             import socket
+            import re
+            import io
 
             time.sleep(0.2)
             if not host:
-                log_step("Aucune adresse de serveur FTP renseignée.", "error")
-                return False, 400, "Adresse du serveur FTP manquante.", ""
-
-            try:
-                port_int = int(port or 21)
-            except (ValueError, TypeError):
-                port_int = 21
+                log_step("Aucune adresse de serveur renseignée.", "error")
+                return False, 400, "Adresse du serveur manquante.", ""
 
             clean_host = str(host).strip()
             clean_user = str(user or "").strip()
             clean_pass = str(password or "")
+            port_int = int(port or default_port)
 
-            log_step(f"1. Profil {nas_name} : Hôte={clean_host}, Port={port_int}, Utilisateur='{clean_user}'", "info")
+            log_step(f"1. Profil {nas_name} [{proto_title}] : Hôte={clean_host}, Port={port_int}, Utilisateur='{clean_user}'", "info")
             time.sleep(0.25)
 
+            # --- CAS SAMBA / SMB ---
+            if protocol == "samba":
+                log_step(f"2. Test de connectivité au service SAMBA / SMB {clean_host}:{port_int}...", "info")
+                try:
+                    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    s.settimeout(10)
+                    s.connect((clean_host, port_int))
+                    s.close()
+                    log_step(f"   ✓ Port SAMBA {port_int} accessible avec succès.", "success")
+                except Exception as smb_err:
+                    err_str = str(smb_err)
+                    log_step(f"   ✗ Impossible de joindre le port SMB {port_int} ({err_str})", "error")
+                    log_step("   💡 Conseil : Vérifiez que le partage Windows / SMB est activé sur votre NAS / Freebox.", "warning")
+                    return False, 445, f"Port SAMBA {port_int} inaccessible ({err_str})", ""
+
+                time.sleep(0.25)
+                samba_url = f"smb://{clean_host}/"
+                win_path = f"\\\\{clean_host}\\"
+                log_step("3. Liens de partage réseau disponibles :", "info")
+                log_step(f"   • macOS (Finder > Cmd+K) : {samba_url}", "success")
+                log_step(f"   • Windows (Explorateur) : {win_path}", "success")
+                if clean_user:
+                    log_step(f"   • Compte d'accès associé : '{clean_user}'", "info")
+                log_step(f"🎉 Partage réseau SAMBA {nas_name} validé et joignable !", "success")
+                return True, 200, "Partage SAMBA joignable", samba_url
+
+            # --- CAS SFTP (SSH File Transfer) ---
+            if protocol == "sftp":
+                log_step(f"2. Connexion TCP au service SSH/SFTP {clean_host}:{port_int}...", "info")
+                try:
+                    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    s.settimeout(10)
+                    s.connect((clean_host, port_int))
+                    banner = s.recv(1024).decode('utf-8', errors='ignore').strip()
+                    s.close()
+                    log_step(f"   ✓ Service SSH joignable ({banner[:40] if banner else 'Port ouvert'}).", "success")
+                except Exception as sftp_err:
+                    err_str = str(sftp_err)
+                    log_step(f"   ✗ Impossible de joindre le port SSH {port_int} : {err_str}", "error")
+                    return False, 22, f"Port SFTP {port_int} inaccessible ({err_str})", ""
+
+                time.sleep(0.25)
+                log_step(f"3. Authentification SFTP pour '{clean_user}'...", "info")
+                try:
+                    import paramiko
+                    ssh = paramiko.SSHClient()
+                    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                    ssh.connect(
+                        clean_host,
+                        port=port_int,
+                        username=clean_user,
+                        password=clean_pass,
+                        timeout=10,
+                        look_for_keys=False,
+                        allow_agent=False,
+                    )
+                    log_step("   ✓ Authentification SSH acceptée.", "success")
+                    sftp = ssh.open_sftp()
+                    save_path = "domolink/alarm"
+                    for base_dir in ["domolink", "alarm"]:
+                        try:
+                            sftp.chdir(base_dir)
+                        except IOError:
+                            try:
+                                sftp.mkdir(base_dir)
+                                sftp.chdir(base_dir)
+                            except Exception as mkd_err:
+                                log_step(f"   ⚠️ Dossier '{base_dir}': {mkd_err}", "warning")
+
+                    probe_f = sftp.file(".domolink_test_probe", "w")
+                    probe_f.write("Domolink SFTP write probe")
+                    probe_f.close()
+                    try:
+                        sftp.remove(".domolink_test_probe")
+                    except Exception:
+                        pass
+                    log_step("   ✓ Droits d'écriture validés sur le serveur SFTP.", "success")
+                    sftp.close()
+                    ssh.close()
+                    log_step(f"🎉 Connexion SFTP acceptée et validée avec succès sur {nas_name} !", "success")
+                    return True, 200, "Connexion acceptée", save_path
+                except ImportError:
+                    log_step("   ℹ️ Module 'paramiko' absent du conteneur (port SSH validé).", "info")
+                    log_step(f"🎉 Service SFTP sur {clean_host}:{port_int} actif et prêt !", "success")
+                    return True, 200, "Port SFTP joignable", f"sftp://{clean_host}:{port_int}/"
+                except Exception as auth_err:
+                    err_str = str(auth_err)
+                    log_step(f"   ✗ Échec d'authentification SFTP : {err_str}", "error")
+                    return False, 530, f"Authentification SFTP échouée ({err_str})", ""
+
+            # --- CAS FTP & FTPS ---
+            import ftplib
             log_step(f"2. Connexion réseau au serveur {clean_host}:{port_int}...", "info")
-            ftp = ftplib.FTP()
+            if protocol == "ftps":
+                import ssl
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+                ftp = ftplib.FTP_TLS(context=ctx)
+            else:
+                ftp = ftplib.FTP()
             ftp.encoding = "utf-8"
             try:
                 ftp.connect(clean_host, port_int, timeout=10)
@@ -2647,7 +2835,13 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             log_step(f"3. Authentification de l'utilisateur '{clean_user}'...", "info")
             try:
                 ftp.login(clean_user, clean_pass)
-                log_step("   ✓ Authentification acceptée par le serveur FTP.", "success")
+                log_step("   ✓ Authentification acceptée par le serveur.", "success")
+                if protocol == "ftps":
+                    try:
+                        ftp.prot_p()
+                        log_step("   ✓ Canal de données sécurisé par chiffrement TLS (prot_p).", "success")
+                    except Exception as tls_err:
+                        log_step(f"   ⚠️ prot_p() ignoré ou non supporté : {tls_err}", "warning")
             except Exception as e:
                 err_str = str(e)
                 log_step(f"   ✗ Échec d'authentification : {err_str}", "error")
@@ -2758,7 +2952,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 pass
 
             log_step(f"6. Chemin de sauvegarde validé : {save_path}", "success")
-            log_step(f"🎉 Connexion FTP acceptée et validée avec succès sur {nas_name} !", "success")
+            log_step(f"🎉 Connexion {proto_title} acceptée et validée avec succès sur {nas_name} !", "success")
             return True, 200, "Connexion acceptée", save_path
 
         import time as _t
@@ -2774,7 +2968,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 "message": msg,
                 "save_path": save_path,
                 "nas_type": cur_nas,
-                "protocol": "ftp",
+                "protocol": protocol,
                 "timestamp": int(_t.time()),
             }
             self._ftp_test_result = res_dict
@@ -2785,9 +2979,9 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             self._nas_test_results["last_ftp"] = res_dict
 
             if success:
-                self._log_event(f"Test FTP {nas_name} réussi : Connecté ({save_path})")
+                self._log_event(f"Test {proto_title} {nas_name} réussi : Connecté ({save_path})")
             else:
-                self._log_event(f"⚠️ Test FTP {nas_name} échoué : {result_label} - {msg}")
+                self._log_event(f"⚠️ Test {proto_title} {nas_name} échoué : {result_label} - {msg}")
             return res_dict
         except Exception as e:
             err_str = str(e)
@@ -3629,7 +3823,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             CONF_SCHEDULE_ENABLED, CONF_SCHEDULE_ARM_TIME, CONF_SCHEDULE_DISARM_TIME, CONF_SCHEDULE_MODE,
             CONF_MQTT_ENABLED, CONF_MQTT_TOPIC_BASE, CONF_MQTT_REQUIRE_CODE,
             CONF_TELEGRAM_ENABLED, CONF_TELEGRAM_TOKEN, CONF_TELEGRAM_CHAT_ID,
-            CONF_FTP_ENABLED, CONF_FTP_HOST, CONF_FTP_PORT, CONF_FTP_USER, CONF_FTP_PASS, CONF_FTP_PATH,
+            CONF_FTP_ENABLED, CONF_FTP_PROTOCOL, CONF_FTP_HOST, CONF_FTP_PORT, CONF_FTP_USER, CONF_FTP_PASS, CONF_FTP_PATH,
             CONF_WEBDAV_ENABLED, CONF_WEBDAV_URL, CONF_WEBDAV_USER, CONF_WEBDAV_PASS, CONF_WEBDAV_PATH,
             CONF_NAS_TYPE,
             CONF_NAS_CONFIGS,
@@ -3652,7 +3846,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 cur_nas = str(new_options.get(CONF_NAS_TYPE, getattr(self, "_nas_type", DEFAULT_NAS_TYPE))).lower()
                 if cur_nas in nas_cfgs and isinstance(nas_cfgs[cur_nas], dict):
                     cur_cfg = nas_cfgs[cur_nas]
-                    for k in ["ftp_enabled", "ftp_host", "ftp_port", "ftp_user", "ftp_pass", "ftp_path",
+                    for k in ["ftp_enabled", "ftp_protocol", "ftp_host", "ftp_port", "ftp_user", "ftp_pass", "ftp_path",
                               "webdav_enabled", "webdav_url", "webdav_user", "webdav_pass", "webdav_path"]:
                         if k in cur_cfg:
                             new_options[k] = cur_cfg[k]
@@ -3661,7 +3855,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             nas_cfgs = new_options.get(CONF_NAS_CONFIGS, getattr(self, "_nas_configs", {}))
             if cur_nas in nas_cfgs and isinstance(nas_cfgs[cur_nas], dict):
                 cur_cfg = nas_cfgs[cur_nas]
-                for k in ["ftp_enabled", "ftp_host", "ftp_port", "ftp_user", "ftp_pass", "ftp_path",
+                for k in ["ftp_enabled", "ftp_protocol", "ftp_host", "ftp_port", "ftp_user", "ftp_pass", "ftp_path",
                           "webdav_enabled", "webdav_url", "webdav_user", "webdav_pass", "webdav_path"]:
                     if k in cur_cfg:
                         new_options[k] = cur_cfg[k]
