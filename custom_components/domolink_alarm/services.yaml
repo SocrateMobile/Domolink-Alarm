@@ -132,3 +132,12 @@ media_action:
 test_ftp:
   name: Tester la connexion FTP
   description: Force un test complet de connexion au serveur FTP avec diagnostic détaillé, vérification de l'arborescence domolink/alarm et test des droits d'écriture.
+
+test_webdav:
+  name: Tester la connexion WebDAV
+  description: Force un test complet de connexion au serveur Cloud WebDAV / Nextcloud avec diagnostic étape par étape, création de dossier et test d'écriture/suppression.
+
+clean_media:
+  name: Nettoyer le stockage des médias
+  description: Déclenche manuellement la purge des médias selon la durée de rétention en jours et le quota d'espace alloué en Mo.
+

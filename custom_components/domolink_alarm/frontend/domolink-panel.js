@@ -11,6 +11,11 @@ class DomolinkPanel extends HTMLElement {
       this._selectedCameraIndex = 0;
       this._cameraRefreshTimer = null;
       this._theme = localStorage.getItem('domolink_theme') || (hass.themes && hass.themes.darkMode ? 'dark' : 'dark');
+      this._kioskActive = localStorage.getItem('domolink_kiosk_active') === 'true';
+      this._kioskTimeout = parseInt(localStorage.getItem('domolink_kiosk_timeout') || '120', 10);
+      this._screensaverVisible = false;
+      this._screensaverTimer = null;
+      this._showWebdavTestConsole = false;
       this._buildShell();
       this._startClock();
       this._startCameraStream();
@@ -26,6 +31,12 @@ class DomolinkPanel extends HTMLElement {
   disconnectedCallback() {
     if (this._clockTimer) clearInterval(this._clockTimer);
     if (this._cameraRefreshTimer) clearInterval(this._cameraRefreshTimer);
+    if (this._screensaverTimer) clearTimeout(this._screensaverTimer);
+    if (this._inactivityHandler) {
+      window.removeEventListener('pointerdown', this._inactivityHandler);
+      window.removeEventListener('keydown', this._inactivityHandler);
+      window.removeEventListener('mousemove', this._inactivityHandler);
+    }
   }
 
   _startClock() {
@@ -37,9 +48,12 @@ class DomolinkPanel extends HTMLElement {
         const dateStr = now.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
         clockEl.innerHTML = `<span class="clock-time">${timeStr}</span><span class="clock-date">${dateStr}</span>`;
       }
+      if (this._screensaverVisible) {
+        this._updateScreensaverContent();
+      }
     };
     updateTime();
-    this._clockTimer = setInterval(updateTime, 10000);
+    this._clockTimer = setInterval(updateTime, 1000);
   }
 
   _startCameraStream() {
@@ -69,6 +83,197 @@ class DomolinkPanel extends HTMLElement {
     const btn = this.querySelector('#theme-toggle-btn');
     if (btn) {
       btn.innerHTML = `<ha-icon icon="${this._theme === 'dark' ? 'mdi:weather-sunny' : 'mdi:weather-night'}"></ha-icon>`;
+    }
+  }
+
+  _toggleKioskMode() {
+    this._kioskActive = !this._kioskActive;
+    localStorage.setItem('domolink_kiosk_active', this._kioskActive ? 'true' : 'false');
+    const wrap = this.querySelector('.panel-wrap');
+    if (wrap) {
+      wrap.classList.toggle('kiosk-mode', this._kioskActive);
+    }
+    const btn = this.querySelector('#kiosk-toggle-btn');
+    if (btn) {
+      btn.classList.toggle('active', this._kioskActive);
+      btn.innerHTML = `<ha-icon icon="${this._kioskActive ? 'mdi:fullscreen-exit' : 'mdi:fullscreen'}"></ha-icon>`;
+    }
+    if (this._kioskActive) {
+      try {
+        if (document.documentElement.requestFullscreen) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        } else if (document.documentElement.webkitRequestFullscreen) {
+          document.documentElement.webkitRequestFullscreen();
+        }
+      } catch (e) {}
+      this._resetInactivityTimer();
+    } else {
+      try {
+        if (document.fullscreenElement && document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        }
+      } catch (e) {}
+      this._hideScreensaver();
+    }
+  }
+
+  _resetInactivityTimer() {
+    if (this._screensaverTimer) clearTimeout(this._screensaverTimer);
+    if (!this._kioskActive) return;
+    const timeoutSec = this._kioskTimeout !== undefined ? this._kioskTimeout : 120;
+    if (timeoutSec <= 0) return;
+    this._screensaverTimer = setTimeout(() => {
+      this._showScreensaver();
+    }, timeoutSec * 1000);
+  }
+
+  _showScreensaver() {
+    if (!this._kioskActive) return;
+    const alarmEntity = this._getAlarmEntity();
+    const state = alarmEntity ? alarmEntity.state : 'disarmed';
+    if (state === 'pending' || state === 'triggered') {
+      this._hideScreensaver();
+      return;
+    }
+    this._screensaverVisible = true;
+    const screensaver = this.querySelector('#kiosk-screensaver');
+    if (screensaver) {
+      this._updateScreensaverContent();
+      screensaver.classList.add('visible');
+    }
+  }
+
+  _hideScreensaver() {
+    this._screensaverVisible = false;
+    const screensaver = this.querySelector('#kiosk-screensaver');
+    if (screensaver) {
+      screensaver.classList.remove('visible');
+    }
+    this._resetInactivityTimer();
+  }
+
+  _updateScreensaverContent() {
+    const timeEl = this.querySelector('#screensaver-time');
+    const dateEl = this.querySelector('#screensaver-date');
+    const badgeEl = this.querySelector('#screensaver-badge');
+    const textEl = this.querySelector('#screensaver-status-text');
+
+    if (timeEl || dateEl) {
+      const now = new Date();
+      if (timeEl) timeEl.textContent = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      if (dateEl) dateEl.textContent = now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    }
+
+    if (badgeEl && textEl) {
+      const alarmEntity = this._getAlarmEntity();
+      const state = alarmEntity ? alarmEntity.state : 'disarmed';
+      badgeEl.className = `screensaver-status-badge status-${state}`;
+      let label = 'SYSTÈME DÉSARMÉ • SÉCURISÉ';
+      if (state === 'armed_away') label = 'ARMEMENT TOTAL ACTIF';
+      else if (state === 'armed_home') label = 'ARMEMENT PARTIEL (MAISON)';
+      else if (state === 'armed_night') label = 'ARMEMENT NUIT ACTIF';
+      else if (state === 'arming') label = 'ARMEMENT EN COURS...';
+      else if (state === 'disarming') label = 'DÉSARMEMENT EN COURS...';
+      textEl.textContent = label;
+    }
+  }
+
+  async _handleBiometricAuth() {
+    if (!window.PublicKeyCredential) {
+      alert("L'authentification biométrique (WebAuthn) n'est pas supportée sur ce navigateur ou cet appareil.");
+      return;
+    }
+
+    const savedPin = localStorage.getItem('domolink_bio_pin');
+
+    if (!savedPin) {
+      if (!this._codeValue || this._codeValue.length < 4) {
+        alert("Configuration Déverrouillage Biométrique :\n\n1. Saisissez votre code PIN sur le pavé numérique.\n2. Cliquez ensuite sur ce bouton pour associer votre Touch ID / Face ID.");
+        return;
+      }
+
+      try {
+        const challenge = new Uint8Array(32);
+        window.crypto.getRandomValues(challenge);
+        const userId = new Uint8Array(16);
+        window.crypto.getRandomValues(userId);
+
+        const credential = await navigator.credentials.create({
+          publicKey: {
+            challenge: challenge,
+            rp: { name: "Domolink Alarm", id: window.location.hostname },
+            user: {
+              id: userId,
+              name: "domolink_user",
+              displayName: "Utilisateur Domolink"
+            },
+            pubKeyCredParams: [
+              { alg: -7, type: "public-key" },
+              { alg: -257, type: "public-key" }
+            ],
+            authenticatorSelection: {
+              authenticatorAttachment: "platform",
+              userVerification: "required"
+            },
+            timeout: 60000
+          }
+        });
+
+        if (credential) {
+          localStorage.setItem('domolink_bio_pin', this._codeValue);
+          const currentPin = this._codeValue;
+          this._codeValue = '';
+          this._updatePinDisplay();
+          
+          if (window.navigator && window.navigator.vibrate) {
+            try { window.navigator.vibrate([40, 60, 40]); } catch(e) {}
+          }
+          
+          alert("✓ Empreinte / Face ID configuré avec succès !\nVous pouvez désormais désarmer l'alarme instantanément.");
+          this.callAlarmService('alarm_disarm', currentPin);
+        }
+      } catch (err) {
+        console.error("Biometric enrollment error:", err);
+        if (err.name === 'NotAllowedError') return;
+
+        if (confirm("Votre navigateur n'a pas pu joindre le matériel biométrique. Souhaitez-vous quand même enregistrer votre code sur cet appareil pour un désarmement rapide ?")) {
+          localStorage.setItem('domolink_bio_pin', this._codeValue);
+          const currentPin = this._codeValue;
+          this._codeValue = '';
+          this._updatePinDisplay();
+          alert("✓ Déverrouillage rapide configuré !");
+          this.callAlarmService('alarm_disarm', currentPin);
+        }
+      }
+      return;
+    }
+
+    try {
+      const challenge = new Uint8Array(32);
+      window.crypto.getRandomValues(challenge);
+
+      const assertion = await navigator.credentials.get({
+        publicKey: {
+          challenge: challenge,
+          timeout: 60000,
+          userVerification: "required"
+        }
+      });
+
+      if (assertion) {
+        if (window.navigator && window.navigator.vibrate) {
+          try { window.navigator.vibrate(60); } catch(e) {}
+        }
+        this.callAlarmService('alarm_disarm', savedPin);
+      }
+    } catch (err) {
+      console.warn("Biometric verification error:", err);
+      if (err.name === 'NotAllowedError') return;
+      
+      if (confirm("L'authentification biométrique a échoué. Souhaitez-vous réinitialiser le code biométrique enregistré ?")) {
+        localStorage.removeItem('domolink_bio_pin');
+        alert("Configuration biométrique réinitialisée. Tapez votre code PIN puis cliquez à nouveau sur l'icône empreinte.");
+      }
     }
   }
 
@@ -146,6 +351,120 @@ class DomolinkPanel extends HTMLElement {
           padding: 24px 28px 48px;
           box-sizing: border-box;
           transition: background 0.3s ease, color 0.3s ease;
+        }
+
+        .panel-wrap.kiosk-mode {
+          padding: 12px 16px 20px;
+        }
+        .panel-wrap.kiosk-mode .top-nav {
+          margin-bottom: 8px;
+        }
+        .panel-wrap.kiosk-mode .container {
+          max-width: 100%;
+          gap: 16px;
+        }
+
+        .icon-btn-circle.active {
+          background: #3b82f6 !important;
+          color: #ffffff !important;
+          border-color: #3b82f6 !important;
+          box-shadow: 0 0 12px rgba(59, 130, 246, 0.4) !important;
+        }
+
+        /* ─── Kiosk Screensaver ─────────────────────── */
+        #kiosk-screensaver {
+          position: fixed;
+          inset: 0;
+          width: 100vw;
+          height: 100vh;
+          background: #000000;
+          color: #ffffff;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999999;
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+          user-select: none;
+          -webkit-user-select: none;
+        }
+        #kiosk-screensaver.visible {
+          opacity: 1;
+          pointer-events: auto;
+        }
+        .screensaver-time {
+          font-size: clamp(64px, 16vw, 130px);
+          font-weight: 800;
+          letter-spacing: -2px;
+          line-height: 1;
+          font-variant-numeric: tabular-nums;
+          background: linear-gradient(180deg, #ffffff 0%, #cbd5e1 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          text-shadow: 0 0 40px rgba(255, 255, 255, 0.2);
+          text-align: center;
+        }
+        .screensaver-date {
+          font-size: clamp(16px, 3.5vw, 24px);
+          color: #94a3b8;
+          text-transform: capitalize;
+          text-align: center;
+          margin-top: 10px;
+          font-weight: 500;
+        }
+        .screensaver-status-badge {
+          margin-top: 40px;
+          display: inline-flex;
+          align-items: center;
+          gap: 12px;
+          padding: 12px 28px;
+          border-radius: 9999px;
+          background: rgba(255, 255, 255, 0.05);
+          backdrop-filter: blur(16px);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          font-size: 15px;
+          font-weight: 800;
+          letter-spacing: 1px;
+          text-transform: uppercase;
+        }
+        .screensaver-status-badge.status-disarmed {
+          border-color: rgba(16, 185, 129, 0.4);
+          color: #10b981;
+          background: rgba(16, 185, 129, 0.1);
+          box-shadow: 0 0 30px rgba(16, 185, 129, 0.15);
+        }
+        .screensaver-status-badge.status-armed_away {
+          border-color: rgba(239, 68, 68, 0.4);
+          color: #ef4444;
+          background: rgba(239, 68, 68, 0.1);
+          box-shadow: 0 0 30px rgba(239, 68, 68, 0.2);
+        }
+        .screensaver-status-badge.status-armed_home,
+        .screensaver-status-badge.status-armed_night {
+          border-color: rgba(245, 158, 11, 0.4);
+          color: #f59e0b;
+          background: rgba(245, 158, 11, 0.1);
+          box-shadow: 0 0 30px rgba(245, 158, 11, 0.15);
+        }
+        .screensaver-status-disc {
+          width: 14px;
+          height: 14px;
+          border-radius: 50%;
+          background: currentColor;
+          box-shadow: 0 0 12px currentColor;
+          animation: pulseGlow 2.5s infinite ease-in-out;
+        }
+        .screensaver-touch-hint {
+          position: absolute;
+          bottom: 36px;
+          font-size: 13px;
+          color: #64748b;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          opacity: 0.7;
         }
 
         .container {
@@ -934,6 +1253,34 @@ class DomolinkPanel extends HTMLElement {
           box-shadow: 0 0 16px rgba(255, 255, 255, 0.3);
         }
 
+        .btn-biometric-unlock {
+          width: 100%;
+          margin-top: 6px;
+          padding: 11px 14px;
+          border-radius: 14px;
+          background: rgba(16, 185, 129, 0.12);
+          border: 1px solid rgba(16, 185, 129, 0.35);
+          color: #10b981;
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: 0.5px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        .btn-biometric-unlock:hover {
+          background: rgba(16, 185, 129, 0.22);
+          border-color: rgba(16, 185, 129, 0.6);
+          box-shadow: 0 4px 14px rgba(16, 185, 129, 0.25);
+          transform: translateY(-1px);
+        }
+        .btn-biometric-unlock:active {
+          transform: scale(0.98);
+        }
+
         .btn-sos-danger {
           width: 100%;
           margin-top: 8px;
@@ -1316,7 +1663,22 @@ class DomolinkPanel extends HTMLElement {
         }
       </style>
 
-      <div class="panel-wrap theme-${this._theme}">
+      <div class="panel-wrap theme-${this._theme} ${this._kioskActive ? 'kiosk-mode' : ''}">
+        <!-- Kiosk Ambient Screensaver Overlay -->
+        <div id="kiosk-screensaver" class="${this._screensaverVisible ? 'visible' : ''}">
+          <div class="screensaver-clock">
+            <div class="screensaver-time" id="screensaver-time">--:--</div>
+            <div class="screensaver-date" id="screensaver-date">---</div>
+          </div>
+          <div class="screensaver-status-badge" id="screensaver-badge">
+            <div class="screensaver-status-disc"></div>
+            <span id="screensaver-status-text">SYSTÈME ALARME</span>
+          </div>
+          <div class="screensaver-touch-hint">
+            <ha-icon icon="mdi:gesture-tap"></ha-icon> Touchez l'écran pour accéder au tableau de bord
+          </div>
+        </div>
+
         <div class="container">
           <!-- Top Navigation Header -->
           <div class="top-nav">
@@ -1373,6 +1735,9 @@ class DomolinkPanel extends HTMLElement {
               <button class="icon-btn-circle" id="theme-toggle-btn" title="Changer de thème (Jour/Nuit)">
                 <ha-icon icon="${this._theme === 'dark' ? 'mdi:weather-sunny' : 'mdi:weather-night'}"></ha-icon>
               </button>
+              <button class="icon-btn-circle ${this._kioskActive ? 'active' : ''}" id="kiosk-toggle-btn" title="Mode Kiosque Mural (Plein Écran)">
+                <ha-icon icon="${this._kioskActive ? 'mdi:fullscreen-exit' : 'mdi:fullscreen'}"></ha-icon>
+              </button>
             </div>
           </div>
 
@@ -1419,19 +1784,41 @@ class DomolinkPanel extends HTMLElement {
     if (themeBtn) {
       themeBtn.addEventListener('click', () => this._toggleTheme());
     }
+
+    // Bind Kiosk Toggle
+    const kioskBtn = this.querySelector('#kiosk-toggle-btn');
+    if (kioskBtn) {
+      kioskBtn.addEventListener('click', () => this._toggleKioskMode());
+    }
+
+    // Bind Screensaver Touch / Tap to wake up
+    const screensaverEl = this.querySelector('#kiosk-screensaver');
+    if (screensaverEl) {
+      const wakeUp = () => this._hideScreensaver();
+      screensaverEl.addEventListener('pointerdown', wakeUp);
+      screensaverEl.addEventListener('touchstart', wakeUp);
+      screensaverEl.addEventListener('click', wakeUp);
+    }
+
+    // Inactivity tracker for screensaver
+    this._inactivityHandler = () => this._resetInactivityTimer();
+    window.addEventListener('pointerdown', this._inactivityHandler, { passive: true });
+    window.addEventListener('keydown', this._inactivityHandler, { passive: true });
+    this._resetInactivityTimer();
   }
 
   // ─── Service Dispatcher ─────────────────────────
 
-  callAlarmService(service) {
+  callAlarmService(service, codeOverride = null) {
     const alarmEntity = this._getAlarmEntity();
     if (!alarmEntity) {
       alert("Entité DomoLink Alarm introuvable dans Home Assistant.");
       return;
     }
     const data = { entity_id: alarmEntity.entity_id };
-    if (this._codeValue) {
-      data.code = this._codeValue;
+    const codeToUse = codeOverride !== null ? codeOverride : this._codeValue;
+    if (codeToUse) {
+      data.code = codeToUse;
     }
     
     this._hass.callService('alarm_control_panel', service, data).then(() => {
@@ -1545,9 +1932,13 @@ class DomolinkPanel extends HTMLElement {
 
     const telegramStatus = attrs.telegram_status || 'Inconnu';
     const ftpStatus = attrs.ftp_status || 'Inconnu';
+    const webdavStatus = attrs.webdav_status || (attrs.webdav_enabled ? 'Inconnu' : 'Désactivé');
     const camerasArmed = attrs.cameras_armed || false;
     if (attrs.ftp_test_running && this._showFtpTestConsole !== false) {
       this._showFtpTestConsole = true;
+    }
+    if (attrs.webdav_test_running && this._showWebdavTestConsole !== false) {
+      this._showWebdavTestConsole = true;
     }
 
     // 4. Alert Bottom Encadré
@@ -1876,11 +2267,11 @@ class DomolinkPanel extends HTMLElement {
           </div>
           
           <!-- Cloud & Cameras Status (Red Box Area) -->
-          <div style="display:flex; gap:12px; margin-top:24px;">
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:10px; margin-top:24px;">
             <!-- Telegram -->
-            <div style="flex:1; background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border); padding:10px 12px; display:flex; align-items:center; gap:10px; box-shadow:0 2px 10px rgba(0,0,0,0.02);">
-              <div style="width:36px; height:36px; border-radius:10px; background:${telegramStatus === 'Désactivé' ? 'var(--d-border)' : (telegramStatus === 'Connecté' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)')}; display:flex; align-items:center; justify-content:center; color:${telegramStatus === 'Désactivé' ? 'var(--d-subtext)' : (telegramStatus === 'Connecté' ? '#10b981' : '#ef4444')};">
-                <ha-icon icon="mdi:send-circle"></ha-icon>
+            <div style="background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border); padding:10px 12px; display:flex; align-items:center; gap:8px; box-shadow:0 2px 10px rgba(0,0,0,0.02); min-width:0;">
+              <div style="width:34px; height:34px; min-width:34px; border-radius:10px; background:${telegramStatus === 'Désactivé' ? 'var(--d-border)' : (telegramStatus === 'Connecté' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)')}; display:flex; align-items:center; justify-content:center; color:${telegramStatus === 'Désactivé' ? 'var(--d-subtext)' : (telegramStatus === 'Connecté' ? '#10b981' : '#ef4444')};">
+                <ha-icon icon="mdi:send-circle" style="--mdc-icon-size:20px;"></ha-icon>
               </div>
               <div style="flex-grow:1; min-width:0;">
                 <div style="font-size:10px; font-weight:800; color:var(--d-subtext); text-transform:uppercase; letter-spacing:0.5px;">Telegram</div>
@@ -1889,24 +2280,39 @@ class DomolinkPanel extends HTMLElement {
             </div>
             
             <!-- FTP -->
-            <div style="flex:1; background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border); padding:10px 12px; display:flex; align-items:center; gap:8px; box-shadow:0 2px 10px rgba(0,0,0,0.02); min-width:0;">
-              <div style="width:36px; height:36px; min-width:36px; border-radius:10px; background:${ftpStatus === 'Désactivé' ? 'var(--d-border)' : (ftpStatus === 'Connecté' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)')}; display:flex; align-items:center; justify-content:center; color:${ftpStatus === 'Désactivé' ? 'var(--d-subtext)' : (ftpStatus === 'Connecté' ? '#10b981' : '#ef4444')};">
-                <ha-icon icon="mdi:folder-network"></ha-icon>
+            <div style="background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border); padding:10px 12px; display:flex; align-items:center; gap:8px; box-shadow:0 2px 10px rgba(0,0,0,0.02); min-width:0;">
+              <div style="width:34px; height:34px; min-width:34px; border-radius:10px; background:${ftpStatus === 'Désactivé' ? 'var(--d-border)' : (ftpStatus === 'Connecté' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)')}; display:flex; align-items:center; justify-content:center; color:${ftpStatus === 'Désactivé' ? 'var(--d-subtext)' : (ftpStatus === 'Connecté' ? '#10b981' : '#ef4444')};">
+                <ha-icon icon="mdi:folder-network" style="--mdc-icon-size:20px;"></ha-icon>
               </div>
               <div style="flex-grow:1; min-width:0;">
                 <div style="font-size:10px; font-weight:800; color:var(--d-subtext); text-transform:uppercase; letter-spacing:0.5px;">Cloud FTP</div>
                 <div style="font-size:12px; font-weight:800; color:var(--d-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${ftpStatus}</div>
               </div>
-              <button class="btn-test-ftp" title="Tester la connexion au serveur FTP" style="padding:4px 8px; font-size:10px; font-weight:800; border-radius:8px; border:1px solid ${attrs.ftp_test_running ? 'rgba(245,158,11,0.5)' : 'rgba(59,130,246,0.4)'}; background:${attrs.ftp_test_running ? 'rgba(245,158,11,0.15)' : 'rgba(59,130,246,0.12)'}; color:${attrs.ftp_test_running ? '#f59e0b' : '#3b82f6'}; cursor:pointer; display:flex; align-items:center; gap:3px; transition:all 0.2s; white-space:nowrap;">
+              <button class="btn-test-ftp" title="Tester la connexion au serveur FTP" style="padding:4px 7px; font-size:10px; font-weight:800; border-radius:8px; border:1px solid ${attrs.ftp_test_running ? 'rgba(245,158,11,0.5)' : 'rgba(59,130,246,0.4)'}; background:${attrs.ftp_test_running ? 'rgba(245,158,11,0.15)' : 'rgba(59,130,246,0.12)'}; color:${attrs.ftp_test_running ? '#f59e0b' : '#3b82f6'}; cursor:pointer; display:flex; align-items:center; gap:2px; transition:all 0.2s; white-space:nowrap;">
                 <ha-icon icon="${attrs.ftp_test_running ? 'mdi:loading' : 'mdi:lan-connect'}" style="--mdc-icon-size:13px; ${attrs.ftp_test_running ? 'animation: spin 1s linear infinite;' : ''}"></ha-icon>
-                <span>${attrs.ftp_test_running ? 'TEST...' : 'TEST'}</span>
+                <span>${attrs.ftp_test_running ? '...' : 'TEST'}</span>
+              </button>
+            </div>
+
+            <!-- WebDAV / Multi-Cloud -->
+            <div style="background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border); padding:10px 12px; display:flex; align-items:center; gap:8px; box-shadow:0 2px 10px rgba(0,0,0,0.02); min-width:0;">
+              <div style="width:34px; height:34px; min-width:34px; border-radius:10px; background:${webdavStatus === 'Désactivé' ? 'var(--d-border)' : (webdavStatus === 'Connecté' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)')}; display:flex; align-items:center; justify-content:center; color:${webdavStatus === 'Désactivé' ? 'var(--d-subtext)' : (webdavStatus === 'Connecté' ? '#10b981' : '#ef4444')};">
+                <ha-icon icon="mdi:cloud-sync" style="--mdc-icon-size:20px;"></ha-icon>
+              </div>
+              <div style="flex-grow:1; min-width:0;">
+                <div style="font-size:10px; font-weight:800; color:var(--d-subtext); text-transform:uppercase; letter-spacing:0.5px;">WebDAV</div>
+                <div style="font-size:12px; font-weight:800; color:var(--d-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${webdavStatus}</div>
+              </div>
+              <button class="btn-test-webdav" title="Tester la synchronisation WebDAV" style="padding:4px 7px; font-size:10px; font-weight:800; border-radius:8px; border:1px solid ${attrs.webdav_test_running ? 'rgba(245,158,11,0.5)' : 'rgba(139,92,246,0.4)'}; background:${attrs.webdav_test_running ? 'rgba(245,158,11,0.15)' : 'rgba(139,92,246,0.12)'}; color:${attrs.webdav_test_running ? '#f59e0b' : '#a855f7'}; cursor:pointer; display:flex; align-items:center; gap:2px; transition:all 0.2s; white-space:nowrap;">
+                <ha-icon icon="${attrs.webdav_test_running ? 'mdi:loading' : 'mdi:cloud-check'}" style="--mdc-icon-size:13px; ${attrs.webdav_test_running ? 'animation: spin 1s linear infinite;' : ''}"></ha-icon>
+                <span>${attrs.webdav_test_running ? '...' : 'TEST'}</span>
               </button>
             </div>
             
             <!-- Cameras -->
-            <div style="flex:1; background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border); padding:10px 12px; display:flex; align-items:center; gap:10px; box-shadow:0 2px 10px rgba(0,0,0,0.02);">
-              <div style="width:36px; height:36px; border-radius:10px; background:${camerasArmed ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)'}; display:flex; align-items:center; justify-content:center; color:${camerasArmed ? '#ef4444' : '#10b981'};">
-                <ha-icon icon="mdi:cctv"></ha-icon>
+            <div style="background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border); padding:10px 12px; display:flex; align-items:center; gap:8px; box-shadow:0 2px 10px rgba(0,0,0,0.02); min-width:0;">
+              <div style="width:34px; height:34px; min-width:34px; border-radius:10px; background:${camerasArmed ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)'}; display:flex; align-items:center; justify-content:center; color:${camerasArmed ? '#ef4444' : '#10b981'};">
+                <ha-icon icon="mdi:cctv" style="--mdc-icon-size:20px;"></ha-icon>
               </div>
               <div style="flex-grow:1; min-width:0;">
                 <div style="font-size:10px; font-weight:800; color:var(--d-subtext); text-transform:uppercase; letter-spacing:0.5px;">Caméras</div>
@@ -1949,6 +2355,7 @@ class DomolinkPanel extends HTMLElement {
               ${Array.isArray(attrs.ftp_test_logs) && attrs.ftp_test_logs.length > 0 ? attrs.ftp_test_logs.map(log => {
                 const color = log.level === 'error' ? '#f87171' : (log.level === 'success' ? '#4ade80' : (log.level === 'warning' ? '#fbbf24' : '#94a3b8'));
                 const icon = log.level === 'error' ? '❌' : (log.level === 'success' ? '✅' : (log.level === 'warning' ? '⚠️' : '▶'));
+                return `<div style="color:${color}; margin-bottom:2px;">[${log.time || ''}] ${icon} ${this.escapeHtml(log.msg || '')}</div>`;
               }).join('') : `
                 <div style="display:flex; align-items:center; gap:8px; color:#94a3b8; font-style:italic; padding:6px 0;">
                   <ha-icon icon="mdi:loading" class="spin" style="--mdc-icon-size:15px; color:#38bdf8;"></ha-icon>
@@ -1985,6 +2392,84 @@ class DomolinkPanel extends HTMLElement {
                   <ha-icon icon="mdi:refresh" style="--mdc-icon-size:13px;"></ha-icon> Relancer
                 </button>
                 <button class="btn-close-ftp-test" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#cbd5e1; padding:5px 12px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">
+                  Fermer
+                </button>
+              </div>
+            </div>
+          </div>
+          ` : ''}
+
+          <!-- Console de Test & Diagnostic WebDAV -->
+          ${this._showWebdavTestConsole ? `
+          <div style="margin-top:14px; background:#0f172a; border:1px solid rgba(139,92,246,0.35); border-radius:14px; padding:12px 14px; box-shadow:0 8px 24px rgba(0,0,0,0.3); color:#f8fafc;">
+            <!-- Header -->
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:8px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <ha-icon icon="mdi:cloud-sync" style="--mdc-icon-size:18px; color:#c084fc;"></ha-icon>
+                <span style="font-size:12px; font-weight:800; letter-spacing:0.5px; text-transform:uppercase; color:#e2e8f0;">Diagnostic WebDAV / Multi-Cloud</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                ${attrs.webdav_test_running ? `
+                  <span style="display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; color:#f59e0b; background:rgba(245,158,11,0.15); padding:2px 8px; border-radius:6px;">
+                    <ha-icon icon="mdi:loading" style="--mdc-icon-size:13px; animation:spin 1s linear infinite;"></ha-icon> En cours...
+                  </span>
+                ` : (attrs.webdav_test_result && attrs.webdav_test_result.success ? `
+                  <span style="display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; color:#10b981; background:rgba(16,185,129,0.15); padding:2px 8px; border-radius:6px;">
+                    <ha-icon icon="mdi:check-circle" style="--mdc-icon-size:13px;"></ha-icon> Connecté
+                  </span>
+                ` : (attrs.webdav_test_result && attrs.webdav_test_result.success === false ? `
+                  <span style="display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; color:#ef4444; background:rgba(239,68,68,0.15); padding:2px 8px; border-radius:6px;">
+                    <ha-icon icon="mdi:alert-circle" style="--mdc-icon-size:13px;"></ha-icon> Erreur
+                  </span>
+                ` : ''))}
+                <button class="btn-close-webdav-test" title="Fermer la console" style="background:transparent; border:none; color:#94a3b8; cursor:pointer; padding:2px 6px; font-size:16px; font-weight:700; border-radius:4px; line-height:1;">
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <!-- Terminal logs window -->
+            <div id="webdav-test-logs" style="background:#020617; border-radius:8px; padding:10px 12px; max-height:160px; min-height:80px; overflow-y:auto; font-family:'SF Mono', Monaco, Menlo, Consolas, monospace; font-size:11px; line-height:1.6; border:1px solid rgba(255,255,255,0.06);">
+              ${Array.isArray(attrs.webdav_test_logs) && attrs.webdav_test_logs.length > 0 ? attrs.webdav_test_logs.map(log => {
+                const color = log.level === 'error' ? '#f87171' : (log.level === 'success' ? '#4ade80' : (log.level === 'warning' ? '#fbbf24' : '#c084fc'));
+                const icon = log.level === 'error' ? '❌' : (log.level === 'success' ? '✅' : (log.level === 'warning' ? '⚠️' : '▶'));
+                return `<div style="color:${color}; margin-bottom:2px;">[${log.time || ''}] ${icon} ${this.escapeHtml(log.msg || '')}</div>`;
+              }).join('') : `
+                <div style="display:flex; align-items:center; gap:8px; color:#94a3b8; font-style:italic; padding:6px 0;">
+                  <ha-icon icon="mdi:loading" class="spin" style="--mdc-icon-size:15px; color:#c084fc;"></ha-icon>
+                  <span>Démarrage du test de synchronisation WebDAV...</span>
+                </div>
+              `}
+            </div>
+
+            <!-- Result Summary Banner -->
+            ${attrs.webdav_test_result && attrs.webdav_test_result.success ? `
+              <div style="margin-top:10px; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.4); border-radius:8px; padding:8px 12px; display:flex; align-items:center; gap:10px;">
+                <ha-icon icon="mdi:cloud-check" style="--mdc-icon-size:22px; color:#10b981; flex-shrink:0;"></ha-icon>
+                <div style="font-size:11px; color:#e2e8f0; line-height:1.4;">
+                  <strong style="color:#10b981;">Connexion WebDAV acceptée avec succès !</strong><br>
+                  <span>Dossier de sauvegarde : </span>
+                  <code style="background:rgba(0,0,0,0.4); color:#c084fc; padding:2px 6px; border-radius:4px; font-weight:700; font-size:11px;">${this.escapeHtml(attrs.webdav_test_result.save_path || attrs.webdav_path || 'domolink/alarm')}</code>
+                </div>
+              </div>
+            ` : (attrs.webdav_test_result && attrs.webdav_test_result.success === false ? `
+              <div style="margin-top:10px; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.4); border-radius:8px; padding:8px 12px; display:flex; align-items:center; gap:10px;">
+                <ha-icon icon="mdi:alert-octagon" style="--mdc-icon-size:22px; color:#ef4444; flex-shrink:0;"></ha-icon>
+                <div style="font-size:11px; color:#e2e8f0; line-height:1.4;">
+                  <strong style="color:#ef4444;">Échec de la connexion WebDAV :</strong>
+                  <div style="color:#fca5a5; margin-top:2px;">${this.escapeHtml(attrs.webdav_test_result.message || 'Erreur inconnue')}</div>
+                </div>
+              </div>
+            ` : '')}
+
+            <!-- Footer actions -->
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+              <span style="font-size:10px; color:#64748b;">Serveur : ${this.escapeHtml(attrs.webdav_url || 'Non configuré')}</span>
+              <div style="display:flex; gap:8px;">
+                <button class="btn-test-webdav" style="background:rgba(139,92,246,0.15); border:1px solid rgba(139,92,246,0.4); color:#c084fc; padding:5px 12px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:5px;">
+                  <ha-icon icon="mdi:refresh" style="--mdc-icon-size:13px;"></ha-icon> Relancer
+                </button>
+                <button class="btn-close-webdav-test" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#cbd5e1; padding:5px 12px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">
                   Fermer
                 </button>
               </div>
@@ -2046,6 +2531,11 @@ class DomolinkPanel extends HTMLElement {
             </button>
           </div>
 
+          <button class="btn-biometric-unlock" id="btn-biometric-unlock" title="Touch ID / Face ID / Empreinte digitale">
+            <ha-icon icon="mdi:fingerprint" style="--mdc-icon-size:18px;"></ha-icon>
+            DÉVERROUILLAGE BIOMÉTRIQUE
+          </button>
+
           <button class="btn-sos-danger" id="btn-panic-sos">
             <ha-icon icon="mdi:alert-decagram" style="--mdc-icon-size:18px;"></ha-icon>
             SOS PANIQUE IMMÉDIAT
@@ -2054,7 +2544,7 @@ class DomolinkPanel extends HTMLElement {
       </div>
     `;
 
-    const armCacheKey = `${state}_${attrs.last_user}_${attrs.triggered_by}_${this._selectedCameraIndex}_${totalSensorsCount}_${activeTriggers.length}_${isArmed}_${telegramStatus}_${ftpStatus}_${camerasArmed}_${attrs.camera_test_running}_${JSON.stringify(attrs.camera_test_info || {})}_${attrs.ftp_test_running}_${this._showFtpTestConsole}_${(attrs.ftp_test_logs || []).length}_${JSON.stringify(attrs.ftp_test_result || {})}`;
+    const armCacheKey = `${state}_${attrs.last_user}_${attrs.triggered_by}_${this._selectedCameraIndex}_${totalSensorsCount}_${activeTriggers.length}_${isArmed}_${telegramStatus}_${ftpStatus}_${webdavStatus}_${camerasArmed}_${attrs.camera_test_running}_${JSON.stringify(attrs.camera_test_info || {})}_${attrs.ftp_test_running}_${this._showFtpTestConsole}_${(attrs.ftp_test_logs || []).length}_${JSON.stringify(attrs.ftp_test_result || {})}_${attrs.webdav_test_running}_${this._showWebdavTestConsole}_${(attrs.webdav_test_logs || []).length}_${JSON.stringify(attrs.webdav_test_result || {})}`;
     if (this._lastArmKey !== armCacheKey) {
       this._lastArmKey = armCacheKey;
       container.innerHTML = html;
@@ -2081,6 +2571,12 @@ class DomolinkPanel extends HTMLElement {
       container.querySelectorAll('[data-service]').forEach(btn => {
         btn.addEventListener('click', () => this.callAlarmService(btn.getAttribute('data-service')));
       });
+
+      // Biometric Unlock Button Listener
+      const bioBtn = container.querySelector('#btn-biometric-unlock');
+      if (bioBtn) {
+        bioBtn.addEventListener('click', () => this._handleBiometricAuth());
+      }
 
       // Camera Live Stream Trigger (Reliably opens Home Assistant live stream player)
       const triggerLiveStream = () => {
@@ -2224,6 +2720,44 @@ class DomolinkPanel extends HTMLElement {
           const ftpLogEl = container.querySelector('#ftp-test-logs');
           if (ftpLogEl) {
             ftpLogEl.scrollTop = ftpLogEl.scrollHeight;
+          }
+        }, 50);
+      }
+
+      // Test WebDAV Connection Buttons
+      const triggerTestWebdav = async () => {
+        this._showWebdavTestConsole = true;
+        this._lastArmKey = '';
+        this.render();
+        try {
+          await this._hass.callService('domolink_alarm', 'test_webdav', {});
+        } catch (err) {
+          console.error("Erreur lors du lancement du test WebDAV:", err);
+          alert("Erreur lors du lancement du test WebDAV : " + (err.message || err));
+        }
+      };
+
+      container.querySelectorAll('.btn-test-webdav').forEach(btn => {
+        btn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          triggerTestWebdav();
+        });
+      });
+
+      container.querySelectorAll('.btn-close-webdav-test').forEach(btn => {
+        btn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          this._showWebdavTestConsole = false;
+          this._lastArmKey = '';
+          this.render();
+        });
+      });
+
+      if (this._showWebdavTestConsole) {
+        setTimeout(() => {
+          const webdavLogEl = container.querySelector('#webdav-test-logs');
+          if (webdavLogEl) {
+            webdavLogEl.scrollTop = webdavLogEl.scrollHeight;
           }
         }, 50);
       }
@@ -2672,6 +3206,13 @@ class DomolinkPanel extends HTMLElement {
       ftp_user: c.ftp_user || "",
       ftp_pass: c.ftp_pass || "",
       ftp_path: c.ftp_path || "/",
+      webdav_enabled: Boolean(c.webdav_enabled),
+      webdav_url: c.webdav_url || "",
+      webdav_user: c.webdav_user || "",
+      webdav_pass: c.webdav_pass || "",
+      webdav_path: c.webdav_path || "domolink/alarm",
+      media_retention_days: c.media_retention_days !== undefined ? c.media_retention_days : 30,
+      media_max_size_mb: c.media_max_size_mb !== undefined ? c.media_max_size_mb : 1024,
       media_path: c.media_path || "domolink_media",
     };
   }
@@ -2999,11 +3540,31 @@ class DomolinkPanel extends HTMLElement {
           ${this._renderNumberField("Port FTP", "Port de connexion FTP standard", "ftp_port", "mdi:numeric", 1, 65535, 1, "")}
           ${this._renderTextField("Identifiant FTP", "Nom d'utilisateur du compte NAS", "ftp_user", "mdi:account")}
           ${this._renderPasswordField("Mot de passe FTP", "Mot de passe du compte FTP", "ftp_pass", "mdi:lock")}
-          ${this._renderTextField("Répertoire distant", "Chemin distant (créera automatiquement domolink/alarm/...) ", "ftp_path", "mdi:folder-network", "text", "/")}
+          ${this._renderTextField("Répertoire distant", "Chemin distant (créera automatiquement domolink/alarm/...)", "ftp_path", "mdi:folder-network", "text", "/")}
         </div>
 
         <div class="config-card">
-          <div class="config-card-title"><ha-icon icon="mdi:folder-image" style="color:#f59e0b;"></ha-icon> Médias Locaux Home Assistant</div>
+          <div class="config-card-title"><ha-icon icon="mdi:cloud-sync" style="color:#8b5cf6;"></ha-icon> Sauvegarde Multi-Cloud WebDAV / Nextcloud / Synology</div>
+          ${this._renderToggleField("Activer la sauvegarde WebDAV", "Téléverse automatiquement photos et vidéos sur votre serveur WebDAV / Nextcloud", "webdav_enabled", "mdi:cloud-upload")}
+          ${this._renderTextField("URL du serveur WebDAV", "Ex: https://cloud.domaine.fr/remote.php/dav/files/utilisateur/", "webdav_url", "mdi:web", "text", "https://cloud.domaine.fr/remote.php/dav/files/user/")}
+          ${this._renderTextField("Identifiant WebDAV", "Nom d'utilisateur Nextcloud / WebDAV", "webdav_user", "mdi:account")}
+          ${this._renderPasswordField("Mot de passe / Token d'application", "Mot de passe de compte ou token d'application WebDAV", "webdav_pass", "mdi:lock")}
+          ${this._renderTextField("Dossier distant de sauvegarde", "Chemin relatif sur le serveur (ex: domolink/alarm)", "webdav_path", "mdi:folder-network", "text", "domolink/alarm")}
+          <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--d-border-light); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+            <div style="font-size:12px; color:var(--d-subtext);">
+              Testez la connexion à votre cloud WebDAV avant d'enregistrer la configuration
+            </div>
+            <button class="btn-test-webdav-cfg" id="btn-test-webdav-cfg" style="padding:8px 14px; border-radius:10px; border:1px solid rgba(139,92,246,0.4); background:rgba(139,92,246,0.12); color:#a855f7; font-size:12px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:6px; transition:all 0.2s;">
+              <ha-icon icon="mdi:cloud-check" style="--mdc-icon-size:16px;"></ha-icon>
+              <span>Tester la connexion WebDAV</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="config-card">
+          <div class="config-card-title"><ha-icon icon="mdi:database-clock" style="color:#06b6d4;"></ha-icon> Politique de Rétention & Quota de Stockage Médias</div>
+          ${this._renderNumberField("Durée maximale de rétention", "Nombre de jours de conservation des photos et vidéos locales (0 = illimité)", "media_retention_days", "mdi:calendar-range", 0, 365, 1, "jours")}
+          ${this._renderNumberField("Quota de stockage maximal", "Taille maximale allouée au dossier médias en Mo (0 = illimité, rotation FIFO)", "media_max_size_mb", "mdi:harddisk", 0, 10240, 64, "Mo")}
           ${this._renderTextField("Sous-dossier de stockage local", "Dossier dans /config/www/ où sont stockées les photos et vidéos", "media_path", "mdi:folder", "text", "domolink_media")}
         </div>
       `;
@@ -3020,7 +3581,7 @@ class DomolinkPanel extends HTMLElement {
             <div>
               <div style="font-size:18px; font-weight:800; color:var(--d-text); display:flex; align-items:center; gap:8px;">
                 Centre de Configuration
-                <span class="nav-badge-pill badge-version">v0.9.59</span>
+                <span class="nav-badge-pill badge-version">v0.9.60</span>
               </div>
               <div style="font-size:12px; color:var(--d-subtext); margin-top:3px;">
                 Modifiez vos équipements, délais, notifications et sauvegardes en toute simplicité
@@ -3224,6 +3785,20 @@ class DomolinkPanel extends HTMLElement {
     const saveBottom = container.querySelector('#btn-config-save-bottom');
     if (saveTop) saveTop.addEventListener('click', () => handleSave(saveTop));
     if (saveBottom) saveBottom.addEventListener('click', () => handleSave(saveBottom));
+
+    // WebDAV Test from Config Tab
+    const webdavCfgBtn = container.querySelector('#btn-test-webdav-cfg');
+    if (webdavCfgBtn) {
+      webdavCfgBtn.addEventListener('click', () => {
+        this._showWebdavTestConsole = true;
+        this._activeTab = 'arm';
+        this.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.getAttribute('data-tab') === 'arm'));
+        this.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'pane-arm'));
+        this._lastArmKey = '';
+        this.render();
+        this._hass.callService('domolink_alarm', 'test_webdav', {});
+      });
+    }
   }
 
   // ─── Dynamic Navigation Badges ──────────────────
@@ -3410,10 +3985,12 @@ class DomolinkPanel extends HTMLElement {
     const elParam = this.querySelector('#nav-badge-param');
     if (elParam) {
       const isFtp = Boolean(attrs.ftp_enabled);
+      const isDav = Boolean(attrs.webdav_enabled);
+      const cloudLabel = (isFtp && isDav) ? 'MULTI-CLOUD' : (isDav ? 'WEBDAV' : (isFtp ? 'FTP' : 'LOCAL'));
       elParam.innerHTML = `
         <div class="nav-badge-stack">
-          <span class="nav-badge-pill badge-version">v0.9.59</span>
-          <span class="nav-badge-pill badge-neutral">${isFtp ? 'FTP' : 'LOCAL'}</span>
+          <span class="nav-badge-pill badge-version">v0.9.60</span>
+          <span class="nav-badge-pill badge-neutral">${cloudLabel}</span>
         </div>
       `;
     }
@@ -3587,6 +4164,44 @@ class DomolinkPanel extends HTMLElement {
           </div>
         </div>
 
+        <!-- Storage Usage & Auto-Purge Bar -->
+        <div style="background:var(--d-sec-bg); border:1px solid var(--d-border); border-radius:14px; padding:14px 18px; display:flex; flex-direction:column; gap:10px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <div style="width:34px; height:34px; border-radius:10px; background:rgba(245,158,11,0.12); display:flex; align-items:center; justify-content:center; color:#f59e0b;">
+                <ha-icon icon="mdi:database-outline" style="--mdc-icon-size:20px;"></ha-icon>
+              </div>
+              <div>
+                <div style="font-size:13px; font-weight:800; color:var(--d-text); display:flex; align-items:center; gap:8px;">
+                  <span>Stockage des Médias Locaux</span>
+                  <span style="font-size:11px; font-weight:600; color:var(--d-subtext);">(${attrs.media_storage_count || (photos.length + videos.length)} fichiers)</span>
+                </div>
+                <div style="font-size:11px; color:var(--d-subtext); margin-top:2px;">
+                  Rétention : <strong style="color:var(--d-text);">${attrs.media_storage_retention_days > 0 ? attrs.media_storage_retention_days + ' jours' : 'Illimitée'}</strong> • Quota : <strong style="color:var(--d-text);">${attrs.media_storage_max_mb > 0 ? attrs.media_storage_max_mb + ' Mo' : 'Illimité'}</strong>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="text-align:right;">
+                <span style="font-size:14px; font-weight:800; color:var(--d-text);">${attrs.media_storage_mb || 0} Mo</span>
+                ${attrs.media_storage_max_mb > 0 ? `<span style="font-size:11px; color:var(--d-subtext); font-weight:600;"> / ${attrs.media_storage_max_mb} Mo (${attrs.media_storage_percent || 0}%)</span>` : ''}
+              </div>
+              <button class="btn-clean-media" id="btn-purge-media" title="Purger immédiatement les anciens médias selon la politique de rétention" style="padding:7px 14px; border-radius:10px; border:1px solid rgba(239,68,68,0.3); background:rgba(239,68,68,0.08); color:#ef4444; font-size:11.5px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:6px; transition:all 0.2s;">
+                <ha-icon icon="mdi:broom" style="--mdc-icon-size:15px;"></ha-icon>
+                <span>Purger</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Progress Bar -->
+          ${attrs.media_storage_max_mb > 0 ? `
+          <div style="width:100%; height:8px; background:rgba(156,163,175,0.2); border-radius:9999px; overflow:hidden;">
+            <div style="width:${Math.min(100, Math.max(0, attrs.media_storage_percent || 0))}%; height:100%; border-radius:9999px; background:${(attrs.media_storage_percent || 0) > 85 ? '#ef4444' : ((attrs.media_storage_percent || 0) > 65 ? '#f59e0b' : '#10b981')}; transition:width 0.3s ease;"></div>
+          </div>
+          ` : ''}
+        </div>
+
         <div class="media-grid">${gridHtml}</div>
 
         ${totalPages > 1 ? `
@@ -3611,6 +4226,21 @@ class DomolinkPanel extends HTMLElement {
     // Refresh
     container.querySelector('#media-btn-refresh')?.addEventListener('click', () => {
       this._mediaPage = 0; this._mediaForceRender = true; this._lastMediaSignature = null; this.render();
+    });
+
+    // Manual Purge Action
+    container.querySelector('#btn-purge-media')?.addEventListener('click', () => {
+      if (confirm("Voulez-vous lancer le nettoyage des médias d'alarme ?\nLes fichiers dépassant la durée de rétention ou le quota d'espace seront automatiquement purgés.")) {
+        const alarmEntity = this._getAlarmEntity();
+        if (alarmEntity) {
+          this._hass.callService('domolink_alarm', 'clean_media', { entity_id: alarmEntity.entity_id }).then(() => {
+            this._mediaPage = 0;
+            this._mediaForceRender = true;
+            this._lastMediaSignature = null;
+            this.render();
+          });
+        }
+      }
     });
 
     // Pagination
