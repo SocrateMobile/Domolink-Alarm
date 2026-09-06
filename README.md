@@ -7,6 +7,19 @@ Conçue pour dépasser les standards du marché, elle offre une configuration 10
 
 ## 🌟 Fonctionnalités Principales
 
+### 🚀 Nouveautés de la version 0.9.67 (Sélecteur de Protocoles FTP / FTPS / SFTP / SAMBA & Partage Réseau)
+- **Sélecteur de Protocole Multi-Transfert** : Choisissez directement le protocole adapté à votre NAS ou Box internet :
+  - **FTP** : Transfert standard sur le port 21.
+  - **FTPS** : Connexion explicite chiffrée en SSL/TLS (`FTP_TLS` avec sécurisation du canal de données `prot_p()`), tolérante aux certificats locaux auto-signés (Freebox, DSM Synology, QTS...).
+  - **SFTP** : Transfert ultra-sécurisé via SSH sur le port 22 (détection de bannière SSH et téléversement sécurisé).
+  - **SAMBA** : Prise en charge du protocole de partage réseau Windows / SMB sur le port 445.
+- **Ajustement Automatique des Ports Réseau** : Le champ port se configure automatiquement selon le protocole choisi (21 pour FTP/FTPS, 22 pour SFTP, 445 pour SAMBA).
+- **Encadré Dédié & Lien Direct Partage Réseau SAMBA (SMB)** :
+  - Lien direct `smb://<hôte>/` et bouton 1-clic `[ 📋 Copier le lien SAMBA ]` avec retour visuel immédiat.
+  - Bouton « Ouvrir » pour monter le partage réseau en un clic.
+  - Instructions claires pour **macOS** (`Finder > Cmd + K > smb://...`) et **Windows** (`Explorateur > \\<hôte>\`).
+- **Tuile Dashboard & Console Dynamiques** : La tuile de sauvegarde et la console de diagnostic affichent en temps réel le protocole actif (ex: `FTPS Freebox`, `SFTP Synology`, `SAMBA Freebox`).
+
 ### 🚀 Nouveautés de la version 0.9.66 (UI Tuiles de Sauvegarde & Test Caméras Temps Réel)
 - **Refonte Visuelle des Tuiles de Sauvegarde** : Les boutons `TEST` (FTP, WebDAV, Google Drive) bénéficient d'une disposition à deux étages ultra lisible. Les statuts (`Connecté`, `Désactivé`, codes d'erreur) s'affichent en pleine largeur sans aucune troncature ni empiètement.
 - **Progression en Temps Réel du Test Caméras** :

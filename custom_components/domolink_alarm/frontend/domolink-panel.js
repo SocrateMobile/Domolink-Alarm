@@ -2509,9 +2509,9 @@ class DomolinkPanel extends HTMLElement {
                   <div style="width:28px; height:28px; min-width:28px; border-radius:8px; background:${ftpStatus === 'Désactivé' ? 'var(--d-border)' : (ftpStatus === 'Connecté' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)')}; display:flex; align-items:center; justify-content:center; color:${ftpStatus === 'Désactivé' ? 'var(--d-subtext)' : (ftpStatus === 'Connecté' ? '#10b981' : '#ef4444')};">
                     <ha-icon icon="mdi:folder-network" style="--mdc-icon-size:18px;"></ha-icon>
                   </div>
-                  <span style="font-size:10.5px; font-weight:800; color:var(--d-subtext); text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">FTP ${this.escapeHtml(nasName)}</span>
+                  <span style="font-size:10.5px; font-weight:800; color:var(--d-subtext); text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${this.escapeHtml((attrs.ftp_protocol || 'ftp').toUpperCase())} ${this.escapeHtml(nasName)}</span>
                 </div>
-                <button class="btn-test-ftp" title="Tester la connexion au serveur FTP" style="padding:2px 7px; font-size:9.5px; font-weight:800; border-radius:6px; border:1px solid ${attrs.ftp_test_running ? 'rgba(245,158,11,0.5)' : 'rgba(59,130,246,0.35)'}; background:${attrs.ftp_test_running ? 'rgba(245,158,11,0.15)' : 'rgba(59,130,246,0.12)'}; color:${attrs.ftp_test_running ? '#f59e0b' : '#3b82f6'}; cursor:pointer; display:inline-flex; align-items:center; gap:3px; transition:all 0.2s; white-space:nowrap; flex-shrink:0;">
+                <button class="btn-test-ftp" title="Tester la connexion (${(attrs.ftp_protocol || 'ftp').toUpperCase()})" style="padding:2px 7px; font-size:9.5px; font-weight:800; border-radius:6px; border:1px solid ${attrs.ftp_test_running ? 'rgba(245,158,11,0.5)' : 'rgba(59,130,246,0.35)'}; background:${attrs.ftp_test_running ? 'rgba(245,158,11,0.15)' : 'rgba(59,130,246,0.12)'}; color:${attrs.ftp_test_running ? '#f59e0b' : '#3b82f6'}; cursor:pointer; display:inline-flex; align-items:center; gap:3px; transition:all 0.2s; white-space:nowrap; flex-shrink:0;">
                   <ha-icon icon="${attrs.ftp_test_running ? 'mdi:loading' : 'mdi:lan-connect'}" style="--mdc-icon-size:12px; ${attrs.ftp_test_running ? 'animation: spin 1s linear infinite;' : ''}"></ha-icon>
                   <span>${attrs.ftp_test_running ? '...' : 'TEST'}</span>
                 </button>
@@ -2594,7 +2594,7 @@ class DomolinkPanel extends HTMLElement {
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:8px;">
               <div style="display:flex; align-items:center; gap:8px;">
                 <ha-icon icon="mdi:console-network" style="--mdc-icon-size:18px; color:#38bdf8;"></ha-icon>
-                <span style="font-size:12px; font-weight:800; letter-spacing:0.5px; text-transform:uppercase; color:#e2e8f0;">Diagnostic de Connexion FTP</span>
+                <span style="font-size:12px; font-weight:800; letter-spacing:0.5px; text-transform:uppercase; color:#e2e8f0;">Diagnostic de Connexion ${(attrs.ftp_protocol || 'ftp').toUpperCase()}</span>
               </div>
               <div style="display:flex; align-items:center; gap:8px;">
                 ${attrs.ftp_test_running ? `
@@ -2621,11 +2621,11 @@ class DomolinkPanel extends HTMLElement {
               ${Array.isArray(attrs.ftp_test_logs) && attrs.ftp_test_logs.length > 0 ? attrs.ftp_test_logs.map(log => {
                 const color = log.level === 'error' ? '#f87171' : (log.level === 'success' ? '#4ade80' : (log.level === 'warning' ? '#fbbf24' : '#94a3b8'));
                 const icon = log.level === 'error' ? '❌' : (log.level === 'success' ? '✅' : (log.level === 'warning' ? '⚠️' : '▶'));
-                return `<div style="color:${color}; margin-bottom:2px;">[${log.time || ''}] ${icon} ${this.escapeHtml(log.msg || '')}</div>`;
+                return `<div style="color:${color}; margin-bottom:2px;">[${log.time || ''}] ${icon} ${this.escapeHtml(log.message || log.msg || '')}</div>`;
               }).join('') : `
                 <div style="display:flex; align-items:center; gap:8px; color:#94a3b8; font-style:italic; padding:6px 0;">
                   <ha-icon icon="mdi:loading" class="spin" style="--mdc-icon-size:15px; color:#38bdf8;"></ha-icon>
-                  <span>Démarrage du test de connexion FTP...</span>
+                  <span>Démarrage du test de connexion ${(attrs.ftp_protocol || 'ftp').toUpperCase()}...</span>
                 </div>
               `}
             </div>
@@ -2635,8 +2635,8 @@ class DomolinkPanel extends HTMLElement {
               <div style="margin-top:10px; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.4); border-radius:8px; padding:8px 12px; display:flex; align-items:center; gap:10px;">
                 <ha-icon icon="mdi:folder-check" style="--mdc-icon-size:22px; color:#10b981; flex-shrink:0;"></ha-icon>
                 <div style="font-size:11px; color:#e2e8f0; line-height:1.4;">
-                  <strong style="color:#10b981;">Connexion FTP acceptée avec succès !</strong><br>
-                  <span>Chemin de sauvegarde sur le serveur : </span>
+                  <strong style="color:#10b981;">Connexion ${(attrs.ftp_test_result?.protocol || attrs.ftp_protocol || 'ftp').toUpperCase()} acceptée avec succès !</strong><br>
+                  <span>Chemin de sauvegarde / Partage : </span>
                   <code style="background:rgba(0,0,0,0.4); color:#38bdf8; padding:2px 6px; border-radius:4px; font-weight:700; font-size:11px;">${this.escapeHtml(attrs.ftp_test_result.save_path || 'domolink/alarm')}</code>
                 </div>
               </div>
@@ -2644,7 +2644,7 @@ class DomolinkPanel extends HTMLElement {
               <div style="margin-top:10px; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.4); border-radius:8px; padding:8px 12px; display:flex; align-items:center; gap:10px;">
                 <ha-icon icon="mdi:alert-octagon" style="--mdc-icon-size:22px; color:#ef4444; flex-shrink:0;"></ha-icon>
                 <div style="font-size:11px; color:#e2e8f0; line-height:1.4;">
-                  <strong style="color:#ef4444;">Échec de la connexion FTP :</strong>
+                  <strong style="color:#ef4444;">Échec de la connexion ${(attrs.ftp_test_result?.protocol || attrs.ftp_protocol || 'ftp').toUpperCase()} :</strong>
                   <div style="color:#fca5a5; margin-top:2px;">${this.escapeHtml(attrs.ftp_test_result.message || 'Erreur inconnue')}</div>
                 </div>
               </div>
@@ -3517,13 +3517,13 @@ class DomolinkPanel extends HTMLElement {
     const c = (attrs && attrs.installed_config) ? attrs.installed_config : {};
     
     const defaultNasConfigs = {
-      asustor: { ftp_enabled: true, ftp_host: "", ftp_port: 21, ftp_user: "", ftp_pass: "", ftp_path: "/", webdav_enabled: false, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" },
-      synology: { ftp_enabled: true, ftp_host: "", ftp_port: 21, ftp_user: "", ftp_pass: "", ftp_path: "/", webdav_enabled: false, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" },
-      qnap: { ftp_enabled: true, ftp_host: "", ftp_port: 21, ftp_user: "", ftp_pass: "", ftp_path: "/", webdav_enabled: false, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" },
-      truenas: { ftp_enabled: false, ftp_host: "", ftp_port: 21, ftp_user: "", ftp_pass: "", ftp_path: "/", webdav_enabled: true, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" },
-      freebox: { ftp_enabled: true, ftp_host: "mafreebox.freebox.fr", ftp_port: 21, ftp_user: "freebox", ftp_pass: "", ftp_path: "/", webdav_enabled: false, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" },
-      unraid: { ftp_enabled: true, ftp_host: "", ftp_port: 21, ftp_user: "", ftp_pass: "", ftp_path: "/", webdav_enabled: false, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" },
-      generic: { ftp_enabled: true, ftp_host: "", ftp_port: 21, ftp_user: "", ftp_pass: "", ftp_path: "/", webdav_enabled: false, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" }
+      asustor: { ftp_enabled: true, ftp_protocol: "ftp", ftp_host: "", ftp_port: 21, ftp_user: "", ftp_pass: "", ftp_path: "/", webdav_enabled: false, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" },
+      synology: { ftp_enabled: true, ftp_protocol: "ftp", ftp_host: "", ftp_port: 21, ftp_user: "", ftp_pass: "", ftp_path: "/", webdav_enabled: false, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" },
+      qnap: { ftp_enabled: true, ftp_protocol: "ftp", ftp_host: "", ftp_port: 21, ftp_user: "", ftp_pass: "", ftp_path: "/", webdav_enabled: false, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" },
+      truenas: { ftp_enabled: false, ftp_protocol: "ftp", ftp_host: "", ftp_port: 21, ftp_user: "", ftp_pass: "", ftp_path: "/", webdav_enabled: true, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" },
+      freebox: { ftp_enabled: true, ftp_protocol: "ftp", ftp_host: "mafreebox.freebox.fr", ftp_port: 21, ftp_user: "freebox", ftp_pass: "", ftp_path: "/", webdav_enabled: false, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" },
+      unraid: { ftp_enabled: true, ftp_protocol: "ftp", ftp_host: "", ftp_port: 21, ftp_user: "", ftp_pass: "", ftp_path: "/", webdav_enabled: false, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" },
+      generic: { ftp_enabled: true, ftp_protocol: "ftp", ftp_host: "", ftp_port: 21, ftp_user: "", ftp_pass: "", ftp_path: "/", webdav_enabled: false, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" }
     };
 
     const savedNasConfigs = (c && c.nas_configs) || (attrs && attrs.nas_configs) || {};
@@ -3540,6 +3540,7 @@ class DomolinkPanel extends HTMLElement {
     // If activeNas has legacy top-level credentials in c, ensure they're populated into active profile
     if (c.ftp_host && (!savedNasConfigs[activeNas] || !savedNasConfigs[activeNas].ftp_host)) {
       mergedNasConfigs[activeNas].ftp_enabled = Boolean(c.ftp_enabled);
+      mergedNasConfigs[activeNas].ftp_protocol = c.ftp_protocol || attrs.ftp_protocol || "ftp";
       mergedNasConfigs[activeNas].ftp_host = c.ftp_host || "";
       mergedNasConfigs[activeNas].ftp_port = c.ftp_port !== undefined ? c.ftp_port : 21;
       mergedNasConfigs[activeNas].ftp_user = c.ftp_user || "";
@@ -3557,6 +3558,7 @@ class DomolinkPanel extends HTMLElement {
     // Freebox guarantee defaults if empty
     if (!mergedNasConfigs.freebox.ftp_host) mergedNasConfigs.freebox.ftp_host = "mafreebox.freebox.fr";
     if (!mergedNasConfigs.freebox.ftp_user) mergedNasConfigs.freebox.ftp_user = "freebox";
+    if (!mergedNasConfigs.freebox.ftp_protocol) mergedNasConfigs.freebox.ftp_protocol = "ftp";
     if (mergedNasConfigs.freebox.ftp_port === undefined) mergedNasConfigs.freebox.ftp_port = 21;
     if (mergedNasConfigs.freebox.ftp_enabled === undefined) mergedNasConfigs.freebox.ftp_enabled = true;
 
@@ -3632,6 +3634,7 @@ class DomolinkPanel extends HTMLElement {
       nas_type: activeNas,
       nas_configs: mergedNasConfigs,
       ftp_enabled: Boolean(curNasCfg.ftp_enabled),
+      ftp_protocol: curNasCfg.ftp_protocol || "ftp",
       ftp_host: curNasCfg.ftp_host !== undefined ? curNasCfg.ftp_host : "",
       ftp_port: curNasCfg.ftp_port !== undefined ? curNasCfg.ftp_port : 21,
       ftp_user: curNasCfg.ftp_user !== undefined ? curNasCfg.ftp_user : "",
@@ -3657,7 +3660,7 @@ class DomolinkPanel extends HTMLElement {
 
   _syncDraftToNasConfig(field, val) {
     if (!this._configDraft || !this._configDraft.nas_configs) return;
-    const nasFields = ['ftp_enabled', 'ftp_host', 'ftp_port', 'ftp_user', 'ftp_pass', 'ftp_path', 'webdav_enabled', 'webdav_url', 'webdav_user', 'webdav_pass', 'webdav_path'];
+    const nasFields = ['ftp_enabled', 'ftp_protocol', 'ftp_host', 'ftp_port', 'ftp_user', 'ftp_pass', 'ftp_path', 'webdav_enabled', 'webdav_url', 'webdav_user', 'webdav_pass', 'webdav_path'];
     if (nasFields.includes(field)) {
       const curNas = this._configDraft.nas_type || 'asustor';
       if (!this._configDraft.nas_configs[curNas]) {
@@ -4222,26 +4225,93 @@ function doGet(e) {
           </div>
         `)}
 
-        ${this._renderAccordionCard("ftp", "mdi:server-network", "#10b981", `Serveur FTP — ${curNasLabel}`, `
-          ${this._renderToggleField("Activer le transfert FTP", "Téléverse automatiquement photos et vidéos lors des déclenchements d'alarme", "ftp_enabled", "mdi:upload-network")}
-          ${this._renderTextField("Hôte FTP", "Adresse IP locale ou nom d'hôte du NAS", "ftp_host", "mdi:ip-network", "text", curNas === 'freebox' ? 'mafreebox.freebox.fr' : '192.168.1.50')}
-          ${this._renderNumberField("Port FTP", "Port de connexion FTP standard", "ftp_port", "mdi:numeric", 1, 65535, 1, "")}
-          ${this._renderTextField("Identifiant FTP", "Nom d'utilisateur du compte NAS", "ftp_user", "mdi:account")}
-          ${this._renderPasswordField("Mot de passe FTP", "Mot de passe du compte FTP", "ftp_pass", "mdi:lock")}
+        const curFtpProto = ((this._configDraft && this._configDraft.ftp_protocol) || curNasCfg.ftp_protocol || 'ftp').toLowerCase();
+        const curHostVal = (this._configDraft && this._configDraft.ftp_host !== undefined ? this._configDraft.ftp_host : curNasCfg.ftp_host) || (curNas === 'freebox' ? 'mafreebox.freebox.fr' : '192.168.1.50');
+
+        ${this._renderAccordionCard("ftp", "mdi:server-network", "#10b981", `Sauvegarde NAS & Réseau (${curFtpProto.toUpperCase()}) — ${curNasLabel}`, `
+          <div style="margin-bottom:14px; padding:12px; border-radius:10px; background:var(--d-sec-bg, rgba(255,255,255,0.03)); border:1px solid var(--d-border, rgba(255,255,255,0.08));">
+            <label style="display:block; font-size:12px; font-weight:700; color:var(--d-text); margin-bottom:8px;">
+              <ha-icon icon="mdi:swap-horizontal-bold" style="--mdc-icon-size:16px; margin-right:4px; color:#10b981;"></ha-icon>
+              Protocole de transfert
+            </label>
+            <input type="hidden" class="config-input" data-field="ftp_protocol" id="cfg-ftp-protocol" value="${curFtpProto}">
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:8px;" id="ftp-proto-selector">
+              <button type="button" class="btn-proto-choice ${curFtpProto === 'ftp' ? 'active' : ''}" data-proto="ftp" data-port="21" style="padding:8px 10px; border-radius:8px; border:1px solid ${curFtpProto === 'ftp' ? '#10b981' : 'var(--d-border, rgba(255,255,255,0.1))'}; background:${curFtpProto === 'ftp' ? 'rgba(16,185,129,0.15)' : 'rgba(0,0,0,0.1)'}; color:${curFtpProto === 'ftp' ? '#10b981' : 'var(--d-subtext)'}; font-size:11px; font-weight:800; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px; transition:all 0.2s;">
+                <ha-icon icon="mdi:server-network" style="--mdc-icon-size:18px;"></ha-icon>
+                <span>FTP</span>
+                <span style="font-size:9.5px; opacity:0.75; font-weight:600;">Port 21 (Standard)</span>
+              </button>
+              <button type="button" class="btn-proto-choice ${curFtpProto === 'ftps' ? 'active' : ''}" data-proto="ftps" data-port="21" style="padding:8px 10px; border-radius:8px; border:1px solid ${curFtpProto === 'ftps' ? '#10b981' : 'var(--d-border, rgba(255,255,255,0.1))'}; background:${curFtpProto === 'ftps' ? 'rgba(16,185,129,0.15)' : 'rgba(0,0,0,0.1)'}; color:${curFtpProto === 'ftps' ? '#10b981' : 'var(--d-subtext)'}; font-size:11px; font-weight:800; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px; transition:all 0.2s;">
+                <ha-icon icon="mdi:lock-check" style="--mdc-icon-size:18px;"></ha-icon>
+                <span>FTPS</span>
+                <span style="font-size:9.5px; opacity:0.75; font-weight:600;">Port 21 (TLS/SSL)</span>
+              </button>
+              <button type="button" class="btn-proto-choice ${curFtpProto === 'sftp' ? 'active' : ''}" data-proto="sftp" data-port="22" style="padding:8px 10px; border-radius:8px; border:1px solid ${curFtpProto === 'sftp' ? '#10b981' : 'var(--d-border, rgba(255,255,255,0.1))'}; background:${curFtpProto === 'sftp' ? 'rgba(16,185,129,0.15)' : 'rgba(0,0,0,0.1)'}; color:${curFtpProto === 'sftp' ? '#10b981' : 'var(--d-subtext)'}; font-size:11px; font-weight:800; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px; transition:all 0.2s;">
+                <ha-icon icon="mdi:ssh" style="--mdc-icon-size:18px;"></ha-icon>
+                <span>SFTP</span>
+                <span style="font-size:9.5px; opacity:0.75; font-weight:600;">Port 22 (SSH)</span>
+              </button>
+              <button type="button" class="btn-proto-choice ${curFtpProto === 'samba' ? 'active' : ''}" data-proto="samba" data-port="445" style="padding:8px 10px; border-radius:8px; border:1px solid ${curFtpProto === 'samba' ? '#10b981' : 'var(--d-border, rgba(255,255,255,0.1))'}; background:${curFtpProto === 'samba' ? 'rgba(16,185,129,0.15)' : 'rgba(0,0,0,0.1)'}; color:${curFtpProto === 'samba' ? '#10b981' : 'var(--d-subtext)'}; font-size:11px; font-weight:800; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px; transition:all 0.2s;">
+                <ha-icon icon="mdi:folder-table" style="--mdc-icon-size:18px;"></ha-icon>
+                <span>SAMBA</span>
+                <span style="font-size:9.5px; opacity:0.75; font-weight:600;">Port 445 (SMB)</span>
+              </button>
+            </div>
+          </div>
+
+          ${this._renderToggleField("Activer le transfert NAS / Réseau", "Téléverse automatiquement photos et vidéos lors des déclenchements d'alarme", "ftp_enabled", "mdi:upload-network")}
+          ${this._renderTextField("Hôte NAS / Serveur", "Adresse IP locale ou nom d'hôte du NAS", "ftp_host", "mdi:ip-network", "text", curNas === 'freebox' ? 'mafreebox.freebox.fr' : '192.168.1.50')}
+          ${this._renderNumberField("Port de connexion", "Port de connexion selon protocole (21 FTP/FTPS, 22 SFTP, 445 SAMBA)", "ftp_port", "mdi:numeric", 1, 65535, 1, "")}
+          ${this._renderTextField("Identifiant de connexion", "Nom d'utilisateur du compte NAS", "ftp_user", "mdi:account")}
+          ${this._renderPasswordField("Mot de passe", "Mot de passe du compte", "ftp_pass", "mdi:lock")}
           ${this._renderTextField("Répertoire distant", "Chemin distant (créera automatiquement domolink/alarm/...)", "ftp_path", "mdi:folder-network", "text", "/")}
+
+          <!-- Partage Réseau SAMBA -->
+          <div id="samba-link-card" style="margin-top:14px; padding:12px 14px; border-radius:10px; background:linear-gradient(135deg, rgba(16,185,129,0.08), rgba(59,130,246,0.08)); border:1px solid rgba(16,185,129,0.25); display:flex; flex-direction:column; gap:10px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <div style="width:30px; height:30px; border-radius:8px; background:rgba(16,185,129,0.15); display:flex; align-items:center; justify-content:center; color:#10b981;">
+                  <ha-icon icon="mdi:folder-network-outline" style="--mdc-icon-size:20px;"></ha-icon>
+                </div>
+                <div>
+                  <div style="font-size:12px; font-weight:800; color:var(--d-text);">Accès Partage Réseau SAMBA (SMB)</div>
+                  <div style="font-size:10.5px; color:var(--d-subtext);">Pour explorer et récupérer vos médias directement sur votre ordinateur</div>
+                </div>
+              </div>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <button type="button" id="btn-copy-samba-link" style="padding:5px 12px; border-radius:6px; border:1px solid rgba(16,185,129,0.4); background:rgba(16,185,129,0.15); color:#10b981; font-size:11px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:5px; transition:all 0.2s;">
+                  <ha-icon icon="mdi:content-copy" style="--mdc-icon-size:14px;"></ha-icon>
+                  <span id="copy-samba-txt">Copier le lien SAMBA</span>
+                </button>
+                <a id="lnk-open-samba" href="smb://${this.escapeHtml(curHostVal)}/" target="_blank" rel="noopener noreferrer" style="padding:5px 12px; border-radius:6px; border:1px solid rgba(59,130,246,0.35); background:rgba(59,130,246,0.12); color:#60a5fa; font-size:11px; font-weight:800; text-decoration:none; display:inline-flex; align-items:center; gap:5px;">
+                  <ha-icon icon="mdi:open-in-new" style="--mdc-icon-size:14px;"></ha-icon>
+                  <span>Ouvrir</span>
+                </a>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; background:rgba(0,0,0,0.25); border-radius:6px; padding:6px 10px; font-family:monospace; font-size:12px; color:#38bdf8; overflow-x:auto;">
+              <span style="color:var(--d-subtext); font-weight:600;">Lien :</span>
+              <span id="samba-url-display">smb://${this.escapeHtml(curHostVal)}/</span>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:8px; font-size:10.5px; color:var(--d-subtext); line-height:1.4;">
+              <div>🍏 <strong>macOS :</strong> Dans le Finder, faites <code>Cmd + K</code>, puis collez <code>smb://${this.escapeHtml(curHostVal)}/</code></div>
+              <div>🪟 <strong>Windows :</strong> Dans l'Explorateur, tapez dans la barre d'adresse <code id="samba-win-display">\\\\${this.escapeHtml(curHostVal)}\\</code></div>
+            </div>
+          </div>
+
           <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--d-border-light); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
             <div style="display:flex; flex-direction:column; gap:4px; max-width:65%;">
               <div style="display:flex; align-items:center; gap:8px;">
-                <span style="font-size:12px; font-weight:700; color:var(--d-text);">Résultat connexion FTP :</span>
+                <span style="font-size:12px; font-weight:700; color:var(--d-text);">Résultat connexion :</span>
                 <span id="ftp-test-inline-badge">${this._renderTestBadge(curFtpRes)}</span>
               </div>
               <div id="ftp-test-inline-msg" style="font-size:11px; line-height:1.4; color:${curFtpRes?.success ? '#10b981' : (curFtpRes?.success === false ? '#ef4444' : 'var(--d-subtext)')};">
-                ${curFtpRes?.message ? this.escapeHtml(curFtpRes.message) : 'Testez la connexion FTP avec vos identifiants actuels ci-dessus.'}
+                ${curFtpRes?.message ? this.escapeHtml(curFtpRes.message) : `Testez la connexion ${curFtpProto.toUpperCase()} avec vos identifiants ci-dessus.`}
               </div>
             </div>
             <button type="button" class="btn-test-ftp-inline" id="btn-test-ftp-inline" style="padding:8px 16px; border-radius:10px; border:1px solid rgba(16,185,129,0.4); background:rgba(16,185,129,0.12); color:#10b981; font-size:12px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:6px; transition:all 0.2s;">
               <ha-icon icon="mdi:server-network" style="--mdc-icon-size:16px;"></ha-icon>
-              <span>Tester la connexion FTP</span>
+              <span>Tester la connexion ${curFtpProto.toUpperCase()}</span>
             </button>
           </div>
         `)}
@@ -4341,7 +4411,7 @@ function doGet(e) {
             <div>
               <div style="font-size:18px; font-weight:800; color:var(--d-text); display:flex; align-items:center; gap:8px;">
                 Centre de Configuration
-                <span class="nav-badge-pill badge-version">v0.9.66</span>
+                <span class="nav-badge-pill badge-version">v0.9.67</span>
               </div>
               <div style="font-size:12px; color:var(--d-subtext); margin-top:3px;">
                 Modifiez vos équipements, délais, notifications et sauvegardes en toute simplicité
@@ -4677,6 +4747,8 @@ function doGet(e) {
 
       if (proto === 'ftp') {
         serviceName = 'test_ftp';
+        const protoInput = isCurActive ? container.querySelector('#cfg-ftp-protocol') : null;
+        const activeProto = (protoInput ? protoInput.value : null) || targetCfg.ftp_protocol || this._configDraft.ftp_protocol || 'ftp';
         const hostInput = isCurActive ? container.querySelector('input[data-field="ftp_host"]') : null;
         const portInput = isCurActive ? container.querySelector('input[data-field="ftp_port"]') : null;
         const userInput = isCurActive ? container.querySelector('input[data-field="ftp_user"]') : null;
@@ -4684,10 +4756,13 @@ function doGet(e) {
         const pathInput = isCurActive ? container.querySelector('input[data-field="ftp_path"]') : null;
         const enabledInput = isCurActive ? container.querySelector('input[data-field="ftp_enabled"]') : null;
 
+        const defaultPortForProto = activeProto === 'samba' ? 445 : (activeProto === 'sftp' ? 22 : 21);
+
         payload = {
           nas_type: targetNas,
+          ftp_protocol: activeProto,
           ftp_host: hostInput ? hostInput.value.trim() : (targetCfg.ftp_host !== undefined ? targetCfg.ftp_host : (targetNas === 'freebox' ? 'mafreebox.freebox.fr' : '')),
-          ftp_port: portInput ? parseInt(portInput.value, 10) || 21 : (targetCfg.ftp_port || 21),
+          ftp_port: portInput ? parseInt(portInput.value, 10) || defaultPortForProto : (targetCfg.ftp_port || defaultPortForProto),
           ftp_user: userInput ? userInput.value.trim() : (targetCfg.ftp_user !== undefined ? targetCfg.ftp_user : (targetNas === 'freebox' ? 'freebox' : '')),
           ftp_pass: passInput ? passInput.value : (targetCfg.ftp_pass || ''),
           ftp_path: pathInput ? pathInput.value.trim() : (targetCfg.ftp_path || '/'),
@@ -4818,6 +4893,100 @@ function doGet(e) {
       btn.addEventListener('click', () => runNasTest(btn.getAttribute('data-nas') || this._configDraft.nas_type, 'webdav', btn));
     });
 
+    // Protocol selector buttons (FTP, FTPS, SFTP, SAMBA)
+    container.querySelectorAll('.btn-proto-choice').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const proto = btn.getAttribute('data-proto');
+        const defPort = parseInt(btn.getAttribute('data-port'), 10) || 21;
+
+        container.querySelectorAll('.btn-proto-choice').forEach(b => {
+          const isSelected = (b === btn);
+          b.classList.toggle('active', isSelected);
+          b.style.borderColor = isSelected ? '#10b981' : 'var(--d-border, rgba(255,255,255,0.1))';
+          b.style.background = isSelected ? 'rgba(16,185,129,0.15)' : 'rgba(0,0,0,0.1)';
+          b.style.color = isSelected ? '#10b981' : 'var(--d-subtext)';
+        });
+
+        const hiddenInput = container.querySelector('#cfg-ftp-protocol');
+        if (hiddenInput) hiddenInput.value = proto;
+        this._configDraft.ftp_protocol = proto;
+        this._syncDraftToNasConfig('ftp_protocol', proto);
+
+        // Auto-update port field
+        const portInput = container.querySelector('input[data-field="ftp_port"]');
+        if (portInput) {
+          portInput.value = defPort;
+          this._configDraft.ftp_port = defPort;
+          this._syncDraftToNasConfig('ftp_port', defPort);
+        }
+
+        // Update inline test button text
+        const ftpInlineBtnSpan = container.querySelector('#btn-test-ftp-inline span');
+        if (ftpInlineBtnSpan) {
+          ftpInlineBtnSpan.textContent = `Tester la connexion ${proto.toUpperCase()}`;
+        }
+      });
+    });
+
+    // Copy SAMBA link
+    const copySambaBtn = container.querySelector('#btn-copy-samba-link');
+    if (copySambaBtn) {
+      copySambaBtn.addEventListener('click', () => {
+        const hostInput = container.querySelector('input[data-field="ftp_host"]');
+        const curHost = (hostInput ? hostInput.value.trim() : '') || (this._configDraft.nas_type === 'freebox' ? 'mafreebox.freebox.fr' : '192.168.1.50');
+        const sambaUrl = `smb://${curHost}/`;
+        const textSpan = copySambaBtn.querySelector('#copy-samba-txt');
+        const iconEl = copySambaBtn.querySelector('ha-icon');
+
+        const notifyCopied = () => {
+          if (textSpan) textSpan.textContent = "✓ Lien copié !";
+          if (iconEl) iconEl.setAttribute('icon', 'mdi:check-circle');
+          copySambaBtn.style.background = '#10b981';
+          copySambaBtn.style.color = '#ffffff';
+          setTimeout(() => {
+            if (textSpan) textSpan.textContent = "Copier le lien SAMBA";
+            if (iconEl) iconEl.setAttribute('icon', 'mdi:content-copy');
+            copySambaBtn.style.background = 'rgba(16,185,129,0.15)';
+            copySambaBtn.style.color = '#10b981';
+          }, 2500);
+        };
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(sambaUrl).then(notifyCopied).catch(() => {
+            const ta = document.createElement('textarea');
+            ta.value = sambaUrl;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            notifyCopied();
+          });
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = sambaUrl;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          notifyCopied();
+        }
+      });
+    }
+
+    // Dynamic update of SAMBA link if host input changes
+    const ftpHostInput = container.querySelector('input[data-field="ftp_host"]');
+    if (ftpHostInput) {
+      ftpHostInput.addEventListener('input', () => {
+        const val = ftpHostInput.value.trim() || (this._configDraft.nas_type === 'freebox' ? 'mafreebox.freebox.fr' : '192.168.1.50');
+        const urlDisplay = container.querySelector('#samba-url-display');
+        const winDisplay = container.querySelector('#samba-win-display');
+        const lnkOpen = container.querySelector('#lnk-open-samba');
+        if (urlDisplay) urlDisplay.textContent = `smb://${val}/`;
+        if (winDisplay) winDisplay.textContent = `\\\\${val}\\`;
+        if (lnkOpen) lnkOpen.setAttribute('href', `smb://${val}/`);
+      });
+    }
+
     // Copy Google Apps Script Button
     const copyGscriptBtn = container.querySelector('#btn-copy-google-script');
     if (copyGscriptBtn) {
@@ -4909,6 +5078,7 @@ function doGet(e) {
         if (!this._configDraft.nas_configs[newNas]) {
           this._configDraft.nas_configs[newNas] = {
             ftp_enabled: newNas !== 'truenas',
+            ftp_protocol: 'ftp',
             ftp_host: newNas === 'freebox' ? 'mafreebox.freebox.fr' : '',
             ftp_port: 21,
             ftp_user: newNas === 'freebox' ? 'freebox' : '',
@@ -4926,6 +5096,7 @@ function doGet(e) {
         if (newNas === 'freebox') {
           if (!this._configDraft.nas_configs.freebox.ftp_host) this._configDraft.nas_configs.freebox.ftp_host = 'mafreebox.freebox.fr';
           if (!this._configDraft.nas_configs.freebox.ftp_user) this._configDraft.nas_configs.freebox.ftp_user = 'freebox';
+          if (!this._configDraft.nas_configs.freebox.ftp_protocol) this._configDraft.nas_configs.freebox.ftp_protocol = 'ftp';
           if (this._configDraft.nas_configs.freebox.ftp_port === undefined) this._configDraft.nas_configs.freebox.ftp_port = 21;
           if (this._configDraft.nas_configs.freebox.ftp_enabled === undefined) this._configDraft.nas_configs.freebox.ftp_enabled = true;
         }
@@ -4934,6 +5105,7 @@ function doGet(e) {
 
         // 4. Populate top-level fields for display in form
         this._configDraft.ftp_enabled = Boolean(targetCfg.ftp_enabled);
+        this._configDraft.ftp_protocol = targetCfg.ftp_protocol || 'ftp';
         this._configDraft.ftp_host = targetCfg.ftp_host !== undefined ? targetCfg.ftp_host : (newNas === 'freebox' ? 'mafreebox.freebox.fr' : '');
         this._configDraft.ftp_port = targetCfg.ftp_port !== undefined ? targetCfg.ftp_port : 21;
         this._configDraft.ftp_user = targetCfg.ftp_user !== undefined ? targetCfg.ftp_user : (newNas === 'freebox' ? 'freebox' : '');
@@ -5140,7 +5312,7 @@ function doGet(e) {
       const cloudLabel = countCloud > 1 ? 'MULTI-CLOUD' : (isGdrive ? 'G-DRIVE' : (isDav ? 'WEBDAV' : (isFtp ? 'FTP' : 'LOCAL')));
       elParam.innerHTML = `
         <div class="nav-badge-stack">
-          <span class="nav-badge-pill badge-version">v0.9.66</span>
+          <span class="nav-badge-pill badge-version">v0.9.67</span>
           <span class="nav-badge-pill badge-neutral">${cloudLabel}</span>
         </div>
       `;

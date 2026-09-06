@@ -107,11 +107,14 @@ CONF_FTP_PORT = "ftp_port"
 CONF_FTP_USER = "ftp_user"
 CONF_FTP_PASS = "ftp_pass"
 CONF_FTP_PATH = "ftp_path"
+CONF_FTP_PROTOCOL = "ftp_protocol"
 
 DEFAULT_TELEGRAM_ENABLED = False
 DEFAULT_FTP_ENABLED = False
 DEFAULT_FTP_PORT = 21
 DEFAULT_FTP_PATH = "/"
+DEFAULT_FTP_PROTOCOL = "ftp"
+FTP_PROTOCOLS = ["ftp", "ftps", "sftp", "samba"]
 CONF_CAMERAS_ARM_ENTITIES = "cameras_arm_entities"
 CONF_CAMERAS_ARM_ENTITIES_LABELS = "cameras_arm_entities_labels"
 
@@ -145,6 +148,7 @@ CONF_NAS_CONFIGS = "nas_configs"
 DEFAULT_NAS_CONFIGS = {
     "asustor": {
         "ftp_enabled": True,
+        "ftp_protocol": "ftp",
         "ftp_host": "",
         "ftp_port": 21,
         "ftp_user": "",
@@ -158,6 +162,7 @@ DEFAULT_NAS_CONFIGS = {
     },
     "synology": {
         "ftp_enabled": True,
+        "ftp_protocol": "ftp",
         "ftp_host": "",
         "ftp_port": 21,
         "ftp_user": "",
@@ -171,6 +176,7 @@ DEFAULT_NAS_CONFIGS = {
     },
     "qnap": {
         "ftp_enabled": True,
+        "ftp_protocol": "ftp",
         "ftp_host": "",
         "ftp_port": 21,
         "ftp_user": "",
@@ -184,6 +190,7 @@ DEFAULT_NAS_CONFIGS = {
     },
     "truenas": {
         "ftp_enabled": False,
+        "ftp_protocol": "ftp",
         "ftp_host": "",
         "ftp_port": 21,
         "ftp_user": "",
@@ -197,6 +204,7 @@ DEFAULT_NAS_CONFIGS = {
     },
     "freebox": {
         "ftp_enabled": True,
+        "ftp_protocol": "ftp",
         "ftp_host": "mafreebox.freebox.fr",
         "ftp_port": 21,
         "ftp_user": "freebox",
@@ -210,6 +218,7 @@ DEFAULT_NAS_CONFIGS = {
     },
     "unraid": {
         "ftp_enabled": True,
+        "ftp_protocol": "ftp",
         "ftp_host": "",
         "ftp_port": 21,
         "ftp_user": "",
@@ -223,6 +232,7 @@ DEFAULT_NAS_CONFIGS = {
     },
     "generic": {
         "ftp_enabled": True,
+        "ftp_protocol": "ftp",
         "ftp_host": "",
         "ftp_port": 21,
         "ftp_user": "",
