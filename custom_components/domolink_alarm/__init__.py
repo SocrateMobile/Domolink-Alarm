@@ -1,14 +1,12 @@
-"""The Domolink Alarm integration."""
+import os
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.components import frontend
 
 from .const import DOMAIN
 
 PLATFORMS = ["alarm_control_panel", "button", "sensor"]
 
-
-import os
-from homeassistant.components import frontend
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Domolink Alarm from a config entry."""
@@ -39,7 +37,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 config={
                     "_panel_custom": {
                         "name": "domolink-panel",
-                        "module_url": "/domolink_alarm_panel/domolink-panel.js?v=0.9.50",
+                        "module_url": "/domolink_alarm_panel/domolink-panel.js?v=0.9.51",
                     }
                 },
                 require_admin=False,

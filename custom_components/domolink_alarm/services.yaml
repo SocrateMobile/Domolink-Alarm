@@ -9,7 +9,7 @@ bypass_sensor:
       required: true
       example: binary_sensor.porte_entree
       selector:
-        entity:
+        entity: {}
 
 unbypass_sensor:
   name: Rétablir un capteur
@@ -21,7 +21,7 @@ unbypass_sensor:
       required: true
       example: binary_sensor.porte_entree
       selector:
-        entity:
+        entity: {}
 
 panic:
   name: Déclencher l'alerte Panique SOS
@@ -33,7 +33,7 @@ panic:
       required: false
       default: true
       selector:
-        boolean:
+        boolean: {}
 
 start_presence_simulation:
   name: Démarrer la simulation de présence
@@ -56,7 +56,7 @@ update_settings:
       description: Activer ou désactiver le carillon.
       required: false
       selector:
-        boolean:
+        boolean: {}
     presence_simulation_history_days:
       name: Jours historique simulation
       description: Nombre de jours en arrière pour la simulation de présence.
@@ -71,7 +71,7 @@ update_settings:
       description: Activer le cross-zoning pour éviter les fausses alertes mouvements.
       required: false
       selector:
-        boolean:
+        boolean: {}
     entry_delay:
       name: Délai d'entrée
       description: Délai d'entrée en secondes.
@@ -100,3 +100,31 @@ update_settings:
 test_cameras_recording:
   name: Tester l'enregistrement des caméras
   description: Déclenche un test séquentiel de capture photo et d'enregistrement vidéo de 30 secondes sur toutes les caméras l'une après l'autre.
+
+media_action:
+  name: Action sur fichier média
+  description: Supprime ou renomme un fichier photo ou vidéo dans le dossier média Domolink.
+  fields:
+    action:
+      name: Action
+      description: Type d'action à effectuer (delete ou rename).
+      required: true
+      selector:
+        select:
+          options:
+            - label: Supprimer
+              value: delete
+            - label: Renommer
+              value: rename
+    filename:
+      name: Nom du fichier
+      description: Nom du fichier média ciblé.
+      required: true
+      selector:
+        text: {}
+    new_name:
+      name: Nouveau nom
+      description: Nouveau nom de fichier avec extension (uniquement si action rename).
+      required: false
+      selector:
+        text: {}

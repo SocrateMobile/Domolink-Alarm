@@ -49,7 +49,8 @@ class DomolinkPanel extends HTMLElement {
         const entityId = camImg.dataset.camEntity;
         const stateObj = this._hass && this._hass.states ? this._hass.states[entityId] : null;
         if (stateObj && stateObj.attributes && stateObj.attributes.entity_picture) {
-          camImg.src = stateObj.attributes.entity_picture + '&t=' + Date.now();
+          const pic = stateObj.attributes.entity_picture;
+          camImg.src = pic + (pic.includes('?') ? '&' : '?') + 't=' + Date.now();
         } else {
           camImg.src = `/api/camera_proxy/${entityId}?time=${Date.now()}`;
         }
@@ -73,12 +74,19 @@ class DomolinkPanel extends HTMLElement {
 
   _getAlarmEntity() {
     if (!this._hass || !this._hass.states) return null;
+    // Use cached entity ID for direct O(1) lookup
+    if (this._cachedAlarmEntityId && this._hass.states[this._cachedAlarmEntityId]) {
+      return this._hass.states[this._cachedAlarmEntityId];
+    }
+    // Full scan only on first call or if cached entity disappeared
     const states = Object.values(this._hass.states);
-    return states.find(s => 
+    const found = states.find(s => 
       (s.attributes && (s.attributes.domolink_alarm === true || s.attributes.opening_sensors !== undefined)) ||
       s.entity_id.startsWith('alarm_control_panel.domolink') ||
       (s.attributes && s.attributes.attribution && String(s.attributes.attribution).toLowerCase().includes('domolink'))
     ) || states.find(s => s.entity_id.startsWith('alarm_control_panel.')) || null;
+    if (found) this._cachedAlarmEntityId = found.entity_id;
+    return found;
   }
 
   _buildShell() {
@@ -1493,7 +1501,7 @@ class DomolinkPanel extends HTMLElement {
       </div>
     `;
 
-    const armCacheKey = `${state}_${attrs.last_user}_${attrs.triggered_by}_${this._selectedCameraIndex}_${totalSensorsCount}_${activeTriggers.length}_${isArmed}_${telegramStatus}_${ftpStatus}_${camerasArmed}`;
+    const armCacheKey = `${state}_${attrs.last_user}_${attrs.triggered_by}_${this._selectedCameraIndex}_${totalSensorsCount}_${activeTriggers.length}_${isArmed}_${telegramStatus}_${ftpStatus}_${camerasArmed}_${attrs.camera_test_running}_${JSON.stringify(attrs.camera_test_info || {})}`;
     if (this._lastArmKey !== armCacheKey) {
       this._lastArmKey = armCacheKey;
       container.innerHTML = html;
