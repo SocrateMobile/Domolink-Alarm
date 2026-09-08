@@ -215,6 +215,8 @@ class DomolinkPanel extends HTMLElement {
       btn.classList.toggle('active', this._carModeActive);
       btn.innerHTML = `<ha-icon icon="${this._carModeActive ? 'mdi:car-connected' : 'mdi:car'}"></ha-icon>`;
     }
+    this._lastArmKey = '';
+    this._lastCarKey = '';
     this.render();
   }
 
@@ -476,6 +478,9 @@ class DomolinkPanel extends HTMLElement {
           --d-border: rgba(255, 255, 255, 0.14);
           --d-text: #f8fafc;
           --d-subtext: #94a3b8;
+        }
+        .panel-wrap.car-mode .top-nav {
+          display: none !important;
         }
 
         @media (max-width: 768px) {
@@ -1498,7 +1503,6 @@ class DomolinkPanel extends HTMLElement {
           margin: 0 auto;
           width: 100%;
           box-sizing: border-box;
-          animation: fadeIn 0.3s ease;
         }
         .car-header-banner {
           background: var(--d-surface-card);
@@ -1811,6 +1815,35 @@ class DomolinkPanel extends HTMLElement {
           background: #f59e0b;
           margin-top: 3px;
           box-shadow: 0 0 4px #f59e0b;
+        }
+
+        .keypad-circle-btn.btn-key-clear {
+          color: #ef4444 !important;
+          font-size: 20px;
+          font-weight: 800;
+        }
+        .keypad-circle-btn.btn-key-clear:hover {
+          border-color: #ef4444 !important;
+          background: rgba(239, 68, 68, 0.15) !important;
+        }
+        .keypad-circle-btn.btn-key-clear:active {
+          background: #ef4444 !important;
+          color: #ffffff !important;
+          box-shadow: 0 0 20px rgba(239, 68, 68, 0.7) !important;
+        }
+        .keypad-circle-btn.btn-key-disarm {
+          color: #10b981 !important;
+          font-size: 20px;
+          font-weight: 800;
+        }
+        .keypad-circle-btn.btn-key-disarm:hover {
+          border-color: #10b981 !important;
+          background: rgba(16, 185, 129, 0.15) !important;
+        }
+        .keypad-circle-btn.btn-key-disarm:active {
+          background: #10b981 !important;
+          color: #ffffff !important;
+          box-shadow: 0 0 20px rgba(16, 185, 129, 0.7) !important;
         }
 
         .keypad-bottom-actions {
@@ -2359,7 +2392,7 @@ class DomolinkPanel extends HTMLElement {
         }
       </style>
 
-      <div class="panel-wrap theme-${this._theme} ${this._kioskActive ? 'kiosk-mode' : ''}">
+      <div class="panel-wrap theme-${this._theme} ${this._kioskActive ? 'kiosk-mode' : ''} ${this._carModeActive ? 'car-mode' : ''}">
         <!-- Kiosk Ambient Screensaver Overlay -->
         <div id="kiosk-screensaver" class="${this._screensaverVisible ? 'visible' : ''}">
           <div class="screensaver-clock">
@@ -2650,14 +2683,14 @@ class DomolinkPanel extends HTMLElement {
                   ${n}
                 </button>
               `).join('')}
-              <button class="keypad-circle-btn car-keypad-btn" data-key="clear" style="width:76px; height:76px; font-size:22px; font-weight:800; color:#ef4444;">
+              <button class="keypad-circle-btn car-keypad-btn btn-key-clear" data-key="clear" style="width:76px; height:76px;" title="Effacer le code">
                 C
               </button>
               <button class="keypad-circle-btn car-keypad-btn" data-key="0" style="width:76px; height:76px; font-size:24px;">
                 0
               </button>
-              <button class="keypad-circle-btn car-keypad-btn" data-key="disarm" style="width:76px; height:76px; font-size:20px; font-weight:800; color:#10b981;">
-                <ha-icon icon="mdi:check-bold" style="--mdc-icon-size:24px;"></ha-icon>
+              <button class="keypad-circle-btn car-keypad-btn btn-key-disarm" data-key="disarm" style="width:76px; height:76px;" title="Valider / Désarmer">
+                <ha-icon icon="mdi:check-bold" style="--mdc-icon-size:26px;"></ha-icon>
               </button>
             </div>
           </div>
@@ -2723,30 +2756,35 @@ class DomolinkPanel extends HTMLElement {
 
     paneArm.querySelectorAll('.car-btn-giant').forEach(btn => {
       btn.addEventListener('click', (e) => {
+        if (window.navigator && window.navigator.vibrate) {
+          try { window.navigator.vibrate(15); } catch(e) {}
+        }
         const service = e.currentTarget.dataset.carService;
         if (service === 'alarm_disarm') {
           if (this._codeValue.length > 0) {
             this.callAlarmService(service, this._codeValue);
             this._codeValue = '';
-            this.render();
           } else {
             this.callAlarmService(service);
           }
         } else if (service) {
           this.callAlarmService(service, this._codeValue || null);
           this._codeValue = '';
-          this.render();
         }
+        this._updatePinDisplay();
       });
     });
 
     paneArm.querySelectorAll('.car-keypad-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
+        if (window.navigator && window.navigator.vibrate) {
+          try { window.navigator.vibrate(15); } catch(e) {}
+        }
         const key = e.currentTarget.dataset.key;
         if (key === 'clear') {
           this._codeValue = '';
         } else if (key === 'disarm') {
-          this.callAlarmService('alarm_disarm', this._codeValue);
+          this.callAlarmService('alarm_disarm', this._codeValue || null);
           this._codeValue = '';
         } else if (this._codeValue.length < 6) {
           this._codeValue += key;
@@ -2758,7 +2796,7 @@ class DomolinkPanel extends HTMLElement {
             }
           }
         }
-        this.render();
+        this._updatePinDisplay();
       });
     });
   }
@@ -3033,8 +3071,14 @@ class DomolinkPanel extends HTMLElement {
     })() : '';
 
     if (this._carModeActive) {
-      container.innerHTML = this._renderCarModeView(alarmEntity, attrs, state, isDisarmed, isArmed, isTriggered, isPending, heroClass, heroIcon, heroTitle, heroDesc, openDoors, activeMotions);
-      this._bindCarModeEvents(container, alarmEntity);
+      const carCacheKey = `car_${state}_${attrs.last_user}_${attrs.triggered_by}_${openDoors.length}_${activeMotions.length}_${heroClass}_${heroTitle}_${heroDesc}`;
+      if (this._lastCarKey !== carCacheKey || !container.querySelector('.car-mode-container')) {
+        this._lastCarKey = carCacheKey;
+        this._lastArmKey = '';
+        container.innerHTML = this._renderCarModeView(alarmEntity, attrs, state, isDisarmed, isArmed, isTriggered, isPending, heroClass, heroIcon, heroTitle, heroDesc, openDoors, activeMotions);
+        this._bindCarModeEvents(container, alarmEntity);
+      }
+      this._updatePinDisplay();
       return;
     }
 
@@ -3572,12 +3616,14 @@ class DomolinkPanel extends HTMLElement {
                 <div class="key-led-dot"></div>
               </button>
             `).join('')}
-            <button class="keypad-circle-btn" data-key="clear" style="font-size:18px; font-weight:800;">#</button>
+            <button class="keypad-circle-btn btn-key-clear" data-key="clear" title="Effacer le code">C</button>
             <button class="keypad-circle-btn" data-key="0">
               0
               <div class="key-led-dot"></div>
             </button>
-            <button class="keypad-circle-btn" data-key="back" style="font-size:20px; font-weight:800;">*</button>
+            <button class="keypad-circle-btn btn-key-disarm" data-key="disarm" title="Valider / Désarmer">
+              <ha-icon icon="mdi:check-bold" style="--mdc-icon-size:22px; color:#10b981;"></ha-icon>
+            </button>
           </div>
 
           <div class="keypad-bottom-actions">
@@ -3606,8 +3652,9 @@ class DomolinkPanel extends HTMLElement {
     `;
 
     const armCacheKey = `${state}_${attrs.last_user}_${attrs.triggered_by}_${this._selectedCameraIndex}_${totalSensorsCount}_${activeTriggers.length}_${isArmed}_${telegramStatus}_${ftpStatus}_${webdavStatus}_${googleDriveStatus}_${camerasArmed}_${attrs.camera_test_running}_${JSON.stringify(attrs.camera_test_info || {})}_${attrs.ftp_test_running}_${this._showFtpTestConsole}_${(attrs.ftp_test_logs || []).length}_${JSON.stringify(attrs.ftp_test_result || {})}_${attrs.webdav_test_running}_${this._showWebdavTestConsole}_${(attrs.webdav_test_logs || []).length}_${JSON.stringify(attrs.webdav_test_result || {})}_${attrs.google_drive_test_running}_${this._showGoogleDriveTestConsole}_${(attrs.google_drive_test_logs || []).length}_${JSON.stringify(attrs.google_drive_test_result || {})}_${recentEvent1}_${recentEvent2}`;
-    if (this._lastArmKey !== armCacheKey) {
+    if (this._lastArmKey !== armCacheKey || !container.querySelector('.arm-layout-grid')) {
       this._lastArmKey = armCacheKey;
+      this._lastCarKey = '';
       container.innerHTML = html;
       
       // FIX: Restore PIN display immediately after DOM reconstruction
@@ -3621,9 +3668,16 @@ class DomolinkPanel extends HTMLElement {
             try { window.navigator.vibrate(15); } catch(e) {}
           }
           const k = btn.getAttribute('data-key');
-          if (k === 'clear') this._codeValue = '';
-          else if (k === 'back') this._codeValue = this._codeValue.slice(0, -1);
-          else if (this._codeValue.length < 6) this._codeValue += k;
+          if (k === 'clear') {
+            this._codeValue = '';
+          } else if (k === 'disarm' || k === 'validate') {
+            this.callAlarmService('alarm_disarm', this._codeValue || null);
+            this._codeValue = '';
+          } else if (k === 'back') {
+            this._codeValue = this._codeValue.slice(0, -1);
+          } else if (this._codeValue.length < 6) {
+            this._codeValue += k;
+          }
           this._updatePinDisplay();
         });
       });
@@ -5383,7 +5437,7 @@ mode: single`;
             <div>
               <div style="font-size:18px; font-weight:800; color:var(--d-text); display:flex; align-items:center; gap:8px;">
                 Centre de Configuration
-                <span class="nav-badge-pill badge-version">v0.9.69</span>
+                <span class="nav-badge-pill badge-version">v0.9.70</span>
               </div>
               <div style="font-size:12px; color:var(--d-subtext); margin-top:3px;">
                 Modifiez vos équipements, délais, notifications et sauvegardes en toute simplicité
@@ -6098,8 +6152,12 @@ mode: single`;
     if (btnLaunchCar) {
       btnLaunchCar.addEventListener('click', () => {
         this._carModeActive = true;
-        try { localStorage.setItem('domolink_car_mode', 'true'); } catch (e) {}
+        try { localStorage.setItem('domolink_car_mode_active', 'true'); } catch (e) {}
+        const wrap = this.querySelector('.panel-wrap');
+        if (wrap) wrap.classList.add('car-mode');
         this._activeTab = 'arm';
+        this._lastArmKey = '';
+        this._lastCarKey = '';
         this.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.getAttribute('data-tab') === 'arm'));
         this.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'pane-arm'));
         this.render();
@@ -6374,7 +6432,7 @@ mode: single`;
       const cloudLabel = countCloud > 1 ? 'MULTI-CLOUD' : (isGdrive ? 'G-DRIVE' : (isDav ? 'WEBDAV' : (isFtp ? 'FTP' : 'LOCAL')));
       elParam.innerHTML = `
         <div class="nav-badge-stack">
-          <span class="nav-badge-pill badge-version">v0.9.69</span>
+          <span class="nav-badge-pill badge-version">v0.9.70</span>
           <span class="nav-badge-pill badge-neutral">${cloudLabel}</span>
         </div>
       `;

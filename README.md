@@ -7,6 +7,15 @@ Conçue pour dépasser les standards du marché, elle offre une configuration 10
 
 ## 🌟 Fonctionnalités Principales
 
+### 🚀 Nouveautés de la version 0.9.70 (Correctif Scintillement Mode Voiture & Pavé Numérique C / ✓)
+- **Élimination complète du scintillement en Mode Voiture** :
+  - Mise en cache intelligente du DOM dans le Mode Voiture (`_lastCarKey`) évitant les reconstructions répétitives d'éléments lors des rafraîchissements d'états Home Assistant.
+  - Suppression de l'animation CSS `fadeIn` en boucle sur le conteneur voiture.
+  - Mise à jour locale instantanée des pastilles PIN sans rechargement de l'interface.
+- **Harmonisation du Pavé Numérique (Version Normale & Mode Voiture)** :
+  - Remplacement des touches `#` et `*` par le bouton **C rouge** (effacement complet du code saisi) et le bouton **Validation vert `✓`** (déclenchement sécurisé du désarmement avec retour haptique).
+  - Styles dédiés avec retour visuel actif/hover pour les touches d'action rapide.
+
 ### 🚀 Nouveautés de la version 0.9.69 (Refonte Responsive Mobile & Module Apple CarPlay / Mode Voiture)
 - **Refonte Responsive Complète (Smartphones & Tablettes)** :
   - **Suppression intégrale du débordement horizontal** (`overflow-x: hidden` et dimensionnement adaptatif avec `clamp()`).
