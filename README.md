@@ -7,6 +7,10 @@ Conçue pour dépasser les standards du marché, elle offre une configuration 10
 
 ## 🌟 Fonctionnalités Principales
 
+### 🚀 Nouveautés de la version 0.9.68 (Correctif Affichage de l'onglet Sauvegardes & Médias)
+- **Résolution du blocage de navigation** : Correction du crash JavaScript survenu lors du clic sur le sous-onglet « Sauvegardes & Médias » dans le panneau de configuration. Les variables de protocole et d'hôte NAS sont désormais correctement initialisées dans le scope local d'exécution.
+- **Accès fluide aux réglages NAS & Réseau** : Tous les accordéons (Telegram, Profil NAS, Sauvegarde NAS & Réseau FTP/FTPS/SFTP/SAMBA, WebDAV, Google Drive, Rétention) s'affichent et se déplient instantanément.
+
 ### 🚀 Nouveautés de la version 0.9.67 (Sélecteur de Protocoles FTP / FTPS / SFTP / SAMBA & Partage Réseau)
 - **Sélecteur de Protocole Multi-Transfert** : Choisissez directement le protocole adapté à votre NAS ou Box internet :
   - **FTP** : Transfert standard sur le port 21.

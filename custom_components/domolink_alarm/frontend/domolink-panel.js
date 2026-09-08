@@ -4147,6 +4147,9 @@ function doGet(e) {
       const curNasStatus = nasResults[curNas] || nasResults[`${curNas}_ftp`] || nasResults[`${curNas}_webdav`];
       const curFtpRes = nasResults[`${curNas}_ftp`] || (nasResults[curNas]?.protocol === 'ftp' ? nasResults[curNas] : (attrs.ftp_test_result && Object.keys(attrs.ftp_test_result).length ? attrs.ftp_test_result : null));
       const curWebdavRes = nasResults[`${curNas}_webdav`] || (nasResults[curNas]?.protocol === 'webdav' ? nasResults[curNas] : (attrs.webdav_test_result && Object.keys(attrs.webdav_test_result).length ? attrs.webdav_test_result : null));
+      const curNasCfg = (this._configDraft && this._configDraft.nas_configs && this._configDraft.nas_configs[curNas]) || {};
+      const curFtpProto = ((this._configDraft && this._configDraft.ftp_protocol) || curNasCfg.ftp_protocol || 'ftp').toLowerCase();
+      const curHostVal = (this._configDraft && this._configDraft.ftp_host !== undefined ? this._configDraft.ftp_host : curNasCfg.ftp_host) || (curNas === 'freebox' ? 'mafreebox.freebox.fr' : '192.168.1.50');
 
       contentHtml = `
         ${this._renderAccordionCard("telegram", "mdi:send", "#0088cc", "Sauvegarde & Alertes Telegram", `
@@ -4224,9 +4227,6 @@ function doGet(e) {
             </div>
           </div>
         `)}
-
-        const curFtpProto = ((this._configDraft && this._configDraft.ftp_protocol) || curNasCfg.ftp_protocol || 'ftp').toLowerCase();
-        const curHostVal = (this._configDraft && this._configDraft.ftp_host !== undefined ? this._configDraft.ftp_host : curNasCfg.ftp_host) || (curNas === 'freebox' ? 'mafreebox.freebox.fr' : '192.168.1.50');
 
         ${this._renderAccordionCard("ftp", "mdi:server-network", "#10b981", `Sauvegarde NAS & Réseau (${curFtpProto.toUpperCase()}) — ${curNasLabel}`, `
           <div style="margin-bottom:14px; padding:12px; border-radius:10px; background:var(--d-sec-bg, rgba(255,255,255,0.03)); border:1px solid var(--d-border, rgba(255,255,255,0.08));">
@@ -4411,7 +4411,7 @@ function doGet(e) {
             <div>
               <div style="font-size:18px; font-weight:800; color:var(--d-text); display:flex; align-items:center; gap:8px;">
                 Centre de Configuration
-                <span class="nav-badge-pill badge-version">v0.9.67</span>
+                <span class="nav-badge-pill badge-version">v0.9.68</span>
               </div>
               <div style="font-size:12px; color:var(--d-subtext); margin-top:3px;">
                 Modifiez vos équipements, délais, notifications et sauvegardes en toute simplicité
@@ -5312,7 +5312,7 @@ function doGet(e) {
       const cloudLabel = countCloud > 1 ? 'MULTI-CLOUD' : (isGdrive ? 'G-DRIVE' : (isDav ? 'WEBDAV' : (isFtp ? 'FTP' : 'LOCAL')));
       elParam.innerHTML = `
         <div class="nav-badge-stack">
-          <span class="nav-badge-pill badge-version">v0.9.67</span>
+          <span class="nav-badge-pill badge-version">v0.9.68</span>
           <span class="nav-badge-pill badge-neutral">${cloudLabel}</span>
         </div>
       `;
