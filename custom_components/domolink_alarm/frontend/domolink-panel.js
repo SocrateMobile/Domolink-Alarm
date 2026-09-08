@@ -4706,7 +4706,7 @@ function doGet(e) {
       { key: "logic", label: "Logique & Codes", icon: "mdi:tune" },
       { key: "mqtt", label: "MQTT", icon: "mdi:access-point-network" },
       { key: "backup", label: "Sauvegardes & Médias", icon: "mdi:cloud-sync" },
-      { key: "carplay", label: "CarPlay & Voiture", icon: "mdi:car-connected" },
+      { key: "carplay", label: "Auto, CarPlay & TV", icon: "mdi:car-connected" },
     ];
 
     let contentHtml = '';
@@ -5118,9 +5118,14 @@ function doGet(e) {
       `;
     } else if (this._configSubTab === 'carplay') {
       const carUrl = `${window.location.origin}${window.location.pathname}?mode=car`;
-      const carplayYaml = `alias: "Alarme Domolink - Départ en Voiture"
+      const carplayYaml = `alias: "Alarme Domolink - Départ en Voiture (CarPlay / Android Auto)"
 description: "Arme automatiquement l'alarme Domolink en mode Absent lors d'un départ en voiture"
 trigger:
+  - platform: state
+    entity_id:
+      - sensor.iphone_carplay
+      - sensor.car_connection
+    to: "disconnected"
   - platform: numeric_state
     entity_id: sensor.distance_domicile
     above: 250
@@ -5135,7 +5140,25 @@ action:
   - service: notify.notify
     data:
       title: "🚗 Domolink Alarm — Mode Voiture"
-      message: "Alarme armée en mode Absent suite à votre départ."
+      message: "Alarme armée en mode Absent suite à votre départ en véhicule."
+mode: single`;
+
+      const tvNotificationYaml = `alias: "Alarme Domolink - Alerte Vidéo sur Android TV"
+description: "Affiche une alerte pop-up avec image caméra en direct sur Android TV en cas d'intrusion"
+trigger:
+  - platform: state
+    entity_id: alarm_control_panel.domolink_alarm
+    to: "triggered"
+action:
+  - service: notify.android_tv # Remplacez par le nom de votre entité Android TV / Fire TV
+    data:
+      title: "🚨 INTRUSION DÉTECTÉE — Domolink Alarm"
+      message: "L'alarme de la maison s'est déclenchée !"
+      data:
+        image: "/api/camera_proxy/camera.salon" # Remplacez par votre caméra
+        duration: 15
+        position: "top-right"
+        fontsize: "large"
 mode: single`;
 
       contentHtml = `
@@ -5146,9 +5169,9 @@ mode: single`;
                 <ha-icon icon="mdi:car-connected" style="--mdc-icon-size:26px;"></ha-icon>
               </div>
               <div>
-                <div style="font-size:16px; font-weight:800; color:var(--d-text);">Mode Voiture Embarqué (In-Car Touch)</div>
+                <div style="font-size:16px; font-weight:800; color:var(--d-text);">Mode Voiture Embarqué & Grand Écran TV</div>
                 <div style="font-size:12px; color:var(--d-subtext); margin-top:2px;">
-                  Interface grand écran tactile spécialement conçue pour les véhicules (Tesla, Polestar, CarPlay, tablettes)
+                  Interface tactile XXL conçue pour les véhicules (Tesla, Android Auto, CarPlay) et les téléviseurs (Android TV)
                 </div>
               </div>
             </div>
@@ -5170,7 +5193,92 @@ mode: single`;
           </div>
         </div>
 
-        ${this._renderAccordionCard("carplay_guide", "mdi:apple", "#10b981", "Intégration Apple CarPlay via l'App Home Assistant iOS", `
+        ${this._renderAccordionCard("android_auto_guide", "mdi:android", "#3ddc84", "1. Intégration Android Auto & Android Automotive (AAOS)", `
+          <div style="font-size:13px; color:var(--d-subtext); line-height:1.6; margin-bottom:14px;">
+            L'application officielle <b>Home Assistant Companion pour Android</b> supporte nativement <b>Android Auto</b> et les systèmes de bord <b>Android Automotive (AAOS)</b> (Renault OpenR Link, Volvo, Polestar, etc.).
+          </div>
+
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px; margin-bottom:16px;">
+            <div style="padding:12px; border-radius:10px; background:rgba(255,255,255,0.02); border:1px solid var(--d-border-light);">
+              <div style="font-weight:700; color:#3ddc84; margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+                <ha-icon icon="mdi:numeric-1-circle" style="--mdc-icon-size:18px;"></ha-icon> 1. Ouvrir l'App Android
+              </div>
+              <div style="font-size:12px; color:var(--d-subtext); line-height:1.5;">
+                Sur votre smartphone Android : <b>Paramètres Home Assistant</b> > <b>Application Compagnon</b> > <b>Android Auto</b>.
+              </div>
+            </div>
+
+            <div style="padding:12px; border-radius:10px; background:rgba(255,255,255,0.02); border:1px solid var(--d-border-light);">
+              <div style="font-weight:700; color:#3b82f6; margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+                <ha-icon icon="mdi:numeric-2-circle" style="--mdc-icon-size:18px;"></ha-icon> 2. Exposer l'Alarme
+              </div>
+              <div style="font-size:12px; color:var(--d-subtext); line-height:1.5;">
+                Activez l'entité <code>alarm_control_panel.domolink_alarm</code> dans la liste des entités affichées sur l'écran du tableau de bord.
+              </div>
+            </div>
+
+            <div style="padding:12px; border-radius:10px; background:rgba(255,255,255,0.02); border:1px solid var(--d-border-light);">
+              <div style="font-weight:700; color:#f59e0b; margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+                <ha-icon icon="mdi:numeric-3-circle" style="--mdc-icon-size:18px;"></ha-icon> 3. Raccourcis Volant
+              </div>
+              <div style="font-size:12px; color:var(--d-subtext); line-height:1.5;">
+                Créez des actions rapides personnalisées (Armement Absent / Désarmer) accessibles en 1 touche tactile sur l'écran du véhicule.
+              </div>
+            </div>
+          </div>
+
+          <div style="padding:10px 14px; border-radius:10px; background:rgba(61,220,132,0.08); border:1px solid rgba(61,220,132,0.25); font-size:12px; color:#3ddc84; display:flex; align-items:center; gap:10px;">
+            <ha-icon icon="mdi:google-assistant" style="--mdc-icon-size:20px; flex-shrink:0;"></ha-icon>
+            <span><b>Commande Vocale Google Assistant :</b> Dites simplement au volant : <i>« Hey Google, arme l'alarme Domolink »</i> ou <i>« Hey Google, désarme l'alarme Domolink avec le code [code] »</i>.</span>
+          </div>
+        `)}
+
+        ${this._renderAccordionCard("android_tv_guide", "mdi:television", "#f59e0b", "2. Compatibilité Android TV, Google TV & Pop-ups Vidéo", `
+          <div style="font-size:13px; color:var(--d-subtext); line-height:1.6; margin-bottom:14px;">
+            Domolink Alarm fonctionne parfaitement sur <b>Android TV & Google TV</b> (Sony, Philips, TCL, Nvidia Shield, Xiaomi TV Box, Freebox Pop, Bbox, Chromecast avec Google TV).
+          </div>
+
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px; margin-bottom:16px;">
+            <div style="padding:12px; border-radius:10px; background:rgba(255,255,255,0.02); border:1px solid var(--d-border-light);">
+              <div style="font-weight:700; color:#f59e0b; margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+                <ha-icon icon="mdi:google-play" style="--mdc-icon-size:18px;"></ha-icon> App Officielle TV
+              </div>
+              <div style="font-size:12px; color:var(--d-subtext); line-height:1.5;">
+                Installez l'application <b>Home Assistant for Android TV</b> depuis le Google Play Store de votre téléviseur pour naviguer dans le panneau d'alarme.
+              </div>
+            </div>
+
+            <div style="padding:12px; border-radius:10px; background:rgba(255,255,255,0.02); border:1px solid var(--d-border-light);">
+              <div style="font-weight:700; color:#3b82f6; margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+                <ha-icon icon="mdi:fullscreen" style="--mdc-icon-size:18px;"></ha-icon> Mode Kiosque 16:9
+              </div>
+              <div style="font-size:12px; color:var(--d-subtext); line-height:1.5;">
+                Activez le <b>Mode Kiosque</b> ou le <b>Mode Voiture</b> pour bénéficier d'un affichage plein écran aux contrastes renforcés, parfaitement lisible depuis votre canapé à 3-4 mètres.
+              </div>
+            </div>
+
+            <div style="padding:12px; border-radius:10px; background:rgba(255,255,255,0.02); border:1px solid var(--d-border-light);">
+              <div style="font-weight:700; color:#ef4444; margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+                <ha-icon icon="mdi:picture-in-picture-bottom-right" style="--mdc-icon-size:18px;"></ha-icon> Alertes Pop-up PIP
+              </div>
+              <div style="font-size:12px; color:var(--d-subtext); line-height:1.5;">
+                Recevez les notifications d'intrusion avec la <b>photo de la caméra en surimpression</b> (Picture-in-Picture) par-dessus votre film ou programme TV via l'intégration <code>nfandroidtv</code> ou l'app TV.
+              </div>
+            </div>
+          </div>
+
+          <div style="position:relative; margin-bottom:12px;">
+            <pre style="background:rgba(0,0,0,0.4); border:1px solid var(--d-border-light); border-radius:10px; padding:14px; color:#fde68a; font-family:monospace; font-size:12px; overflow-x:auto; line-height:1.5; margin:0;">${tvNotificationYaml}</pre>
+          </div>
+          <div style="display:flex; align-items:center; justify-content:flex-end;">
+            <button id="btn-copy-tv-yaml" style="padding:8px 16px; border-radius:8px; border:1px solid rgba(245,158,11,0.4); background:rgba(245,158,11,0.15); color:#fbbf24; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px; transition:all 0.2s;">
+              <ha-icon icon="mdi:content-copy" style="--mdc-icon-size:16px;"></ha-icon>
+              <span>Copier le modèle YAML Android TV</span>
+            </button>
+          </div>
+        `)}
+
+        ${this._renderAccordionCard("carplay_guide", "mdi:apple", "#10b981", "3. Intégration Apple CarPlay via l'App Home Assistant iOS", `
           <div style="font-size:13px; color:var(--d-subtext); line-height:1.6; margin-bottom:14px;">
             Apple CarPlay est nativement supporté par l'application Home Assistant pour iOS. Vous pouvez piloter directement votre alarme Domolink depuis l'écran de bord de votre véhicule sans manipulation dangereuse.
           </div>
@@ -5210,9 +5318,9 @@ mode: single`;
           </div>
         `)}
 
-        ${this._renderAccordionCard("carplay_automation", "mdi:robot", "#8b5cf6", "Automatisation Home Assistant Recommandée", `
+        ${this._renderAccordionCard("carplay_automation", "mdi:robot", "#8b5cf6", "4. Automatisation Home Assistant Recommandée (Départ Véhicule)", `
           <div style="font-size:13px; color:var(--d-subtext); line-height:1.6; margin-bottom:12px;">
-            Copiez ce modèle d'automatisation YAML dans votre fichier <code>automations.yaml</code> ou via l'interface graphique de Home Assistant pour sécuriser votre domicile automatiquement en quittant la maison en voiture :
+            Copiez ce modèle d'automatisation YAML dans votre fichier <code>automations.yaml</code> ou via l'interface graphique de Home Assistant pour sécuriser votre domicile automatiquement en quittant la maison en voiture (compatible iPhone CarPlay & Android Auto) :
           </div>
           <div style="position:relative; margin-bottom:12px;">
             <pre style="background:rgba(0,0,0,0.4); border:1px solid var(--d-border-light); border-radius:10px; padding:14px; color:#a5b4fc; font-family:monospace; font-size:12px; overflow-x:auto; line-height:1.5; margin:0;">${carplayYaml}</pre>
@@ -5220,27 +5328,27 @@ mode: single`;
           <div style="display:flex; align-items:center; justify-content:flex-end;">
             <button id="btn-copy-carplay-yaml" style="padding:8px 16px; border-radius:8px; border:1px solid rgba(139,92,246,0.4); background:rgba(139,92,246,0.15); color:#a78bfa; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px; transition:all 0.2s;">
               <ha-icon icon="mdi:content-copy" style="--mdc-icon-size:16px;"></ha-icon>
-              <span>Copier le modèle YAML</span>
+              <span>Copier le modèle YAML Véhicule</span>
             </button>
           </div>
         `)}
 
-        ${this._renderAccordionCard("car_features", "mdi:car-cog", "#ec4899", "Fonctionnalités du Mode Voiture Embarqué", `
+        ${this._renderAccordionCard("car_features", "mdi:car-cog", "#ec4899", "5. Ergonomie Grand Écran & Boutons Tactiles XXL", `
           <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px;">
             <div style="padding:12px; border-radius:10px; background:rgba(255,255,255,0.02); border:1px solid var(--d-border-light);">
               <div style="font-weight:700; color:var(--d-text); margin-bottom:4px; display:flex; align-items:center; gap:6px;">
                 <ha-icon icon="mdi:gesture-tap-button" style="--mdc-icon-size:18px; color:#ec4899;"></ha-icon> Boutons Tactiles Géants (80px)
               </div>
               <div style="font-size:12px; color:var(--d-subtext); line-height:1.5;">
-                Conçus pour éviter les fausses manipulations lors des arrêts ou avant de manœuvrer dans le garage.
+                Conçus pour éviter les fausses manipulations lors des arrêts au volant ou lors de l'utilisation sur téléviseur.
               </div>
             </div>
             <div style="padding:12px; border-radius:10px; background:rgba(255,255,255,0.02); border:1px solid var(--d-border-light);">
               <div style="font-weight:700; color:var(--d-text); margin-bottom:4px; display:flex; align-items:center; gap:6px;">
-                <ha-icon icon="mdi:contrast-circle" style="--mdc-icon-size:18px; color:#ec4899;"></ha-icon> Contraste Élevé Spécial Pare-brise
+                <ha-icon icon="mdi:contrast-circle" style="--mdc-icon-size:18px; color:#ec4899;"></ha-icon> Contraste Élevé Spécial Pare-brise & Salon
               </div>
               <div style="font-size:12px; color:var(--d-subtext); line-height:1.5;">
-                Couleurs saturées (Vert / Orange / Bleu / Rouge) lisibles en plein soleil ou de nuit.
+                Couleurs saturées (Vert / Orange / Bleu / Rouge) immédiatement identifiables sans quitter la route des yeux ou depuis le canapé.
               </div>
             </div>
             <div style="padding:12px; border-radius:10px; background:rgba(255,255,255,0.02); border:1px solid var(--d-border-light);">
@@ -5253,10 +5361,10 @@ mode: single`;
             </div>
             <div style="padding:12px; border-radius:10px; background:rgba(255,255,255,0.02); border:1px solid var(--d-border-light);">
               <div style="font-weight:700; color:var(--d-text); margin-bottom:4px; display:flex; align-items:center; gap:6px;">
-                <ha-icon icon="mdi:bookmark-check" style="--mdc-icon-size:18px; color:#ec4899;"></ha-icon> Favori Navigateur Voiture
+                <ha-icon icon="mdi:bookmark-check" style="--mdc-icon-size:18px; color:#ec4899;"></ha-icon> Navigateur TV & Véhicule
               </div>
               <div style="font-size:12px; color:var(--d-subtext); line-height:1.5;">
-                Enregistrez le lien <code>?mode=car</code> dans les favoris du navigateur de bord pour un affichage instantané.
+                Enregistrez le lien <code>?mode=car</code> dans les favoris du navigateur de bord ou de votre téléviseur pour un affichage instantané.
               </div>
             </div>
           </div>
@@ -6043,7 +6151,33 @@ mode: single`;
         copyText(yaml).then(() => {
           btnCopyYaml.innerHTML = `<ha-icon icon="mdi:check" style="--mdc-icon-size:16px;"></ha-icon><span>Modèle copié !</span>`;
           setTimeout(() => {
-            btnCopyYaml.innerHTML = `<ha-icon icon="mdi:content-copy" style="--mdc-icon-size:16px;"></ha-icon><span>Copier le modèle YAML</span>`;
+            btnCopyYaml.innerHTML = `<ha-icon icon="mdi:content-copy" style="--mdc-icon-size:16px;"></ha-icon><span>Copier le modèle YAML Véhicule</span>`;
+          }, 2000);
+        });
+      });
+    }
+
+    const btnCopyTvYaml = container.querySelector('#btn-copy-tv-yaml');
+    if (btnCopyTvYaml) {
+      btnCopyTvYaml.addEventListener('click', () => {
+        const pre = container.querySelector('#btn-copy-tv-yaml')?.parentElement?.previousElementSibling?.querySelector('pre');
+        const yaml = pre ? pre.textContent : '';
+        const copyText = (txt) => {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            return navigator.clipboard.writeText(txt);
+          }
+          const ta = document.createElement('textarea');
+          ta.value = txt;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          return Promise.resolve();
+        };
+        copyText(yaml).then(() => {
+          btnCopyTvYaml.innerHTML = `<ha-icon icon="mdi:check" style="--mdc-icon-size:16px;"></ha-icon><span>Modèle copié !</span>`;
+          setTimeout(() => {
+            btnCopyTvYaml.innerHTML = `<ha-icon icon="mdi:content-copy" style="--mdc-icon-size:16px;"></ha-icon><span>Copier le modèle YAML Android TV</span>`;
           }, 2000);
         });
       });
