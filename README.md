@@ -15,18 +15,22 @@ Conçue pour dépasser les standards du marché, elle offre une configuration 10
   - **Boutons de modes d'armement 100% visibles** : Sur petits écrans (<360px), les boutons d'armement et le statut « Désarmé » s'adaptent dynamiquement sans jamais être tronqués.
   - **Tuiles de Sauvegarde Cloud & NAS Flexibles** : Remplacement des dimensions rigides par une grille responsive (`grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr))`) empêchant tout débordement des boutons de test.
   - **Colonnes Journal & Santé Adaptatives** : Passage fluide en 1 colonne sur smartphone avec des cartes d'indicateurs fluides.
-- **Module Apple CarPlay & Mode Voiture Dédié** :
+- **Module Véhicules (Apple CarPlay & Android Auto) & Mode Voiture Dédié** :
+  - **Prise en charge complète Android Auto & Apple CarPlay** : Intégration directe via les applications compagnon officielles Home Assistant (iOS & Android) pour afficher l'alarme, les boutons d'armement/désarmement et les raccourcis au volant.
   - **Bouton d'accès rapide « Mode Voiture »** (`mdi:car-connected`) dans l'en-tête du panneau pour basculer en un clic.
-  - **Prise en charge des URL directes** : `?mode=car` ou `?carplay=1` pour les navigateurs de bord (Tesla, Polestar, Android Automotive, tablettes embarquées).
+  - **Prise en charge des URL directes** : `?mode=car` ou `?carplay=1` pour les navigateurs de bord (Tesla, Polestar, systèmes Android Automotive OS, tablettes embarquées).
   - **Interface In-Car Haute Visibilité** :
     - Bannière d'état d'alarme géante avec code couleur instantané (Vert, Orange, Bleu, Rouge).
     - Boutons d'armement grand format (hauteur 80px) conçus pour une utilisation tactile sécurisée en voiture.
     - Pavé numérique grand format pour le déverrouillage sans quitter la route des yeux.
-  - **Nouveau Sous-Onglet Réglages « CarPlay & Voiture »** :
-    - Guide illustré étape par étape pour configurer Apple CarPlay dans l'application iOS Home Assistant.
-    - Création d'actions rapides au volant (Armer en partant, Désarmer à l'approche).
-    - Modèle d'automatisation YAML Home Assistant prêt à l'emploi (armement sur déconnexion CarPlay / distance domicile).
-    - Boutons de copie rapide 1-clic pour le lien direct de bord et le modèle YAML.
+- **Compatibilité Android TV, Google TV & Notifications Vidéo** :
+  - Affichage plein écran 16:9 et compatibilité avec l'application Home Assistant Android TV.
+  - Mode Kiosque haute lisibilité à 3-4 mètres sur grand écran.
+  - Modèle d'automatisation YAML pour pop-ups vidéo / Picture-in-Picture (PIP) en surimpression TV en cas d'intrusion.
+- **Nouveau Sous-Onglet Réglages « Auto, CarPlay & TV »** :
+  - Guides illustrés étape par étape pour configurer Apple CarPlay, Android Auto et Android TV.
+  - Modèles d'automatisation YAML Home Assistant prêts à l'emploi (armement sur déconnexion voiture, alertes TV avec caméra).
+  - Boutons de copie rapide 1-clic pour le lien direct de bord et les modèles YAML.
 
 ### 🚀 Nouveautés de la version 0.9.68 (Correctif Affichage de l'onglet Sauvegardes & Médias)
 - **Résolution du blocage de navigation** : Correction du crash JavaScript survenu lors du clic sur le sous-onglet « Sauvegardes & Médias » dans le panneau de configuration. Les variables de protocole et d'hôte NAS sont désormais correctement initialisées dans le scope local d'exécution.
