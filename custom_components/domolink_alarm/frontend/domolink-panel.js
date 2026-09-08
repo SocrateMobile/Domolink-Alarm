@@ -13,6 +13,9 @@ class DomolinkPanel extends HTMLElement {
       this._theme = localStorage.getItem('domolink_theme') || (hass.themes && hass.themes.darkMode ? 'dark' : 'dark');
       this._kioskActive = localStorage.getItem('domolink_kiosk_active') === 'true';
       this._kioskTimeout = parseInt(localStorage.getItem('domolink_kiosk_timeout') || '120', 10);
+      const urlParams = new URLSearchParams(window.location.search);
+      const carParam = urlParams.get('mode') === 'car' || urlParams.get('carplay') === '1' || urlParams.get('voiture') === '1';
+      this._carModeActive = carParam || (localStorage.getItem('domolink_car_mode_active') === 'true');
       this._screensaverVisible = false;
       this._screensaverTimer = null;
       this._showWebdavTestConsole = false;
@@ -198,6 +201,21 @@ class DomolinkPanel extends HTMLElement {
       } catch (e) {}
       this._hideScreensaver();
     }
+  }
+
+  _toggleCarMode() {
+    this._carModeActive = !this._carModeActive;
+    localStorage.setItem('domolink_car_mode_active', this._carModeActive ? 'true' : 'false');
+    const wrap = this.querySelector('.panel-wrap');
+    if (wrap) {
+      wrap.classList.toggle('car-mode', this._carModeActive);
+    }
+    const btn = this.querySelector('#car-toggle-btn');
+    if (btn) {
+      btn.classList.toggle('active', this._carModeActive);
+      btn.innerHTML = `<ha-icon icon="${this._carModeActive ? 'mdi:car-connected' : 'mdi:car'}"></ha-icon>`;
+    }
+    this.render();
   }
 
   _resetInactivityTimer() {
@@ -431,9 +449,11 @@ class DomolinkPanel extends HTMLElement {
             radial-gradient(at 90% 90%, rgba(16, 185, 129, 0.07) 0px, transparent 50%);
           color: var(--d-text);
           min-height: 100vh;
-          padding: 24px 28px 48px;
+          padding: max(20px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(40px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
           box-sizing: border-box;
           transition: background 0.3s ease, color 0.3s ease;
+          overflow-x: hidden;
+          width: 100%;
         }
 
         .panel-wrap.kiosk-mode {
@@ -445,6 +465,45 @@ class DomolinkPanel extends HTMLElement {
         .panel-wrap.kiosk-mode .container {
           max-width: 100%;
           gap: 16px;
+        }
+
+        .panel-wrap.car-mode {
+          background: #090d16;
+          --d-bg: #090d16;
+          --d-surface: rgba(15, 23, 42, 0.85);
+          --d-surface-card: rgba(15, 23, 42, 0.9);
+          --d-sec-bg: #1e293b;
+          --d-border: rgba(255, 255, 255, 0.14);
+          --d-text: #f8fafc;
+          --d-subtext: #94a3b8;
+        }
+
+        @media (max-width: 768px) {
+          .panel-wrap {
+            padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+          }
+          .top-nav {
+            gap: 10px;
+          }
+          .brand-title {
+            font-size: 18px;
+          }
+          .brand-logo-disc {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+          }
+          .brand-logo-disc ha-icon {
+            --mdc-icon-size: 20px;
+          }
+          .clock-widget {
+            display: none;
+          }
+        }
+        @media (max-width: 480px) {
+          .panel-wrap {
+            padding: max(10px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+          }
         }
 
         .icon-btn-circle.active {
@@ -867,8 +926,27 @@ class DomolinkPanel extends HTMLElement {
           .left-widgets-col { grid-column: span 2; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
         }
         @media (max-width: 820px) {
-          .arm-layout-grid { grid-template-columns: 1fr; }
-          .left-widgets-col { grid-column: span 1; display: flex; flex-direction: column; }
+          .arm-layout-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+          }
+          .center-hero-col {
+            order: 1;
+            width: 100%;
+          }
+          .keypad-glass-card {
+            order: 2;
+            width: 100%;
+          }
+          .left-widgets-col {
+            order: 3;
+            width: 100%;
+            grid-column: span 1;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+          }
         }
 
         /* ─── Left Column (Widgets) ──────────────── */
@@ -1107,6 +1185,28 @@ class DomolinkPanel extends HTMLElement {
           font-weight: 500;
         }
 
+        @media (max-width: 600px) {
+          .neon-pill-card {
+            border-radius: 20px;
+            padding: 14px 16px;
+            gap: 14px;
+          }
+          .pill-icon-badge {
+            width: 48px;
+            height: 48px;
+            min-width: 48px;
+          }
+          .pill-icon-badge ha-icon {
+            --mdc-icon-size: 26px;
+          }
+          .pill-main-title {
+            font-size: 18px;
+          }
+          .pill-sub-desc {
+            font-size: 11px;
+          }
+        }
+
         /* Room Status Badges Grid */
         .room-badges-grid {
           display: grid;
@@ -1187,10 +1287,13 @@ class DomolinkPanel extends HTMLElement {
           display: flex;
           gap: 10px;
           justify-content: center;
+          width: 100%;
+          box-sizing: border-box;
         }
         .center-mode-btn {
           flex: 1;
-          padding: 12px 18px;
+          min-width: 0;
+          padding: 12px 16px;
           border-radius: 9999px;
           border: 1px solid var(--d-border);
           background: var(--d-sec-bg);
@@ -1203,6 +1306,13 @@ class DomolinkPanel extends HTMLElement {
           align-items: center;
           justify-content: center;
           gap: 6px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .center-mode-btn ha-icon {
+          --mdc-icon-size: 18px;
+          flex-shrink: 0;
         }
         .center-mode-btn:hover {
           border-color: var(--d-text);
@@ -1213,6 +1323,402 @@ class DomolinkPanel extends HTMLElement {
           color: var(--d-pill-active-text);
           border-color: var(--d-pill-active-bg);
           box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+        }
+        @media (max-width: 600px) {
+          .center-modes-row {
+            gap: 6px;
+          }
+          .center-mode-btn {
+            padding: 9px 6px;
+            font-size: clamp(10.5px, 2.7vw, 12px);
+            gap: 4px;
+            border-radius: 12px;
+          }
+          .center-mode-btn ha-icon {
+            --mdc-icon-size: 15px;
+          }
+        }
+        @media (max-width: 360px) {
+          .center-modes-row {
+            flex-wrap: wrap;
+          }
+          .center-mode-btn {
+            flex: 1 1 calc(50% - 4px);
+          }
+          .center-mode-btn:last-child {
+            flex: 1 1 100%;
+          }
+        }
+
+        /* ─── Cloud & Backup Status Tiles ──────────── */
+        .dashboard-cloud-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+          gap: 10px;
+          margin-top: 24px;
+          width: 100%;
+          box-sizing: border-box;
+        }
+        .dashboard-cloud-tile {
+          background: var(--d-sec-bg);
+          border-radius: 14px;
+          border: 1px solid var(--d-border);
+          padding: 10px 12px;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+          min-width: 0;
+          min-height: 68px;
+          box-sizing: border-box;
+          overflow: hidden;
+        }
+        .cloud-tile-top {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 6px;
+          min-width: 0;
+          margin-bottom: 6px;
+          width: 100%;
+        }
+        .cloud-tile-brand {
+          display: flex;
+          align-items: center;
+          gap: 7px;
+          min-width: 0;
+          flex: 1;
+          overflow: hidden;
+        }
+        .cloud-tile-icon {
+          width: 28px;
+          height: 28px;
+          min-width: 28px;
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+        .cloud-tile-title {
+          font-size: 10.5px;
+          font-weight: 800;
+          color: var(--d-subtext);
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          min-width: 0;
+          flex: 1;
+        }
+        .cloud-tile-btn {
+          padding: 2px 6px;
+          font-size: 9px;
+          font-weight: 800;
+          border-radius: 6px;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 3px;
+          transition: all 0.2s;
+          white-space: nowrap;
+          flex-shrink: 0;
+        }
+        .cloud-tile-bottom {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          min-width: 0;
+          width: 100%;
+        }
+        .cloud-tile-status {
+          font-size: 12px;
+          font-weight: 800;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          min-width: 0;
+          flex: 1;
+        }
+        .cloud-tile-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          flex-shrink: 0;
+          margin-left: 6px;
+        }
+
+        @media (max-width: 600px) {
+          .dashboard-cloud-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            margin-top: 14px;
+          }
+          .dashboard-cloud-tile {
+            padding: 8px 10px;
+            min-height: 62px;
+          }
+          .cloud-tile-icon {
+            width: 24px;
+            height: 24px;
+            min-width: 24px;
+            border-radius: 6px;
+          }
+          .cloud-tile-icon ha-icon {
+            --mdc-icon-size: 15px !important;
+          }
+          .cloud-tile-title {
+            font-size: 9.5px;
+          }
+          .cloud-tile-btn {
+            padding: 2px 5px;
+            font-size: 8px;
+            gap: 2px;
+          }
+          .cloud-tile-btn ha-icon {
+            --mdc-icon-size: 10px !important;
+          }
+          .cloud-tile-status {
+            font-size: 11px;
+          }
+        }
+        @media (max-width: 340px) {
+          .dashboard-cloud-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        /* ─── Mode Voiture / In-Car Screen ─────────── */
+        .car-mode-container {
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+          max-width: 1100px;
+          margin: 0 auto;
+          width: 100%;
+          box-sizing: border-box;
+          animation: fadeIn 0.3s ease;
+        }
+        .car-header-banner {
+          background: var(--d-surface-card);
+          border: 2px solid var(--d-border);
+          border-radius: 24px;
+          padding: 16px 24px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          box-shadow: var(--d-shadow);
+        }
+        .car-badge-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 13px;
+          font-weight: 900;
+          letter-spacing: 1px;
+          text-transform: uppercase;
+          color: #3b82f6;
+          background: rgba(59, 130, 246, 0.15);
+          border: 1px solid rgba(59, 130, 246, 0.35);
+          padding: 6px 14px;
+          border-radius: 9999px;
+        }
+        .car-exit-btn {
+          background: var(--d-sec-bg);
+          border: 1px solid var(--d-border);
+          color: var(--d-text);
+          padding: 8px 16px;
+          border-radius: 12px;
+          font-size: 12px;
+          font-weight: 700;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          transition: all 0.2s;
+        }
+        .car-exit-btn:hover {
+          background: rgba(239, 68, 68, 0.15);
+          color: #ef4444;
+          border-color: rgba(239, 68, 68, 0.4);
+        }
+        .car-hero-card {
+          border-radius: 28px;
+          padding: 24px 32px;
+          display: flex;
+          align-items: center;
+          gap: 24px;
+          box-sizing: border-box;
+          transition: all 0.3s ease;
+        }
+        .car-hero-card.secure {
+          background: radial-gradient(circle at center, rgba(16, 185, 129, 0.2) 0%, rgba(16, 185, 129, 0.05) 100%), var(--d-surface-card);
+          border: 3px solid #10b981;
+          box-shadow: 0 0 35px rgba(16, 185, 129, 0.4);
+        }
+        .car-hero-card.armed {
+          background: radial-gradient(circle at center, rgba(59, 130, 246, 0.22) 0%, rgba(59, 130, 246, 0.06) 100%), var(--d-surface-card);
+          border: 3px solid #3b82f6;
+          box-shadow: 0 0 35px rgba(59, 130, 246, 0.4);
+        }
+        .car-hero-card.alert {
+          background: radial-gradient(circle at center, rgba(239, 68, 68, 0.25) 0%, rgba(239, 68, 68, 0.08) 100%), var(--d-surface-card);
+          border: 3px solid #ef4444;
+          box-shadow: 0 0 45px rgba(239, 68, 68, 0.6);
+          animation: pulseBorder 1.5s infinite;
+        }
+        .car-hero-icon {
+          width: 72px;
+          height: 72px;
+          min-width: 72px;
+          border-radius: 22px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 38px;
+        }
+        .car-hero-card.secure .car-hero-icon {
+          background: rgba(16, 185, 129, 0.25);
+          color: #10b981;
+          border: 2px solid #10b981;
+        }
+        .car-hero-card.armed .car-hero-icon {
+          background: rgba(59, 130, 246, 0.25);
+          color: #3b82f6;
+          border: 2px solid #3b82f6;
+        }
+        .car-hero-card.alert .car-hero-icon {
+          background: rgba(239, 68, 68, 0.25);
+          color: #ef4444;
+          border: 2px solid #ef4444;
+        }
+        .car-hero-title {
+          font-size: 28px;
+          font-weight: 900;
+          letter-spacing: -0.5px;
+          line-height: 1.1;
+        }
+        .car-hero-desc {
+          font-size: 14px;
+          color: var(--d-subtext);
+          margin-top: 6px;
+          font-weight: 600;
+        }
+        .car-actions-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 16px;
+        }
+        .car-btn-giant {
+          min-height: 80px;
+          padding: 16px 20px;
+          border-radius: 22px;
+          border: 2px solid var(--d-border);
+          background: var(--d-surface-card);
+          color: var(--d-text);
+          font-size: 17px;
+          font-weight: 800;
+          cursor: pointer;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          transition: all 0.2s ease;
+          box-shadow: var(--d-shadow);
+        }
+        .car-btn-giant ha-icon {
+          --mdc-icon-size: 32px;
+        }
+        .car-btn-giant:active,
+        .car-btn-giant:hover {
+          transform: scale(1.02);
+        }
+        .car-btn-giant.btn-arm-away {
+          border-color: rgba(59, 130, 246, 0.4);
+        }
+        .car-btn-giant.btn-arm-away:hover,
+        .car-btn-giant.btn-arm-away.active {
+          background: #2563eb;
+          color: #ffffff;
+          border-color: #3b82f6;
+          box-shadow: 0 6px 24px rgba(37, 99, 235, 0.4);
+        }
+        .car-btn-giant.btn-arm-home {
+          border-color: rgba(245, 158, 11, 0.4);
+        }
+        .car-btn-giant.btn-arm-home:hover,
+        .car-btn-giant.btn-arm-home.active {
+          background: #d97706;
+          color: #ffffff;
+          border-color: #f59e0b;
+          box-shadow: 0 6px 24px rgba(217, 119, 6, 0.4);
+        }
+        .car-btn-giant.btn-disarm {
+          border-color: rgba(16, 185, 129, 0.4);
+        }
+        .car-btn-giant.btn-disarm:hover,
+        .car-btn-giant.btn-disarm.active {
+          background: #059669;
+          color: #ffffff;
+          border-color: #10b981;
+          box-shadow: 0 6px 24px rgba(5, 150, 105, 0.4);
+        }
+        .car-columns-row {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 20px;
+          align-items: start;
+        }
+        @media (max-width: 768px) {
+          .car-actions-grid {
+            grid-template-columns: 1fr;
+            gap: 12px;
+          }
+          .car-columns-row {
+            grid-template-columns: 1fr;
+          }
+          .car-hero-card {
+            padding: 16px 20px;
+            gap: 16px;
+          }
+          .car-hero-icon {
+            width: 56px;
+            height: 56px;
+            min-width: 56px;
+            font-size: 28px;
+          }
+          .car-hero-title {
+            font-size: 22px;
+          }
+        }
+
+        /* ─── Log & Health Layout Responsive ──────── */
+        .log-layout-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 20px;
+        }
+        @media (max-width: 768px) {
+          .log-layout-grid {
+            grid-template-columns: 1fr;
+            gap: 16px;
+          }
+        }
+
+        .health-summary-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 16px;
+          margin-bottom: 24px;
+        }
+        @media (max-width: 650px) {
+          .health-summary-grid {
+            grid-template-columns: 1fr;
+            gap: 10px;
+            margin-bottom: 16px;
+          }
         }
 
         /* ─── Right Column (PIN Keypad) ──────────── */
@@ -1928,6 +2434,9 @@ class DomolinkPanel extends HTMLElement {
               <button class="icon-btn-circle ${this._kioskActive ? 'active' : ''}" id="kiosk-toggle-btn" title="Mode Kiosque Mural (Plein Écran)">
                 <ha-icon icon="${this._kioskActive ? 'mdi:fullscreen-exit' : 'mdi:fullscreen'}"></ha-icon>
               </button>
+              <button class="icon-btn-circle ${this._carModeActive ? 'active' : ''}" id="car-toggle-btn" title="Mode Voiture / CarPlay (Interface Écran Embarqué)">
+                <ha-icon icon="${this._carModeActive ? 'mdi:car-connected' : 'mdi:car'}"></ha-icon>
+              </button>
             </div>
           </div>
 
@@ -1943,10 +2452,10 @@ class DomolinkPanel extends HTMLElement {
           <!-- Tab 4: Santé -->
           <div id="pane-health" class="tab-pane"></div>
 
-          <!-- Tab 5: Simulation de Présence -->
+          <!-- Tab 5: Simulation de présence -->
           <div id="pane-sim" class="tab-pane"></div>
 
-          <!-- Tab 6: Médias (Photos & Vidéos) -->
+          <!-- Tab 6: Médias & Captures -->
           <div id="pane-media" class="tab-pane"></div>
 
           <!-- Tab 7: Paramètres -->
@@ -1955,18 +2464,22 @@ class DomolinkPanel extends HTMLElement {
       </div>
     `;
 
-    // Bind Navigation Click Events
-    this.querySelectorAll('.nav-tab').forEach(tab => {
+    this._bindEvents();
+  }
+
+  _bindEvents() {
+    const navTabs = this.querySelectorAll('.nav-tab');
+    navTabs.forEach(tab => {
       tab.addEventListener('click', () => {
-        this._activeTab = tab.getAttribute('data-tab');
-        this._lastMediaSignature = null; // force fresh render on tab switch
+        navTabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        this._activeTab = tab.dataset.tab;
+        this._lastMediaSignature = null;
         if (this._activeTab === 'param') {
           this._paramRendered = false;
         }
-        this.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
         this.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-        const targetPane = this.querySelector('#pane-' + this._activeTab);
+        const targetPane = this.querySelector(`#pane-${this._activeTab}`);
         if (targetPane) targetPane.classList.add('active');
         this.render();
       });
@@ -1982,6 +2495,12 @@ class DomolinkPanel extends HTMLElement {
     const kioskBtn = this.querySelector('#kiosk-toggle-btn');
     if (kioskBtn) {
       kioskBtn.addEventListener('click', () => this._toggleKioskMode());
+    }
+
+    // Bind Car Mode Toggle
+    const carBtn = this.querySelector('#car-toggle-btn');
+    if (carBtn) {
+      carBtn.addEventListener('click', () => this._toggleCarMode());
     }
 
     // Bind Screensaver Touch / Tap to wake up
@@ -2050,6 +2569,198 @@ class DomolinkPanel extends HTMLElement {
   escapeHtml(text) {
     if (!text) return "";
     return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  // ─── Mode Voiture / In-Car Screen ───────────────
+
+  _renderCarModeView(alarmEntity, attrs, state, isDisarmed, isArmed, isTriggered, isPending, heroClass, heroIcon, heroTitle, heroDesc, openDoors, activeMotions) {
+    return `
+      <div class="car-mode-container">
+        <!-- Top Automotive Header Bar -->
+        <div class="car-header-banner">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div class="car-badge-pill">
+              <ha-icon icon="mdi:car-connected" style="--mdc-icon-size:18px;"></ha-icon>
+              <span>MODE VOITURE & CARPLAY</span>
+            </div>
+            <span style="font-size:12px; color:var(--d-subtext); font-weight:600;">Interface Haute Visibilité Écran Embarqué</span>
+          </div>
+          <button class="car-exit-btn" id="btn-exit-car-mode" title="Retourner à l'interface standard">
+            <ha-icon icon="mdi:view-dashboard" style="--mdc-icon-size:16px;"></ha-icon>
+            <span>Quitter le Mode Voiture</span>
+          </button>
+        </div>
+
+        <!-- Giant Neon Status Hero Card -->
+        <div class="car-hero-card ${heroClass}">
+          <div class="car-hero-icon">
+            <ha-icon icon="${heroIcon}" style="--mdc-icon-size:42px;"></ha-icon>
+          </div>
+          <div style="flex:1; min-width:0;">
+            <div class="car-hero-title">${heroTitle}</div>
+            <div class="car-hero-desc">${this.escapeHtml(heroDesc)}</div>
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+            <span class="nav-badge-pill ${isDisarmed ? 'badge-ok' : (isTriggered ? 'badge-ko' : 'badge-arm-armed')}" style="font-size:12px; padding:4px 12px; font-weight:900;">
+              ${state.toUpperCase()}
+            </span>
+          </div>
+        </div>
+
+        <!-- Giant 1-Tap Arming Buttons for Drivers -->
+        <div class="car-actions-grid">
+          <button class="car-btn-giant btn-arm-away ${state === 'armed_away' ? 'active' : ''}" data-car-service="alarm_arm_away">
+            <ha-icon icon="mdi:shield-lock"></ha-icon>
+            <span>ARMEMENT TOTAL</span>
+            <span style="font-size:11px; font-weight:600; opacity:0.8;">Départ en voiture</span>
+          </button>
+
+          <button class="car-btn-giant btn-arm-home ${state === 'armed_home' ? 'active' : ''}" data-car-service="alarm_arm_home">
+            <ha-icon icon="mdi:shield-home"></ha-icon>
+            <span>PARTIEL / NUIT</span>
+            <span style="font-size:11px; font-weight:600; opacity:0.8;">Périmètre seul</span>
+          </button>
+
+          <button class="car-btn-giant btn-disarm ${isDisarmed ? 'active' : ''}" data-car-service="alarm_disarm">
+            <ha-icon icon="mdi:shield-off"></ha-icon>
+            <span>DÉSARMER</span>
+            <span style="font-size:11px; font-weight:600; opacity:0.8;">Arrivée au domicile</span>
+          </button>
+        </div>
+
+        <!-- Two Columns: Keypad + Quick Car Diagnostics -->
+        <div class="car-columns-row">
+          <!-- Car PIN Keypad -->
+          <div class="glass-card" style="border-radius:24px; padding:20px; display:flex; flex-direction:column; align-items:center; gap:16px;">
+            <div style="font-size:14px; font-weight:800; text-transform:uppercase; letter-spacing:1px; color:var(--d-subtext); display:flex; align-items:center; gap:6px;">
+              <ha-icon icon="mdi:dialpad"></ha-icon> Pavé Numérique de Sécurité
+            </div>
+
+            <div class="keypad-feedback-box" style="max-width:280px;">
+              <div class="pin-indicators-row">
+                ${[0, 1, 2, 3, 4, 5].map(i => `
+                  <div class="pin-dot-light ${this._codeValue.length > i ? 'active' : ''}"></div>
+                `).join('')}
+              </div>
+            </div>
+
+            <div class="keypad-buttons-grid" style="grid-template-columns:repeat(3, 76px); gap:12px;">
+              ${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `
+                <button class="keypad-circle-btn car-keypad-btn" data-key="${n}" style="width:76px; height:76px; font-size:24px;">
+                  ${n}
+                </button>
+              `).join('')}
+              <button class="keypad-circle-btn car-keypad-btn" data-key="clear" style="width:76px; height:76px; font-size:22px; font-weight:800; color:#ef4444;">
+                C
+              </button>
+              <button class="keypad-circle-btn car-keypad-btn" data-key="0" style="width:76px; height:76px; font-size:24px;">
+                0
+              </button>
+              <button class="keypad-circle-btn car-keypad-btn" data-key="disarm" style="width:76px; height:76px; font-size:20px; font-weight:800; color:#10b981;">
+                <ha-icon icon="mdi:check-bold" style="--mdc-icon-size:24px;"></ha-icon>
+              </button>
+            </div>
+          </div>
+
+          <!-- Car Diagnostics / Glance Cards -->
+          <div style="display:flex; flex-direction:column; gap:14px;">
+            <!-- Portes & Fenêtres -->
+            <div class="glass-card" style="border-radius:20px; padding:16px; display:flex; align-items:center; justify-content:space-between;">
+              <div style="display:flex; align-items:center; gap:12px;">
+                <div style="width:44px; height:44px; border-radius:12px; background:${openDoors.length === 0 ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)'}; display:flex; align-items:center; justify-content:center; color:${openDoors.length === 0 ? '#10b981' : '#ef4444'};">
+                  <ha-icon icon="${openDoors.length === 0 ? 'mdi:door-closed' : 'mdi:door-open-alert'}" style="--mdc-icon-size:24px;"></ha-icon>
+                </div>
+                <div>
+                  <div style="font-size:14px; font-weight:800; color:var(--d-text);">Portes & Fenêtres</div>
+                  <div style="font-size:12px; color:${openDoors.length === 0 ? '#10b981' : '#ef4444'}; font-weight:700;">
+                    ${openDoors.length === 0 ? 'Toutes les issues sont fermées' : `${openDoors.length} ouverture(s) détectée(s)`}
+                  </div>
+                </div>
+              </div>
+              <span class="nav-badge-pill ${openDoors.length === 0 ? 'badge-ok' : 'badge-ko'}" style="font-size:11px; padding:3px 8px;">
+                ${openDoors.length === 0 ? 'SÉCURISÉ' : `${openDoors.length} OUVERT`}
+              </span>
+            </div>
+
+            <!-- Mouvements -->
+            <div class="glass-card" style="border-radius:20px; padding:16px; display:flex; align-items:center; justify-content:space-between;">
+              <div style="display:flex; align-items:center; gap:12px;">
+                <div style="width:44px; height:44px; border-radius:12px; background:${activeMotions.length === 0 ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)'}; display:flex; align-items:center; justify-content:center; color:${activeMotions.length === 0 ? '#10b981' : '#f59e0b'};">
+                  <ha-icon icon="${activeMotions.length === 0 ? 'mdi:motion-sensor-off' : 'mdi:motion-sensor'}" style="--mdc-icon-size:24px;"></ha-icon>
+                </div>
+                <div>
+                  <div style="font-size:14px; font-weight:800; color:var(--d-text);">Détecteurs de Mouvement</div>
+                  <div style="font-size:12px; color:${activeMotions.length === 0 ? '#10b981' : '#f59e0b'}; font-weight:700;">
+                    ${activeMotions.length === 0 ? 'Aucune activité suspecte' : `${activeMotions.length} mouvement(s) en cours`}
+                  </div>
+                </div>
+              </div>
+              <span class="nav-badge-pill ${activeMotions.length === 0 ? 'badge-ok' : 'badge-warn'}" style="font-size:11px; padding:3px 8px;">
+                ${activeMotions.length === 0 ? 'REPOS' : 'MOUVEMENT'}
+              </span>
+            </div>
+
+            <!-- Apple CarPlay Info Card -->
+            <div class="glass-card" style="border-radius:20px; padding:16px; border-left:4px solid #3b82f6;">
+              <div style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:800; color:#3b82f6; margin-bottom:4px;">
+                <ha-icon icon="mdi:apple"></ha-icon> Apple CarPlay Natif
+              </div>
+              <div style="font-size:11.5px; color:var(--d-subtext); line-height:1.4;">
+                Contrôlez également Domolink Alarm directement sur l'écran tactile CarPlay de votre voiture via l'application Home Assistant iOS (Réglages &gt; CarPlay &amp; Voiture).
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  _bindCarModeEvents(paneArm, alarmEntity) {
+    const exitBtn = paneArm.querySelector('#btn-exit-car-mode');
+    if (exitBtn) {
+      exitBtn.addEventListener('click', () => this._toggleCarMode());
+    }
+
+    paneArm.querySelectorAll('.car-btn-giant').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const service = e.currentTarget.dataset.carService;
+        if (service === 'alarm_disarm') {
+          if (this._codeValue.length > 0) {
+            this.callAlarmService(service, this._codeValue);
+            this._codeValue = '';
+            this.render();
+          } else {
+            this.callAlarmService(service);
+          }
+        } else if (service) {
+          this.callAlarmService(service, this._codeValue || null);
+          this._codeValue = '';
+          this.render();
+        }
+      });
+    });
+
+    paneArm.querySelectorAll('.car-keypad-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const key = e.currentTarget.dataset.key;
+        if (key === 'clear') {
+          this._codeValue = '';
+        } else if (key === 'disarm') {
+          this.callAlarmService('alarm_disarm', this._codeValue);
+          this._codeValue = '';
+        } else if (this._codeValue.length < 6) {
+          this._codeValue += key;
+          if (this._codeValue.length === 4 || this._codeValue.length === 6) {
+            const alarmState = alarmEntity ? alarmEntity.state : 'disarmed';
+            if (alarmState !== 'disarmed') {
+              this.callAlarmService('alarm_disarm', this._codeValue);
+              this._codeValue = '';
+            }
+          }
+        }
+        this.render();
+      });
+    });
   }
 
   // ─── Tab 1: Armement (Mockup UI) ────────────────
@@ -2321,6 +3032,12 @@ class DomolinkPanel extends HTMLElement {
       `;
     })() : '';
 
+    if (this._carModeActive) {
+      container.innerHTML = this._renderCarModeView(alarmEntity, attrs, state, isDisarmed, isArmed, isTriggered, isPending, heroClass, heroIcon, heroTitle, heroDesc, openDoors, activeMotions);
+      this._bindCarModeEvents(container, alarmEntity);
+      return;
+    }
+
     const html = `
       <div class="arm-layout-grid">
         <!-- ─── Left Column (Widgets) ─────────────── -->
@@ -2483,106 +3200,106 @@ class DomolinkPanel extends HTMLElement {
           </div>
           
           <!-- Cloud & Cameras Status (Red Box Area) -->
-          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:10px; margin-top:24px;">
+          <div class="dashboard-cloud-grid">
             <!-- Telegram -->
-            <div style="background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border); padding:10px 12px; display:flex; flex-direction:column; justify-content:space-between; box-shadow:0 2px 10px rgba(0,0,0,0.02); min-width:0; min-height:68px;">
-              <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; min-width:0; margin-bottom:6px;">
-                <div style="display:flex; align-items:center; gap:7px; min-width:0; flex:1;">
-                  <div style="width:28px; height:28px; min-width:28px; border-radius:8px; background:${telegramStatus === 'Désactivé' ? 'var(--d-border)' : (telegramStatus === 'Connecté' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)')}; display:flex; align-items:center; justify-content:center; color:${telegramStatus === 'Désactivé' ? 'var(--d-subtext)' : (telegramStatus === 'Connecté' ? '#10b981' : '#ef4444')};">
+            <div class="dashboard-cloud-tile">
+              <div class="cloud-tile-top">
+                <div class="cloud-tile-brand">
+                  <div class="cloud-tile-icon" style="background:${telegramStatus === 'Désactivé' ? 'var(--d-border)' : (telegramStatus === 'Connecté' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)')}; color:${telegramStatus === 'Désactivé' ? 'var(--d-subtext)' : (telegramStatus === 'Connecté' ? '#10b981' : '#ef4444')};">
                     <ha-icon icon="mdi:send-circle" style="--mdc-icon-size:18px;"></ha-icon>
                   </div>
-                  <span style="font-size:10.5px; font-weight:800; color:var(--d-subtext); text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Telegram</span>
+                  <span class="cloud-tile-title">Telegram</span>
                 </div>
               </div>
-              <div style="display:flex; align-items:center; justify-content:space-between; min-width:0;">
-                <span style="font-size:12.5px; font-weight:800; color:${telegramStatus === 'Connecté' ? '#10b981' : (telegramStatus === 'Désactivé' ? 'var(--d-subtext)' : '#ef4444')}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${this.escapeHtml(telegramStatus)}">
+              <div class="cloud-tile-bottom">
+                <span class="cloud-tile-status" style="color:${telegramStatus === 'Connecté' ? '#10b981' : (telegramStatus === 'Désactivé' ? 'var(--d-subtext)' : '#ef4444')};" title="${this.escapeHtml(telegramStatus)}">
                   ${this.escapeHtml(telegramStatus)}
                 </span>
-                <span style="width:6px; height:6px; border-radius:50%; background:${telegramStatus === 'Connecté' ? '#10b981' : (telegramStatus === 'Désactivé' ? 'rgba(255,255,255,0.2)' : '#ef4444')}; flex-shrink:0;"></span>
+                <span class="cloud-tile-dot" style="background:${telegramStatus === 'Connecté' ? '#10b981' : (telegramStatus === 'Désactivé' ? 'rgba(255,255,255,0.2)' : '#ef4444')};"></span>
               </div>
             </div>
             
             <!-- FTP -->
-            <div style="background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border); padding:10px 12px; display:flex; flex-direction:column; justify-content:space-between; box-shadow:0 2px 10px rgba(0,0,0,0.02); min-width:0; min-height:68px;">
-              <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; min-width:0; margin-bottom:6px;">
-                <div style="display:flex; align-items:center; gap:7px; min-width:0; flex:1;">
-                  <div style="width:28px; height:28px; min-width:28px; border-radius:8px; background:${ftpStatus === 'Désactivé' ? 'var(--d-border)' : (ftpStatus === 'Connecté' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)')}; display:flex; align-items:center; justify-content:center; color:${ftpStatus === 'Désactivé' ? 'var(--d-subtext)' : (ftpStatus === 'Connecté' ? '#10b981' : '#ef4444')};">
+            <div class="dashboard-cloud-tile">
+              <div class="cloud-tile-top">
+                <div class="cloud-tile-brand">
+                  <div class="cloud-tile-icon" style="background:${ftpStatus === 'Désactivé' ? 'var(--d-border)' : (ftpStatus === 'Connecté' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)')}; color:${ftpStatus === 'Désactivé' ? 'var(--d-subtext)' : (ftpStatus === 'Connecté' ? '#10b981' : '#ef4444')};">
                     <ha-icon icon="mdi:folder-network" style="--mdc-icon-size:18px;"></ha-icon>
                   </div>
-                  <span style="font-size:10.5px; font-weight:800; color:var(--d-subtext); text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${this.escapeHtml((attrs.ftp_protocol || 'ftp').toUpperCase())} ${this.escapeHtml(nasName)}</span>
+                  <span class="cloud-tile-title">${this.escapeHtml((attrs.ftp_protocol || 'ftp').toUpperCase())} ${this.escapeHtml(nasName)}</span>
                 </div>
-                <button class="btn-test-ftp" title="Tester la connexion (${(attrs.ftp_protocol || 'ftp').toUpperCase()})" style="padding:2px 7px; font-size:9.5px; font-weight:800; border-radius:6px; border:1px solid ${attrs.ftp_test_running ? 'rgba(245,158,11,0.5)' : 'rgba(59,130,246,0.35)'}; background:${attrs.ftp_test_running ? 'rgba(245,158,11,0.15)' : 'rgba(59,130,246,0.12)'}; color:${attrs.ftp_test_running ? '#f59e0b' : '#3b82f6'}; cursor:pointer; display:inline-flex; align-items:center; gap:3px; transition:all 0.2s; white-space:nowrap; flex-shrink:0;">
+                <button class="btn-test-ftp cloud-tile-btn" title="Tester la connexion (${(attrs.ftp_protocol || 'ftp').toUpperCase()})" style="border:1px solid ${attrs.ftp_test_running ? 'rgba(245,158,11,0.5)' : 'rgba(59,130,246,0.35)'}; background:${attrs.ftp_test_running ? 'rgba(245,158,11,0.15)' : 'rgba(59,130,246,0.12)'}; color:${attrs.ftp_test_running ? '#f59e0b' : '#3b82f6'};">
                   <ha-icon icon="${attrs.ftp_test_running ? 'mdi:loading' : 'mdi:lan-connect'}" style="--mdc-icon-size:12px; ${attrs.ftp_test_running ? 'animation: spin 1s linear infinite;' : ''}"></ha-icon>
                   <span>${attrs.ftp_test_running ? '...' : 'TEST'}</span>
                 </button>
               </div>
-              <div style="display:flex; align-items:center; justify-content:space-between; min-width:0;">
-                <span style="font-size:12.5px; font-weight:800; color:${ftpStatus === 'Connecté' ? '#10b981' : (ftpStatus === 'Désactivé' ? 'var(--d-subtext)' : '#ef4444')}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${this.escapeHtml(ftpStatus)}">
+              <div class="cloud-tile-bottom">
+                <span class="cloud-tile-status" style="color:${ftpStatus === 'Connecté' ? '#10b981' : (ftpStatus === 'Désactivé' ? 'var(--d-subtext)' : '#ef4444')};" title="${this.escapeHtml(ftpStatus)}">
                   ${this.escapeHtml(ftpStatus)}
                 </span>
-                <span style="width:6px; height:6px; border-radius:50%; background:${ftpStatus === 'Connecté' ? '#10b981' : (ftpStatus === 'Désactivé' ? 'rgba(255,255,255,0.2)' : '#ef4444')}; flex-shrink:0;"></span>
+                <span class="cloud-tile-dot" style="background:${ftpStatus === 'Connecté' ? '#10b981' : (ftpStatus === 'Désactivé' ? 'rgba(255,255,255,0.2)' : '#ef4444')};"></span>
               </div>
             </div>
 
             <!-- WebDAV / Multi-Cloud -->
-            <div style="background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border); padding:10px 12px; display:flex; flex-direction:column; justify-content:space-between; box-shadow:0 2px 10px rgba(0,0,0,0.02); min-width:0; min-height:68px;">
-              <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; min-width:0; margin-bottom:6px;">
-                <div style="display:flex; align-items:center; gap:7px; min-width:0; flex:1;">
-                  <div style="width:28px; height:28px; min-width:28px; border-radius:8px; background:${webdavStatus === 'Désactivé' ? 'var(--d-border)' : (webdavStatus === 'Connecté' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)')}; display:flex; align-items:center; justify-content:center; color:${webdavStatus === 'Désactivé' ? 'var(--d-subtext)' : (webdavStatus === 'Connecté' ? '#10b981' : '#ef4444')};">
+            <div class="dashboard-cloud-tile">
+              <div class="cloud-tile-top">
+                <div class="cloud-tile-brand">
+                  <div class="cloud-tile-icon" style="background:${webdavStatus === 'Désactivé' ? 'var(--d-border)' : (webdavStatus === 'Connecté' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)')}; color:${webdavStatus === 'Désactivé' ? 'var(--d-subtext)' : (webdavStatus === 'Connecté' ? '#10b981' : '#ef4444')};">
                     <ha-icon icon="mdi:cloud-sync" style="--mdc-icon-size:18px;"></ha-icon>
                   </div>
-                  <span style="font-size:10.5px; font-weight:800; color:var(--d-subtext); text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">WebDAV</span>
+                  <span class="cloud-tile-title">WebDAV</span>
                 </div>
-                <button class="btn-test-webdav" title="Tester la synchronisation WebDAV" style="padding:2px 7px; font-size:9.5px; font-weight:800; border-radius:6px; border:1px solid ${attrs.webdav_test_running ? 'rgba(245,158,11,0.5)' : 'rgba(139,92,246,0.35)'}; background:${attrs.webdav_test_running ? 'rgba(245,158,11,0.15)' : 'rgba(139,92,246,0.12)'}; color:${attrs.webdav_test_running ? '#f59e0b' : '#a855f7'}; cursor:pointer; display:inline-flex; align-items:center; gap:3px; transition:all 0.2s; white-space:nowrap; flex-shrink:0;">
+                <button class="btn-test-webdav cloud-tile-btn" title="Tester la synchronisation WebDAV" style="border:1px solid ${attrs.webdav_test_running ? 'rgba(245,158,11,0.5)' : 'rgba(139,92,246,0.35)'}; background:${attrs.webdav_test_running ? 'rgba(245,158,11,0.15)' : 'rgba(139,92,246,0.12)'}; color:${attrs.webdav_test_running ? '#f59e0b' : '#a855f7'};">
                   <ha-icon icon="${attrs.webdav_test_running ? 'mdi:loading' : 'mdi:cloud-check'}" style="--mdc-icon-size:12px; ${attrs.webdav_test_running ? 'animation: spin 1s linear infinite;' : ''}"></ha-icon>
                   <span>${attrs.webdav_test_running ? '...' : 'TEST'}</span>
                 </button>
               </div>
-              <div style="display:flex; align-items:center; justify-content:space-between; min-width:0;">
-                <span style="font-size:12.5px; font-weight:800; color:${webdavStatus === 'Connecté' ? '#10b981' : (webdavStatus === 'Désactivé' ? 'var(--d-subtext)' : '#ef4444')}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${this.escapeHtml(webdavStatus)}">
+              <div class="cloud-tile-bottom">
+                <span class="cloud-tile-status" style="color:${webdavStatus === 'Connecté' ? '#10b981' : (webdavStatus === 'Désactivé' ? 'var(--d-subtext)' : '#ef4444')};" title="${this.escapeHtml(webdavStatus)}">
                   ${this.escapeHtml(webdavStatus)}
                 </span>
-                <span style="width:6px; height:6px; border-radius:50%; background:${webdavStatus === 'Connecté' ? '#10b981' : (webdavStatus === 'Désactivé' ? 'rgba(255,255,255,0.2)' : '#ef4444')}; flex-shrink:0;"></span>
+                <span class="cloud-tile-dot" style="background:${webdavStatus === 'Connecté' ? '#10b981' : (webdavStatus === 'Désactivé' ? 'rgba(255,255,255,0.2)' : '#ef4444')};"></span>
               </div>
             </div>
 
             <!-- Google Drive -->
-            <div style="background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border); padding:10px 12px; display:flex; flex-direction:column; justify-content:space-between; box-shadow:0 2px 10px rgba(0,0,0,0.02); min-width:0; min-height:68px;">
-              <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; min-width:0; margin-bottom:6px;">
-                <div style="display:flex; align-items:center; gap:7px; min-width:0; flex:1;">
-                  <div style="width:28px; height:28px; min-width:28px; border-radius:8px; background:${googleDriveStatus === 'Désactivé' ? 'var(--d-border)' : (googleDriveStatus === 'Connecté' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)')}; display:flex; align-items:center; justify-content:center; color:${googleDriveStatus === 'Désactivé' ? 'var(--d-subtext)' : (googleDriveStatus === 'Connecté' ? '#10b981' : '#ef4444')};">
+            <div class="dashboard-cloud-tile">
+              <div class="cloud-tile-top">
+                <div class="cloud-tile-brand">
+                  <div class="cloud-tile-icon" style="background:${googleDriveStatus === 'Désactivé' ? 'var(--d-border)' : (googleDriveStatus === 'Connecté' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)')}; color:${googleDriveStatus === 'Désactivé' ? 'var(--d-subtext)' : (googleDriveStatus === 'Connecté' ? '#10b981' : '#ef4444')};">
                     <ha-icon icon="mdi:google-drive" style="--mdc-icon-size:18px;"></ha-icon>
                   </div>
-                  <span style="font-size:10.5px; font-weight:800; color:var(--d-subtext); text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Google Drive</span>
+                  <span class="cloud-tile-title">Google Drive</span>
                 </div>
-                <button class="btn-test-gdrive" title="Tester la synchronisation Google Drive" style="padding:2px 7px; font-size:9.5px; font-weight:800; border-radius:6px; border:1px solid ${attrs.google_drive_test_running ? 'rgba(245,158,11,0.5)' : 'rgba(52,168,83,0.35)'}; background:${attrs.google_drive_test_running ? 'rgba(245,158,11,0.15)' : 'rgba(52,168,83,0.12)'}; color:${attrs.google_drive_test_running ? '#f59e0b' : '#34a853'}; cursor:pointer; display:inline-flex; align-items:center; gap:3px; transition:all 0.2s; white-space:nowrap; flex-shrink:0;">
+                <button class="btn-test-gdrive cloud-tile-btn" title="Tester la synchronisation Google Drive" style="border:1px solid ${attrs.google_drive_test_running ? 'rgba(245,158,11,0.5)' : 'rgba(52,168,83,0.35)'}; background:${attrs.google_drive_test_running ? 'rgba(245,158,11,0.15)' : 'rgba(52,168,83,0.12)'}; color:${attrs.google_drive_test_running ? '#f59e0b' : '#34a853'};">
                   <ha-icon icon="${attrs.google_drive_test_running ? 'mdi:loading' : 'mdi:cloud-check'}" style="--mdc-icon-size:12px; ${attrs.google_drive_test_running ? 'animation: spin 1s linear infinite;' : ''}"></ha-icon>
                   <span>${attrs.google_drive_test_running ? '...' : 'TEST'}</span>
                 </button>
               </div>
-              <div style="display:flex; align-items:center; justify-content:space-between; min-width:0;">
-                <span style="font-size:12.5px; font-weight:800; color:${googleDriveStatus === 'Connecté' ? '#10b981' : (googleDriveStatus === 'Désactivé' ? 'var(--d-subtext)' : '#ef4444')}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${this.escapeHtml(googleDriveStatus)}">
+              <div class="cloud-tile-bottom">
+                <span class="cloud-tile-status" style="color:${googleDriveStatus === 'Connecté' ? '#10b981' : (googleDriveStatus === 'Désactivé' ? 'var(--d-subtext)' : '#ef4444')};" title="${this.escapeHtml(googleDriveStatus)}">
                   ${this.escapeHtml(googleDriveStatus)}
                 </span>
-                <span style="width:6px; height:6px; border-radius:50%; background:${googleDriveStatus === 'Connecté' ? '#10b981' : (googleDriveStatus === 'Désactivé' ? 'rgba(255,255,255,0.2)' : '#ef4444')}; flex-shrink:0;"></span>
+                <span class="cloud-tile-dot" style="background:${googleDriveStatus === 'Connecté' ? '#10b981' : (googleDriveStatus === 'Désactivé' ? 'rgba(255,255,255,0.2)' : '#ef4444')};"></span>
               </div>
             </div>
             
             <!-- Cameras -->
-            <div style="background:var(--d-sec-bg); border-radius:14px; border:1px solid var(--d-border); padding:10px 12px; display:flex; flex-direction:column; justify-content:space-between; box-shadow:0 2px 10px rgba(0,0,0,0.02); min-width:0; min-height:68px;">
-              <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; min-width:0; margin-bottom:6px;">
-                <div style="display:flex; align-items:center; gap:7px; min-width:0; flex:1;">
-                  <div style="width:28px; height:28px; min-width:28px; border-radius:8px; background:${camerasArmed ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)'}; display:flex; align-items:center; justify-content:center; color:${camerasArmed ? '#ef4444' : '#10b981'};">
+            <div class="dashboard-cloud-tile">
+              <div class="cloud-tile-top">
+                <div class="cloud-tile-brand">
+                  <div class="cloud-tile-icon" style="background:${camerasArmed ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)'}; color:${camerasArmed ? '#ef4444' : '#10b981'};">
                     <ha-icon icon="mdi:cctv" style="--mdc-icon-size:18px;"></ha-icon>
                   </div>
-                  <span style="font-size:10.5px; font-weight:800; color:var(--d-subtext); text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Caméras</span>
+                  <span class="cloud-tile-title">Caméras</span>
                 </div>
               </div>
-              <div style="display:flex; align-items:center; justify-content:space-between; min-width:0;">
-                <span style="font-size:12.5px; font-weight:800; color:${camerasArmed ? '#ef4444' : '#10b981'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+              <div class="cloud-tile-bottom">
+                <span class="cloud-tile-status" style="color:${camerasArmed ? '#ef4444' : '#10b981'};">
                   ${camerasArmed ? 'Armées' : 'Désactivées'}
                 </span>
-                <span style="width:6px; height:6px; border-radius:50%; background:${camerasArmed ? '#ef4444' : '#10b981'}; flex-shrink:0;"></span>
+                <span class="cloud-tile-dot" style="background:${camerasArmed ? '#ef4444' : '#10b981'};"></span>
               </div>
             </div>
           </div>
@@ -2824,8 +3541,8 @@ class DomolinkPanel extends HTMLElement {
           <!-- Bouton Test d'enregistrement vidéo (Colonne centrale) -->
           <div style="margin-top:14px;">
             ${attrs.camera_test_running ? testProgressHTML : `
-            <button class="btn-test-cameras-record" id="btn-test-cameras-record-center" style="width:100%; background:linear-gradient(135deg, rgba(245,158,11,0.12), rgba(217,119,6,0.22)); border:1px solid rgba(245,158,11,0.45); color:#f59e0b; padding:11px 16px; border-radius:12px; font-size:12px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; transition:all 0.2s ease; box-shadow:0 4px 14px rgba(245,158,11,0.06);">
-              <ha-icon icon="mdi:video-check" style="--mdc-icon-size:18px;"></ha-icon>
+            <button class="btn-test-cameras-record" id="btn-test-cameras-record-center" style="width:100%; background:linear-gradient(135deg, rgba(245,158,11,0.12), rgba(217,119,6,0.22)); border:1px solid rgba(245,158,11,0.45); color:#f59e0b; padding:11px 12px; border-radius:12px; font-size:clamp(10.5px, 2.7vw, 12px); font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; transition:all 0.2s ease; box-shadow:0 4px 14px rgba(245,158,11,0.06); text-align:center; box-sizing:border-box;">
+              <ha-icon icon="mdi:video-check" style="--mdc-icon-size:18px; flex-shrink:0;"></ha-icon>
               <span>TEST D'ENREGISTREMENT VIDÉO (TOUTES LES CAMÉRAS)</span>
             </button>
             `}
@@ -3267,7 +3984,7 @@ class DomolinkPanel extends HTMLElement {
     const systemEvents = attrs.system_events || [];
 
     const html = `
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+      <div class="log-layout-grid">
         <div class="glass-card">
           <div style="font-size:15px; font-weight:800; color:var(--d-text); margin-bottom:16px; display:flex; align-items:center; gap:8px;">
             <ha-icon icon="mdi:shield-account" style="color:#10b981;"></ha-icon>
@@ -3375,7 +4092,7 @@ class DomolinkPanel extends HTMLElement {
       let scoreColor = score >= 95 ? "#10b981" : (score >= 80 ? "#f59e0b" : "#ef4444");
 
       html += `
-        <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:16px; margin-bottom:24px;">
+        <div class="health-summary-grid">
           <div style="background:var(--d-sec-bg); border:1px solid var(--d-border); border-radius:16px; padding:18px; text-align:center;">
             <div style="font-size:28px; font-weight:900; color:${scoreColor};">${score}%</div>
             <div style="font-size:12px; color:var(--d-subtext); font-weight:700; margin-top:4px;">Disponibilité Globale</div>
@@ -3989,6 +4706,7 @@ function doGet(e) {
       { key: "logic", label: "Logique & Codes", icon: "mdi:tune" },
       { key: "mqtt", label: "MQTT", icon: "mdi:access-point-network" },
       { key: "backup", label: "Sauvegardes & Médias", icon: "mdi:cloud-sync" },
+      { key: "carplay", label: "CarPlay & Voiture", icon: "mdi:car-connected" },
     ];
 
     let contentHtml = '';
@@ -4398,6 +5116,152 @@ function doGet(e) {
           ${this._renderTextField("Sous-dossier de stockage local", "Dossier dans /config/www/ où sont stockées les photos et vidéos", "media_path", "mdi:folder", "text", "domolink_media")}
         `)}
       `;
+    } else if (this._configSubTab === 'carplay') {
+      const carUrl = `${window.location.origin}${window.location.pathname}?mode=car`;
+      const carplayYaml = `alias: "Alarme Domolink - Départ en Voiture"
+description: "Arme automatiquement l'alarme Domolink en mode Absent lors d'un départ en voiture"
+trigger:
+  - platform: numeric_state
+    entity_id: sensor.distance_domicile
+    above: 250
+condition:
+  - condition: state
+    entity_id: alarm_control_panel.domolink_alarm
+    state: "disarmed"
+action:
+  - service: alarm_control_panel.alarm_arm_away
+    target:
+      entity_id: alarm_control_panel.domolink_alarm
+  - service: notify.notify
+    data:
+      title: "🚗 Domolink Alarm — Mode Voiture"
+      message: "Alarme armée en mode Absent suite à votre départ."
+mode: single`;
+
+      contentHtml = `
+        <div class="glass-card" style="margin-bottom:16px; border-left:4px solid #3b82f6; background:linear-gradient(135deg, rgba(59,130,246,0.08), rgba(15,23,42,0.4));">
+          <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="width:44px; height:44px; border-radius:12px; background:rgba(59,130,246,0.2); border:1px solid rgba(59,130,246,0.4); display:flex; align-items:center; justify-content:center; color:#60a5fa;">
+                <ha-icon icon="mdi:car-connected" style="--mdc-icon-size:26px;"></ha-icon>
+              </div>
+              <div>
+                <div style="font-size:16px; font-weight:800; color:var(--d-text);">Mode Voiture Embarqué (In-Car Touch)</div>
+                <div style="font-size:12px; color:var(--d-subtext); margin-top:2px;">
+                  Interface grand écran tactile spécialement conçue pour les véhicules (Tesla, Polestar, CarPlay, tablettes)
+                </div>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <button class="btn-config-save" id="btn-launch-car-mode" style="padding:8px 16px; font-size:12px; background:linear-gradient(135deg,#2563eb,#1d4ed8);">
+                <ha-icon icon="mdi:car-speed-limiter" style="--mdc-icon-size:16px;"></ha-icon>
+                <span>Activer le Mode Voiture</span>
+              </button>
+            </div>
+          </div>
+          <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--d-border-light); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+            <div style="font-size:12px; color:var(--d-subtext); font-family:monospace; word-break:break-all; background:rgba(0,0,0,0.25); padding:6px 10px; border-radius:8px; border:1px solid var(--d-border-light); flex:1; min-width:240px;">
+              ${carUrl}
+            </div>
+            <button id="btn-copy-car-url" style="padding:7px 14px; border-radius:8px; border:1px solid rgba(59,130,246,0.4); background:rgba(59,130,246,0.12); color:#60a5fa; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px; transition:all 0.2s;">
+              <ha-icon icon="mdi:content-copy" style="--mdc-icon-size:16px;"></ha-icon>
+              <span>Copier le lien direct</span>
+            </button>
+          </div>
+        </div>
+
+        ${this._renderAccordionCard("carplay_guide", "mdi:apple", "#10b981", "Intégration Apple CarPlay via l'App Home Assistant iOS", `
+          <div style="font-size:13px; color:var(--d-subtext); line-height:1.6; margin-bottom:14px;">
+            Apple CarPlay est nativement supporté par l'application Home Assistant pour iOS. Vous pouvez piloter directement votre alarme Domolink depuis l'écran de bord de votre véhicule sans manipulation dangereuse.
+          </div>
+
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px; margin-bottom:16px;">
+            <div style="padding:12px; border-radius:10px; background:rgba(255,255,255,0.02); border:1px solid var(--d-border-light);">
+              <div style="font-weight:700; color:#10b981; margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+                <ha-icon icon="mdi:numeric-1-circle" style="--mdc-icon-size:18px;"></ha-icon> 1. Activer CarPlay
+              </div>
+              <div style="font-size:12px; color:var(--d-subtext); line-height:1.5;">
+                Ouvrez l'application <b>Home Assistant</b> sur votre iPhone > <b>Réglages</b> > <b>Application Compagnon</b> > <b>CarPlay</b>. Vérifiez que le support CarPlay est activé.
+              </div>
+            </div>
+
+            <div style="padding:12px; border-radius:10px; background:rgba(255,255,255,0.02); border:1px solid var(--d-border-light);">
+              <div style="font-weight:700; color:#3b82f6; margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+                <ha-icon icon="mdi:numeric-2-circle" style="--mdc-icon-size:18px;"></ha-icon> 2. Ajouter l'Alarme
+              </div>
+              <div style="font-size:12px; color:var(--d-subtext); line-height:1.5;">
+                Dans la liste des entités exposées à CarPlay, sélectionnez <code>alarm_control_panel.domolink_alarm</code> pour l'avoir sur l'écran d'accueil du véhicule.
+              </div>
+            </div>
+
+            <div style="padding:12px; border-radius:10px; background:rgba(255,255,255,0.02); border:1px solid var(--d-border-light);">
+              <div style="font-weight:700; color:#f59e0b; margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+                <ha-icon icon="mdi:numeric-3-circle" style="--mdc-icon-size:18px;"></ha-icon> 3. Actions Rapides
+              </div>
+              <div style="font-size:12px; color:var(--d-subtext); line-height:1.5;">
+                Créez des raccourcis dans <b>Actions CarPlay</b> : « Armer Absent », « Désarmer », « Statut Alarme » pour un déclenchement en un seul toucher.
+              </div>
+            </div>
+          </div>
+
+          <div style="padding:10px 14px; border-radius:10px; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.25); font-size:12px; color:#10b981; display:flex; align-items:center; gap:10px;">
+            <ha-icon icon="mdi:shield-check" style="--mdc-icon-size:20px; flex-shrink:0;"></ha-icon>
+            <span><b>Commande Vocale Siri au Volant :</b> Vous pouvez également dire : <i>« Dis Siri, désarme l'alarme Domolink avec le code [votre code] »</i> directement au microphone de la voiture.</span>
+          </div>
+        `)}
+
+        ${this._renderAccordionCard("carplay_automation", "mdi:robot", "#8b5cf6", "Automatisation Home Assistant Recommandée", `
+          <div style="font-size:13px; color:var(--d-subtext); line-height:1.6; margin-bottom:12px;">
+            Copiez ce modèle d'automatisation YAML dans votre fichier <code>automations.yaml</code> ou via l'interface graphique de Home Assistant pour sécuriser votre domicile automatiquement en quittant la maison en voiture :
+          </div>
+          <div style="position:relative; margin-bottom:12px;">
+            <pre style="background:rgba(0,0,0,0.4); border:1px solid var(--d-border-light); border-radius:10px; padding:14px; color:#a5b4fc; font-family:monospace; font-size:12px; overflow-x:auto; line-height:1.5; margin:0;">${carplayYaml}</pre>
+          </div>
+          <div style="display:flex; align-items:center; justify-content:flex-end;">
+            <button id="btn-copy-carplay-yaml" style="padding:8px 16px; border-radius:8px; border:1px solid rgba(139,92,246,0.4); background:rgba(139,92,246,0.15); color:#a78bfa; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px; transition:all 0.2s;">
+              <ha-icon icon="mdi:content-copy" style="--mdc-icon-size:16px;"></ha-icon>
+              <span>Copier le modèle YAML</span>
+            </button>
+          </div>
+        `)}
+
+        ${this._renderAccordionCard("car_features", "mdi:car-cog", "#ec4899", "Fonctionnalités du Mode Voiture Embarqué", `
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px;">
+            <div style="padding:12px; border-radius:10px; background:rgba(255,255,255,0.02); border:1px solid var(--d-border-light);">
+              <div style="font-weight:700; color:var(--d-text); margin-bottom:4px; display:flex; align-items:center; gap:6px;">
+                <ha-icon icon="mdi:gesture-tap-button" style="--mdc-icon-size:18px; color:#ec4899;"></ha-icon> Boutons Tactiles Géants (80px)
+              </div>
+              <div style="font-size:12px; color:var(--d-subtext); line-height:1.5;">
+                Conçus pour éviter les fausses manipulations lors des arrêts ou avant de manœuvrer dans le garage.
+              </div>
+            </div>
+            <div style="padding:12px; border-radius:10px; background:rgba(255,255,255,0.02); border:1px solid var(--d-border-light);">
+              <div style="font-weight:700; color:var(--d-text); margin-bottom:4px; display:flex; align-items:center; gap:6px;">
+                <ha-icon icon="mdi:contrast-circle" style="--mdc-icon-size:18px; color:#ec4899;"></ha-icon> Contraste Élevé Spécial Pare-brise
+              </div>
+              <div style="font-size:12px; color:var(--d-subtext); line-height:1.5;">
+                Couleurs saturées (Vert / Orange / Bleu / Rouge) lisibles en plein soleil ou de nuit.
+              </div>
+            </div>
+            <div style="padding:12px; border-radius:10px; background:rgba(255,255,255,0.02); border:1px solid var(--d-border-light);">
+              <div style="font-weight:700; color:var(--d-text); margin-bottom:4px; display:flex; align-items:center; gap:6px;">
+                <ha-icon icon="mdi:dialpad" style="--mdc-icon-size:18px; color:#ec4899;"></ha-icon> Pavé PIN Grand Format
+              </div>
+              <div style="font-size:12px; color:var(--d-subtext); line-height:1.5;">
+                Touches de saisie du code désarmement larges avec retour visuel immédiat.
+              </div>
+            </div>
+            <div style="padding:12px; border-radius:10px; background:rgba(255,255,255,0.02); border:1px solid var(--d-border-light);">
+              <div style="font-weight:700; color:var(--d-text); margin-bottom:4px; display:flex; align-items:center; gap:6px;">
+                <ha-icon icon="mdi:bookmark-check" style="--mdc-icon-size:18px; color:#ec4899;"></ha-icon> Favori Navigateur Voiture
+              </div>
+              <div style="font-size:12px; color:var(--d-subtext); line-height:1.5;">
+                Enregistrez le lien <code>?mode=car</code> dans les favoris du navigateur de bord pour un affichage instantané.
+              </div>
+            </div>
+          </div>
+        `)}
+      `;
     }
 
     const html = `
@@ -4411,7 +5275,7 @@ function doGet(e) {
             <div>
               <div style="font-size:18px; font-weight:800; color:var(--d-text); display:flex; align-items:center; gap:8px;">
                 Centre de Configuration
-                <span class="nav-badge-pill badge-version">v0.9.68</span>
+                <span class="nav-badge-pill badge-version">v0.9.69</span>
               </div>
               <div style="font-size:12px; color:var(--d-subtext); margin-top:3px;">
                 Modifiez vos équipements, délais, notifications et sauvegardes en toute simplicité
@@ -5120,6 +5984,70 @@ function doGet(e) {
         this._renderParamTab(alarmEntity);
       });
     });
+
+    // CarPlay & Mode Voiture Action Bindings
+    const btnLaunchCar = container.querySelector('#btn-launch-car-mode');
+    if (btnLaunchCar) {
+      btnLaunchCar.addEventListener('click', () => {
+        this._carModeActive = true;
+        try { localStorage.setItem('domolink_car_mode', 'true'); } catch (e) {}
+        this._activeTab = 'arm';
+        this.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.getAttribute('data-tab') === 'arm'));
+        this.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'pane-arm'));
+        this.render();
+      });
+    }
+
+    const btnCopyUrl = container.querySelector('#btn-copy-car-url');
+    if (btnCopyUrl) {
+      btnCopyUrl.addEventListener('click', () => {
+        const carUrl = `${window.location.origin}${window.location.pathname}?mode=car`;
+        const copyText = (txt) => {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            return navigator.clipboard.writeText(txt);
+          }
+          const ta = document.createElement('textarea');
+          ta.value = txt;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          return Promise.resolve();
+        };
+        copyText(carUrl).then(() => {
+          btnCopyUrl.innerHTML = `<ha-icon icon="mdi:check" style="--mdc-icon-size:16px;"></ha-icon><span>Lien copié !</span>`;
+          setTimeout(() => {
+            btnCopyUrl.innerHTML = `<ha-icon icon="mdi:content-copy" style="--mdc-icon-size:16px;"></ha-icon><span>Copier le lien direct</span>`;
+          }, 2000);
+        });
+      });
+    }
+
+    const btnCopyYaml = container.querySelector('#btn-copy-carplay-yaml');
+    if (btnCopyYaml) {
+      btnCopyYaml.addEventListener('click', () => {
+        const pre = container.querySelector('#btn-copy-carplay-yaml')?.parentElement?.previousElementSibling?.querySelector('pre');
+        const yaml = pre ? pre.textContent : '';
+        const copyText = (txt) => {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            return navigator.clipboard.writeText(txt);
+          }
+          const ta = document.createElement('textarea');
+          ta.value = txt;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          return Promise.resolve();
+        };
+        copyText(yaml).then(() => {
+          btnCopyYaml.innerHTML = `<ha-icon icon="mdi:check" style="--mdc-icon-size:16px;"></ha-icon><span>Modèle copié !</span>`;
+          setTimeout(() => {
+            btnCopyYaml.innerHTML = `<ha-icon icon="mdi:content-copy" style="--mdc-icon-size:16px;"></ha-icon><span>Copier le modèle YAML</span>`;
+          }, 2000);
+        });
+      });
+    }
   }
 
   // ─── Dynamic Navigation Badges ──────────────────
@@ -5312,7 +6240,7 @@ function doGet(e) {
       const cloudLabel = countCloud > 1 ? 'MULTI-CLOUD' : (isGdrive ? 'G-DRIVE' : (isDav ? 'WEBDAV' : (isFtp ? 'FTP' : 'LOCAL')));
       elParam.innerHTML = `
         <div class="nav-badge-stack">
-          <span class="nav-badge-pill badge-version">v0.9.68</span>
+          <span class="nav-badge-pill badge-version">v0.9.69</span>
           <span class="nav-badge-pill badge-neutral">${cloudLabel}</span>
         </div>
       `;

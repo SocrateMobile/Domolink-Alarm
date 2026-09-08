@@ -7,6 +7,27 @@ Conçue pour dépasser les standards du marché, elle offre une configuration 10
 
 ## 🌟 Fonctionnalités Principales
 
+### 🚀 Nouveautés de la version 0.9.69 (Refonte Responsive Mobile & Module Apple CarPlay / Mode Voiture)
+- **Refonte Responsive Complète (Smartphones & Tablettes)** :
+  - **Suppression intégrale du débordement horizontal** (`overflow-x: hidden` et dimensionnement adaptatif avec `clamp()`).
+  - **Prise en charge native des encoches d'écran & Dynamic Island** : Intégration de `env(safe-area-inset-top)`, `safe-area-inset-bottom`, etc.
+  - **Réorganisation mobile du tableau de bord** : Sur écran mobile (<820px), l'armement principal et le pavé numérique passent au premier plan au-dessus des widgets secondaires (caméras, journal, diagnostic).
+  - **Boutons de modes d'armement 100% visibles** : Sur petits écrans (<360px), les boutons d'armement et le statut « Désarmé » s'adaptent dynamiquement sans jamais être tronqués.
+  - **Tuiles de Sauvegarde Cloud & NAS Flexibles** : Remplacement des dimensions rigides par une grille responsive (`grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr))`) empêchant tout débordement des boutons de test.
+  - **Colonnes Journal & Santé Adaptatives** : Passage fluide en 1 colonne sur smartphone avec des cartes d'indicateurs fluides.
+- **Module Apple CarPlay & Mode Voiture Dédié** :
+  - **Bouton d'accès rapide « Mode Voiture »** (`mdi:car-connected`) dans l'en-tête du panneau pour basculer en un clic.
+  - **Prise en charge des URL directes** : `?mode=car` ou `?carplay=1` pour les navigateurs de bord (Tesla, Polestar, Android Automotive, tablettes embarquées).
+  - **Interface In-Car Haute Visibilité** :
+    - Bannière d'état d'alarme géante avec code couleur instantané (Vert, Orange, Bleu, Rouge).
+    - Boutons d'armement grand format (hauteur 80px) conçus pour une utilisation tactile sécurisée en voiture.
+    - Pavé numérique grand format pour le déverrouillage sans quitter la route des yeux.
+  - **Nouveau Sous-Onglet Réglages « CarPlay & Voiture »** :
+    - Guide illustré étape par étape pour configurer Apple CarPlay dans l'application iOS Home Assistant.
+    - Création d'actions rapides au volant (Armer en partant, Désarmer à l'approche).
+    - Modèle d'automatisation YAML Home Assistant prêt à l'emploi (armement sur déconnexion CarPlay / distance domicile).
+    - Boutons de copie rapide 1-clic pour le lien direct de bord et le modèle YAML.
+
 ### 🚀 Nouveautés de la version 0.9.68 (Correctif Affichage de l'onglet Sauvegardes & Médias)
 - **Résolution du blocage de navigation** : Correction du crash JavaScript survenu lors du clic sur le sous-onglet « Sauvegardes & Médias » dans le panneau de configuration. Les variables de protocole et d'hôte NAS sont désormais correctement initialisées dans le scope local d'exécution.
 - **Accès fluide aux réglages NAS & Réseau** : Tous les accordéons (Telegram, Profil NAS, Sauvegarde NAS & Réseau FTP/FTPS/SFTP/SAMBA, WebDAV, Google Drive, Rétention) s'affichent et se déplient instantanément.
