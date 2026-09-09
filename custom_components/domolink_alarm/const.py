@@ -53,6 +53,38 @@ CONF_CROSS_ZONING_WINDOW = "cross_zoning_window"
 CONF_GEOFENCE_REMINDER = "geofence_reminder"
 CONF_GEOFENCE_REMINDER_DELAY = "geofence_reminder_delay"
 
+# NF A2P Double Detection
+CONF_NF_A2P_MODE = "nf_a2p_mode"
+CONF_NF_A2P_WINDOW = "nf_a2p_window"
+CONF_NF_A2P_STRICT_DISTINCT = "nf_a2p_strict_distinct"
+CONF_NF_A2P_PRE_ALERT_CHIME = "nf_a2p_pre_alert_chime"
+
+# Temporary PINs & Extended User Profiles
+CONF_USERS_PROFILES = "users_profiles"
+
+# Predictive Geofencing & Approach Reminders
+CONF_PROXIMITY_SENSOR = "proximity_sensor"
+CONF_GEOFENCE_APPROACH_REMINDER = "geofence_approach_reminder"
+CONF_GEOFENCE_APPROACH_DISTANCE = "geofence_approach_distance"
+
+# Physical Keypads Integration (Zigbee ZHA / Zigbee2MQTT / Ring)
+CONF_KEYPAD_ENABLED = "keypad_enabled"
+CONF_KEYPAD_BEEP_ENTRY = "keypad_beep_entry"
+CONF_KEYPAD_BEEP_EXIT = "keypad_beep_exit"
+
+# Multi-Level Audio Deterrence & Custom TTS
+CONF_DETERRENCE_ENABLED = "deterrence_enabled"
+CONF_DETERRENCE_LEVEL = "deterrence_level"
+CONF_TTS_PRE_ALERT_MSG = "tts_pre_alert_msg"
+CONF_TTS_ALARM_MSG = "tts_alarm_msg"
+CONF_TTS_VOLUME_ALERT = "tts_volume_alert"
+CONF_TTS_VOLUME_INFO = "tts_volume_info"
+
+# Network Failover / Backup Alerting
+CONF_FAILOVER_GSM_ENABLED = "failover_gsm_enabled"
+CONF_FAILOVER_GSM_SERVICE = "failover_gsm_service"
+CONF_FAILOVER_LOCAL_ALARM = "failover_local_alarm"
+
 CONF_EMERGENCY_CONTACT = "emergency_contact"
 CONF_EMERGENCY_CONTACT_LABELS = "emergency_contact_labels"
 
@@ -84,6 +116,28 @@ DEFAULT_SCHEDULE_ENABLED = False
 DEFAULT_SCHEDULE_ARM_TIME = "23:00"
 DEFAULT_SCHEDULE_DISARM_TIME = "06:00"
 DEFAULT_SCHEDULE_MODE = "night"
+
+DEFAULT_NF_A2P_MODE = False
+DEFAULT_NF_A2P_WINDOW = 60
+DEFAULT_NF_A2P_STRICT_DISTINCT = True
+DEFAULT_NF_A2P_PRE_ALERT_CHIME = True
+
+DEFAULT_GEOFENCE_APPROACH_REMINDER = False
+DEFAULT_GEOFENCE_APPROACH_DISTANCE = 1000
+
+DEFAULT_KEYPAD_ENABLED = True
+DEFAULT_KEYPAD_BEEP_ENTRY = True
+DEFAULT_KEYPAD_BEEP_EXIT = True
+
+DEFAULT_DETERRENCE_ENABLED = True
+DEFAULT_DETERRENCE_LEVEL = "both"
+DEFAULT_TTS_PRE_ALERT_MSG = "Attention, propriété sous alarme. Veuillez vous identifier immédiatement."
+DEFAULT_TTS_ALARM_MSG = "Alerte intrusion confirmée. Forces de sécurité prévenues."
+DEFAULT_TTS_VOLUME_ALERT = 0.8
+DEFAULT_TTS_VOLUME_INFO = 0.5
+
+DEFAULT_FAILOVER_GSM_ENABLED = False
+DEFAULT_FAILOVER_LOCAL_ALARM = True
 
 CONF_ICLOUD_ACCOUNT = "icloud_account"
 CONF_ICLOUD_DEVICES = "icloud_devices"

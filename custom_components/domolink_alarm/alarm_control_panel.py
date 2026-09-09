@@ -146,6 +146,43 @@ from .const import (
     DEFAULT_SCHEDULE_ARM_TIME,
     DEFAULT_SCHEDULE_DISARM_TIME,
     DEFAULT_SCHEDULE_MODE,
+    CONF_NF_A2P_MODE,
+    CONF_NF_A2P_WINDOW,
+    CONF_NF_A2P_STRICT_DISTINCT,
+    CONF_NF_A2P_PRE_ALERT_CHIME,
+    CONF_USERS_PROFILES,
+    CONF_PROXIMITY_SENSOR,
+    CONF_GEOFENCE_APPROACH_REMINDER,
+    CONF_GEOFENCE_APPROACH_DISTANCE,
+    CONF_KEYPAD_ENABLED,
+    CONF_KEYPAD_BEEP_ENTRY,
+    CONF_KEYPAD_BEEP_EXIT,
+    CONF_DETERRENCE_ENABLED,
+    CONF_DETERRENCE_LEVEL,
+    CONF_TTS_PRE_ALERT_MSG,
+    CONF_TTS_ALARM_MSG,
+    CONF_TTS_VOLUME_ALERT,
+    CONF_TTS_VOLUME_INFO,
+    CONF_FAILOVER_GSM_ENABLED,
+    CONF_FAILOVER_GSM_SERVICE,
+    CONF_FAILOVER_LOCAL_ALARM,
+    DEFAULT_NF_A2P_MODE,
+    DEFAULT_NF_A2P_WINDOW,
+    DEFAULT_NF_A2P_STRICT_DISTINCT,
+    DEFAULT_NF_A2P_PRE_ALERT_CHIME,
+    DEFAULT_GEOFENCE_APPROACH_REMINDER,
+    DEFAULT_GEOFENCE_APPROACH_DISTANCE,
+    DEFAULT_KEYPAD_ENABLED,
+    DEFAULT_KEYPAD_BEEP_ENTRY,
+    DEFAULT_KEYPAD_BEEP_EXIT,
+    DEFAULT_DETERRENCE_ENABLED,
+    DEFAULT_DETERRENCE_LEVEL,
+    DEFAULT_TTS_PRE_ALERT_MSG,
+    DEFAULT_TTS_ALARM_MSG,
+    DEFAULT_TTS_VOLUME_ALERT,
+    DEFAULT_TTS_VOLUME_INFO,
+    DEFAULT_FAILOVER_GSM_ENABLED,
+    DEFAULT_FAILOVER_LOCAL_ALARM,
     DEFAULT_MQTT_ENABLED,
     DEFAULT_MQTT_TOPIC_BASE,
     DEFAULT_MQTT_REQUIRE_CODE,
@@ -295,6 +332,52 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
         DOMAIN, "toggle_presence_simulation", async_handle_toggle_sim
     )
 
+    async def async_handle_add_user_profile(call):
+        """Handle add/update user profile service call."""
+        data = dict(call.data)
+        data.pop("entity_id", None)
+        await entity.async_add_user_profile(**data)
+
+    async def async_handle_delete_user_profile(call):
+        """Handle delete user profile service call."""
+        name = call.data.get("name")
+        pin = call.data.get("pin")
+        await entity.async_delete_user_profile(pin=pin, name=name)
+
+    async def async_handle_snooze_reminder(call):
+        """Handle snooze reminder service call."""
+        minutes = call.data.get("minutes", 15)
+        await entity.async_snooze_reminder(minutes)
+
+    async def async_handle_sync_physical_keypad(call):
+        """Handle physical keypad synchronization service call."""
+        await entity.async_sync_keypads()
+
+    async def async_handle_generate_incident_report(call):
+        """Handle generate incident report service call."""
+        return entity.get_incident_report_data()
+
+    hass.services.async_register(
+        DOMAIN, "add_user_profile", async_handle_add_user_profile
+    )
+    hass.services.async_register(
+        DOMAIN, "delete_user_profile", async_handle_delete_user_profile
+    )
+    hass.services.async_register(
+        DOMAIN, "snooze_reminder", async_handle_snooze_reminder
+    )
+    hass.services.async_register(
+        DOMAIN, "sync_physical_keypad", async_handle_sync_physical_keypad
+    )
+    if supports_opt is not None:
+        hass.services.async_register(
+            DOMAIN, "generate_incident_report", async_handle_generate_incident_report, supports_response=supports_opt
+        )
+    else:
+        hass.services.async_register(
+            DOMAIN, "generate_incident_report", async_handle_generate_incident_report
+        )
+
 
 class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
     """Representation of a Domolink Alarm."""
@@ -345,6 +428,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._bypassed_sensors = set()
         self._triggered_by = None
         self._event_sensor = None
+        self._watch_sensor = None
         self._last_motion_detection = {}
 
         self._failed_attempts = 0
@@ -390,6 +474,48 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             "count": 0,
             "percent": 0.0,
         }
+
+        # NF A2P Double Detection
+        self._nf_a2p_mode = DEFAULT_NF_A2P_MODE
+        self._nf_a2p_window = DEFAULT_NF_A2P_WINDOW
+        self._nf_a2p_strict_distinct = DEFAULT_NF_A2P_STRICT_DISTINCT
+        self._nf_a2p_pre_alert_chime = DEFAULT_NF_A2P_PRE_ALERT_CHIME
+        self._pre_alert_active = False
+        self._pre_alert_sensor = None
+        self._pre_alert_sensor_name = None
+        self._pre_alert_task = None
+        self._pre_alert_expires_at = 0.0
+
+        # Extended User Profiles
+        self._users_profiles = []
+
+        # Predictive Geofencing & Proximity
+        self._proximity_sensor = ""
+        self._geofence_approach_reminder = DEFAULT_GEOFENCE_APPROACH_REMINDER
+        self._geofence_approach_distance = DEFAULT_GEOFENCE_APPROACH_DISTANCE
+        self._last_approach_notif_ts = 0.0
+
+        # Physical Keypads
+        self._keypad_enabled = DEFAULT_KEYPAD_ENABLED
+        self._keypad_beep_entry = DEFAULT_KEYPAD_BEEP_ENTRY
+        self._keypad_beep_exit = DEFAULT_KEYPAD_BEEP_EXIT
+
+        # Audio Deterrence
+        self._deterrence_enabled = DEFAULT_DETERRENCE_ENABLED
+        self._deterrence_level = DEFAULT_DETERRENCE_LEVEL
+        self._tts_pre_alert_msg = DEFAULT_TTS_PRE_ALERT_MSG
+        self._tts_alarm_msg = DEFAULT_TTS_ALARM_MSG
+        self._tts_volume_alert = DEFAULT_TTS_VOLUME_ALERT
+        self._tts_volume_info = DEFAULT_TTS_VOLUME_INFO
+
+        # Network Failover / 4G
+        self._failover_gsm_enabled = DEFAULT_FAILOVER_GSM_ENABLED
+        self._failover_gsm_service = ""
+        self._failover_local_alarm = DEFAULT_FAILOVER_LOCAL_ALARM
+        self._network_failover_active = False
+
+        # Certified Incident Report
+        self._last_incident_data = {}
 
         self._load_config()
 
@@ -649,6 +775,48 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         icloud_devs = options.get("icloud_devices", data.get("icloud_devices", []))
         self._icloud_devices = icloud_devs if isinstance(icloud_devs, list) else []
 
+        # NF A2P Double Detection
+        self._nf_a2p_mode = bool(options.get(CONF_NF_A2P_MODE, data.get(CONF_NF_A2P_MODE, DEFAULT_NF_A2P_MODE)))
+        self._nf_a2p_window = int(options.get(CONF_NF_A2P_WINDOW, data.get(CONF_NF_A2P_WINDOW, DEFAULT_NF_A2P_WINDOW)))
+        self._nf_a2p_strict_distinct = bool(options.get(CONF_NF_A2P_STRICT_DISTINCT, data.get(CONF_NF_A2P_STRICT_DISTINCT, DEFAULT_NF_A2P_STRICT_DISTINCT)))
+        self._nf_a2p_pre_alert_chime = bool(options.get(CONF_NF_A2P_PRE_ALERT_CHIME, data.get(CONF_NF_A2P_PRE_ALERT_CHIME, DEFAULT_NF_A2P_PRE_ALERT_CHIME)))
+
+        # Extended User Profiles
+        raw_profiles = options.get(CONF_USERS_PROFILES, data.get(CONF_USERS_PROFILES, []))
+        if isinstance(raw_profiles, str):
+            try:
+                import json
+                self._users_profiles = json.loads(raw_profiles) if raw_profiles.strip() else []
+            except Exception:
+                self._users_profiles = []
+        elif isinstance(raw_profiles, list):
+            self._users_profiles = list(raw_profiles)
+        else:
+            self._users_profiles = []
+
+        # Predictive Geofencing & Proximity
+        self._proximity_sensor = options.get(CONF_PROXIMITY_SENSOR, data.get(CONF_PROXIMITY_SENSOR, ""))
+        self._geofence_approach_reminder = bool(options.get(CONF_GEOFENCE_APPROACH_REMINDER, data.get(CONF_GEOFENCE_APPROACH_REMINDER, DEFAULT_GEOFENCE_APPROACH_REMINDER)))
+        self._geofence_approach_distance = int(options.get(CONF_GEOFENCE_APPROACH_DISTANCE, data.get(CONF_GEOFENCE_APPROACH_DISTANCE, DEFAULT_GEOFENCE_APPROACH_DISTANCE)))
+
+        # Physical Keypads
+        self._keypad_enabled = bool(options.get(CONF_KEYPAD_ENABLED, data.get(CONF_KEYPAD_ENABLED, DEFAULT_KEYPAD_ENABLED)))
+        self._keypad_beep_entry = bool(options.get(CONF_KEYPAD_BEEP_ENTRY, data.get(CONF_KEYPAD_BEEP_ENTRY, DEFAULT_KEYPAD_BEEP_ENTRY)))
+        self._keypad_beep_exit = bool(options.get(CONF_KEYPAD_BEEP_EXIT, data.get(CONF_KEYPAD_BEEP_EXIT, DEFAULT_KEYPAD_BEEP_EXIT)))
+
+        # Audio Deterrence
+        self._deterrence_enabled = bool(options.get(CONF_DETERRENCE_ENABLED, data.get(CONF_DETERRENCE_ENABLED, DEFAULT_DETERRENCE_ENABLED)))
+        self._deterrence_level = str(options.get(CONF_DETERRENCE_LEVEL, data.get(CONF_DETERRENCE_LEVEL, DEFAULT_DETERRENCE_LEVEL)))
+        self._tts_pre_alert_msg = str(options.get(CONF_TTS_PRE_ALERT_MSG, data.get(CONF_TTS_PRE_ALERT_MSG, DEFAULT_TTS_PRE_ALERT_MSG)))
+        self._tts_alarm_msg = str(options.get(CONF_TTS_ALARM_MSG, data.get(CONF_TTS_ALARM_MSG, DEFAULT_TTS_ALARM_MSG)))
+        self._tts_volume_alert = float(options.get(CONF_TTS_VOLUME_ALERT, data.get(CONF_TTS_VOLUME_ALERT, DEFAULT_TTS_VOLUME_ALERT)))
+        self._tts_volume_info = float(options.get(CONF_TTS_VOLUME_INFO, data.get(CONF_TTS_VOLUME_INFO, DEFAULT_TTS_VOLUME_INFO)))
+
+        # Network Failover / 4G
+        self._failover_gsm_enabled = bool(options.get(CONF_FAILOVER_GSM_ENABLED, data.get(CONF_FAILOVER_GSM_ENABLED, DEFAULT_FAILOVER_GSM_ENABLED)))
+        self._failover_gsm_service = str(options.get(CONF_FAILOVER_GSM_SERVICE, data.get(CONF_FAILOVER_GSM_SERVICE, "")))
+        self._failover_local_alarm = bool(options.get(CONF_FAILOVER_LOCAL_ALARM, data.get(CONF_FAILOVER_LOCAL_ALARM, DEFAULT_FAILOVER_LOCAL_ALARM)))
+
         # Pre-compute entity zones map (only changes on config reload)
         self._entity_zones_cache = self._get_entity_zones_map()
         # Initialize media files cache
@@ -773,8 +941,50 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             "media_storage_retention_days": self._media_retention_days,
             "media_storage_count": self._media_storage_stats.get("count", 0),
             "media_storage_percent": self._media_storage_stats.get("percent", 0.0),
+            # NF A2P Double Detection
+            "nf_a2p_mode": getattr(self, "_nf_a2p_mode", False),
+            "pre_alert": getattr(self, "_pre_alert_active", False),
+            "pre_alert_sensor": getattr(self, "_pre_alert_sensor", None),
+            "pre_alert_sensor_name": getattr(self, "_pre_alert_sensor_name", None),
+            "pre_alert_remaining": max(0, int(getattr(self, "_pre_alert_expires_at", 0) - now_ts)) if getattr(self, "_pre_alert_active", False) else 0,
+            # Compact smartwatch state (Apple Watch / Wear OS)
+            "compact_state": self._get_compact_state(),
+            "compact_label": self._get_compact_label(),
+            # Extended User Profiles
+            "user_profiles": list(getattr(self, "_users_profiles", [])),
+            # Failover Alerting
+            "network_failover_active": getattr(self, "_network_failover_active", False),
+            # Certified Incident Data
+            "last_incident_report": dict(getattr(self, "_last_incident_data", {})),
             "installed_config": self._get_installed_config(),
         }
+
+    def _get_compact_state(self):
+        """Return a compact emoji status for smartwatch complications and tiles."""
+        if self._state == AlarmControlPanelState.DISARMED:
+            return "🟢 Désarmée"
+        elif self._state == AlarmControlPanelState.ARMED_AWAY:
+            return "🔴 Armée (Absent)"
+        elif self._state == AlarmControlPanelState.ARMED_NIGHT:
+            return "🌙 Armée (Nuit)"
+        elif self._state == AlarmControlPanelState.ARMED_HOME:
+            return "🟠 Armée (Maison)"
+        elif self._state == AlarmControlPanelState.ARMING:
+            return "⏳ Armement en cours"
+        elif self._state == AlarmControlPanelState.PENDING:
+            return "⚠️ Délai d'entrée"
+        elif self._state == AlarmControlPanelState.TRIGGERED:
+            return "🚨 ALARME DÉCLENCHÉE"
+        return str(self._state)
+
+    def _get_compact_label(self):
+        """Return short label for watch complications."""
+        if self._state == AlarmControlPanelState.TRIGGERED:
+            trig = self._triggered_by or "Intrusion"
+            return f"🚨 {trig}"
+        if getattr(self, "_pre_alert_active", False):
+            return "⚠️ Pré-alerte NF A2P"
+        return self._get_compact_state()
 
     def _get_installed_config(self):
         """Return the complete dictionary of current configuration settings."""
@@ -875,6 +1085,32 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             CONF_MEDIA_PATH: str(_val(CONF_MEDIA_PATH, DEFAULT_MEDIA_PATH) or DEFAULT_MEDIA_PATH),
             CONF_MEDIA_RETENTION_DAYS: int(_val(CONF_MEDIA_RETENTION_DAYS, DEFAULT_MEDIA_RETENTION_DAYS) or DEFAULT_MEDIA_RETENTION_DAYS),
             CONF_MEDIA_MAX_SIZE_MB: int(_val(CONF_MEDIA_MAX_SIZE_MB, DEFAULT_MEDIA_MAX_SIZE_MB) or DEFAULT_MEDIA_MAX_SIZE_MB),
+            # NF A2P Double Detection
+            CONF_NF_A2P_MODE: bool(_val(CONF_NF_A2P_MODE, DEFAULT_NF_A2P_MODE)),
+            CONF_NF_A2P_WINDOW: int(_val(CONF_NF_A2P_WINDOW, DEFAULT_NF_A2P_WINDOW) or DEFAULT_NF_A2P_WINDOW),
+            CONF_NF_A2P_STRICT_DISTINCT: bool(_val(CONF_NF_A2P_STRICT_DISTINCT, DEFAULT_NF_A2P_STRICT_DISTINCT)),
+            CONF_NF_A2P_PRE_ALERT_CHIME: bool(_val(CONF_NF_A2P_PRE_ALERT_CHIME, DEFAULT_NF_A2P_PRE_ALERT_CHIME)),
+            # User Profiles
+            CONF_USERS_PROFILES: _val(CONF_USERS_PROFILES, getattr(self, "_users_profiles", [])),
+            # Predictive Geofencing
+            CONF_PROXIMITY_SENSOR: str(_val(CONF_PROXIMITY_SENSOR, "") or ""),
+            CONF_GEOFENCE_APPROACH_REMINDER: bool(_val(CONF_GEOFENCE_APPROACH_REMINDER, DEFAULT_GEOFENCE_APPROACH_REMINDER)),
+            CONF_GEOFENCE_APPROACH_DISTANCE: int(_val(CONF_GEOFENCE_APPROACH_DISTANCE, DEFAULT_GEOFENCE_APPROACH_DISTANCE) or DEFAULT_GEOFENCE_APPROACH_DISTANCE),
+            # Physical Keypads
+            CONF_KEYPAD_ENABLED: bool(_val(CONF_KEYPAD_ENABLED, DEFAULT_KEYPAD_ENABLED)),
+            CONF_KEYPAD_BEEP_ENTRY: bool(_val(CONF_KEYPAD_BEEP_ENTRY, DEFAULT_KEYPAD_BEEP_ENTRY)),
+            CONF_KEYPAD_BEEP_EXIT: bool(_val(CONF_KEYPAD_BEEP_EXIT, DEFAULT_KEYPAD_BEEP_EXIT)),
+            # Audio Deterrence
+            CONF_DETERRENCE_ENABLED: bool(_val(CONF_DETERRENCE_ENABLED, DEFAULT_DETERRENCE_ENABLED)),
+            CONF_DETERRENCE_LEVEL: str(_val(CONF_DETERRENCE_LEVEL, DEFAULT_DETERRENCE_LEVEL) or DEFAULT_DETERRENCE_LEVEL),
+            CONF_TTS_PRE_ALERT_MSG: str(_val(CONF_TTS_PRE_ALERT_MSG, DEFAULT_TTS_PRE_ALERT_MSG) or DEFAULT_TTS_PRE_ALERT_MSG),
+            CONF_TTS_ALARM_MSG: str(_val(CONF_TTS_ALARM_MSG, DEFAULT_TTS_ALARM_MSG) or DEFAULT_TTS_ALARM_MSG),
+            CONF_TTS_VOLUME_ALERT: float(_val(CONF_TTS_VOLUME_ALERT, DEFAULT_TTS_VOLUME_ALERT) or DEFAULT_TTS_VOLUME_ALERT),
+            CONF_TTS_VOLUME_INFO: float(_val(CONF_TTS_VOLUME_INFO, DEFAULT_TTS_VOLUME_INFO) or DEFAULT_TTS_VOLUME_INFO),
+            # Network Failover
+            CONF_FAILOVER_GSM_ENABLED: bool(_val(CONF_FAILOVER_GSM_ENABLED, DEFAULT_FAILOVER_GSM_ENABLED)),
+            CONF_FAILOVER_GSM_SERVICE: str(_val(CONF_FAILOVER_GSM_SERVICE, "") or ""),
+            CONF_FAILOVER_LOCAL_ALARM: bool(_val(CONF_FAILOVER_LOCAL_ALARM, DEFAULT_FAILOVER_LOCAL_ALARM)),
         }
 
     async def async_bypass_sensor(self, entity_id: str):
@@ -896,6 +1132,25 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         """Register the event log sensor."""
         self._event_sensor = sensor
 
+    def set_watch_sensor(self, sensor):
+        """Register the smartwatch status sensor."""
+        self._watch_sensor = sensor
+        self._sync_watch_sensor()
+
+    def _sync_watch_sensor(self):
+        """Update smartwatch sensor if registered."""
+        if hasattr(self, "_watch_sensor") and self._watch_sensor:
+            lbl = self._get_compact_label()
+            st = self._get_compact_state()
+            icon = "mdi:shield-check"
+            if st == "TRIGGERED":
+                icon = "mdi:shield-alert"
+            elif st == "PRE_ALERT":
+                icon = "mdi:shield-sync"
+            elif st.startswith("ARMED"):
+                icon = "mdi:shield-lock"
+            self._watch_sensor.async_update_status(lbl, st, icon)
+
     def _get_french_time(self):
         """Retourne la date et l'heure formatée en français."""
         now_dt = dt_now()
@@ -910,6 +1165,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             self._system_events = self._system_events[:50]
         if self._event_sensor:
             self._event_sensor.async_add_event(utcnow().isoformat(), message)
+        self._sync_watch_sensor()
         try:
             self.async_write_ha_state()
         except Exception as err:
@@ -1030,6 +1286,32 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 "mobile_app_notification_action", self._async_handle_mobile_action
             )
         )
+
+        # Proximity sensor listener for predictive arrival
+        if getattr(self, "_proximity_sensor", None) and self._proximity_sensor:
+            @callback
+            def _proximity_changed(event):
+                new_st = event.data.get("new_state")
+                if new_st:
+                    self._handle_proximity_update(new_st)
+
+            self.async_on_remove(
+                async_track_state_change_event(
+                    self.hass, [self._proximity_sensor], _proximity_changed
+                )
+            )
+
+        # Physical Wall Keypads listener (Zigbee ZHA / Deconz / Ring)
+        if getattr(self, "_keypad_enabled", True):
+            async def _handle_keypad_event(event):
+                await self._async_handle_keypad_event(event)
+
+            self.async_on_remove(
+                self.hass.bus.async_listen("zha_event", _handle_keypad_event)
+            )
+            self.async_on_remove(
+                self.hass.bus.async_listen("deconz_event", _handle_keypad_event)
+            )
 
         # RFID Tags listener
         if self._rfid_tags:
@@ -1227,6 +1509,120 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         elif action == "DOMOLINK_CANCEL_ARM":
             self._log_event("Armement annulé par l'utilisateur")
             await self._async_send_notification("❌ Armement annulé.")
+
+        elif action == "DOMOLINK_SNOOZE_15M":
+            _LOGGER.info("Domolink: Rappel d'armement reporté de 15 minutes")
+            self._log_event("Rappel d'armement reporté de 15 minutes")
+            from homeassistant.helpers.event import async_call_later
+            self._geofence_reminder_task = async_call_later(
+                self.hass,
+                15 * 60,
+                self._cb_geofence_reminder,
+            )
+            await self._async_send_notification("⏳ Rappel d'armement reporté de 15 minutes.")
+
+    # ─── Predictive Geofencing & Keypads ──────────────────────────
+
+    def _handle_proximity_update(self, state):
+        """Predictive geofencing: check if approaching home while armed."""
+        if not getattr(self, "_geofence_approach_reminder", False):
+            return
+        if self._state not in (AlarmControlPanelState.ARMED_AWAY, AlarmControlPanelState.ARMED_NIGHT):
+            return
+
+        try:
+            distance = float(state.state)
+            unit = state.attributes.get("unit_of_measurement", "m")
+            dist_meters = distance * 1000 if unit == "km" else distance
+            dir_of_travel = state.attributes.get("dir_of_travel", "")
+            
+            if dir_of_travel in ("towards", "approaching", "") and dist_meters <= getattr(self, "_geofence_approach_distance", 1000):
+                now_loop = self.hass.loop.time()
+                if getattr(self, "_last_approach_notif_ts", 0) + 1800 < now_loop:
+                    self._last_approach_notif_ts = now_loop
+                    _LOGGER.info("Domolink Proximity: Arrivée imminente (%d m), envoi rappel de désarmement", dist_meters)
+                    self._log_event(f"Rappel d'approche envoyé (distance: {int(dist_meters)}m)")
+                    action_data = {
+                        "actions": [
+                            {"action": "DOMOLINK_DISARM", "title": "🔓 Désarmer l'alarme"},
+                            {"action": "DOMOLINK_SNOOZE_15M", "title": "⏳ Reporter (15 min)"},
+                        ]
+                    }
+                    self.hass.async_create_task(
+                        self._async_send_notification(
+                            f"🚗 Retour imminent détecté ({int(dist_meters)} m). Souhaitez-vous désarmer l'alarme ?",
+                            custom_data=action_data
+                        )
+                    )
+        except Exception as e:
+            _LOGGER.debug("Domolink: Proximity check error: %s", e)
+
+    async def _async_handle_keypad_event(self, event):
+        """Handle physical keypad events (ZHA / Deconz / Ring Keypad)."""
+        data = event.data or {}
+        command = data.get("command") or data.get("event") or ""
+        args = data.get("args") or {}
+        
+        code = None
+        arm_mode = None
+        if isinstance(args, dict):
+            arm_mode = args.get("arm_mode")
+            code = args.get("code")
+        elif isinstance(args, (list, tuple)) and len(args) >= 1:
+            arm_mode = args[0]
+            if len(args) >= 2:
+                code = args[1]
+
+        if command in ("arm", "disarm", "emergency", "panic"):
+            _LOGGER.info("Domolink: Événement clavier physique reçu : command=%s, arm_mode=%s", command, arm_mode)
+            if command == "disarm" or arm_mode == 0:
+                user = self._validate_code(code) if code else None
+                if user or not self._users:
+                    self._last_user = f"{user or 'Clavier'} (Mur)"
+                    await self.async_alarm_disarm(code)
+                else:
+                    _LOGGER.warning("Domolink: Code clavier physique erroné")
+                    self._log_event("Code erroné sur clavier physique")
+                    await self._async_sync_keypads("error")
+            elif arm_mode in (1, "arm_day_zones"):
+                await self.async_alarm_arm_home(code)
+            elif arm_mode in (2, "arm_night_zones"):
+                await self.async_alarm_arm_night(code)
+            elif arm_mode in (3, "arm_all_zones") or command == "arm":
+                await self.async_alarm_arm_away(code)
+            elif command in ("panic", "emergency") or arm_mode in (4, "emergency"):
+                await self.async_panic(activate_sirens=True)
+
+    async def _async_sync_keypads(self, feedback=None):
+        """Send state synchronization and audible beeps to physical keypads."""
+        if not getattr(self, "_keypad_enabled", True):
+            return
+
+        if getattr(self, "_mqtt_enabled", False) and "mqtt" in self.hass.config.components:
+            from homeassistant.components import mqtt
+            topic = f"{self._mqtt_topic_base}/keypad/status"
+            payload = {
+                "state": self._state,
+                "feedback": feedback,
+                "entry_delay": self._entry_delay,
+                "exit_delay": self._exit_delay,
+            }
+            import json
+            try:
+                await mqtt.async_publish(self.hass, topic, json.dumps(payload))
+            except Exception as e:
+                _LOGGER.debug("Domolink: Erreur MQTT sync clavier: %s", e)
+
+        if hasattr(self, "_keypads") and self._keypads:
+            for kp in self._keypads:
+                try:
+                    domain = kp.split(".")[0]
+                    if self._state == AlarmControlPanelState.ARMING and self._keypad_beep_exit:
+                        await self.hass.services.async_call(domain, "turn_on", {"entity_id": kp})
+                    elif self._state == AlarmControlPanelState.PENDING and self._keypad_beep_entry:
+                        await self.hass.services.async_call(domain, "turn_on", {"entity_id": kp})
+                except Exception:
+                    pass
 
     # ─── RFID Tag Handling ────────────────────────────────────────
 
@@ -1607,7 +2003,38 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
             if not sent:
                 _LOGGER.warning("Domolink: Impossible de trouver un service de notification valide pour %s", target)
-                
+
+        # ─── FAILOVER GSM / LOCAL BACKUP ──────────────────────────────────────
+        if (is_alert or is_emergency) and getattr(self, "_failover_enabled", False):
+            network_down = False
+            if hasattr(self, "_failover_ping_entity") and self._failover_ping_entity:
+                ping_state = self.hass.states.get(self._failover_ping_entity)
+                if ping_state and ping_state.state in ("off", "unavailable", "unknown", "disconnected"):
+                    network_down = True
+
+            if network_down or (not sent_targets and targets):
+                self._network_failover_active = True
+                _LOGGER.warning("Domolink: Déclenchement alerte secours Réseau / GSM")
+                self._log_event("Secours Réseau actif : tentative alerte locale/GSM")
+
+                if hasattr(self, "_failover_notification_target") and self._failover_notification_target:
+                    try:
+                        fo_target = self._failover_notification_target
+                        if fo_target.startswith("notify."):
+                            fo_svc = fo_target.split(".", 1)[1]
+                            await self.hass.services.async_call("notify", fo_svc, {"message": f"[SECOURS GSM] {message}"})
+                        elif "." in fo_target:
+                            fo_dom, fo_svc = fo_target.split(".", 1)
+                            await self.hass.services.async_call(fo_dom, fo_svc, {"message": f"[SECOURS GSM] {message}"})
+                        sent_targets.append(f"Secours ({fo_target})")
+                    except Exception as e:
+                        _LOGGER.error("Domolink: Échec alerte secours %s: %s", self._failover_notification_target, e)
+
+                if getattr(self, "_failover_siren_fallback", False) and not self._is_siren_active:
+                    self.hass.async_create_task(self._async_turn_on_siren())
+            else:
+                self._network_failover_active = False
+
         if sent_targets:
             # Nettoyer un peu le message pour le log (enlever les sauts de ligne)
             clean_msg = message.replace("\n", " - ")
@@ -1727,8 +2154,85 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 )
             return
 
-        # Cross-zoning check for motion sensors in Away / Night
-        if self._cross_zoning and entity_id in self._motion_sensors and self._state in (AlarmControlPanelState.ARMED_AWAY, AlarmControlPanelState.ARMED_NIGHT):
+        # ─── NF A2P Double Detection & Cross-Zoning Check ─────────────
+        if getattr(self, "_nf_a2p_mode", False) and self._state in (
+            AlarmControlPanelState.ARMED_AWAY,
+            AlarmControlPanelState.ARMED_NIGHT,
+            AlarmControlPanelState.ARMED_HOME,
+        ):
+            if (entity_id in self._opening_sensors) or (entity_id in self._motion_sensors):
+                now_loop = self.hass.loop.time()
+                if not getattr(self, "_pre_alert_active", False):
+                    # Phase 1: Enter Pre-Alert state
+                    self._pre_alert_active = True
+                    self._pre_alert_sensor = entity_id
+                    self._pre_alert_sensor_name = new_state.name or entity_id
+                    self._pre_alert_expires_at = now_loop + self._nf_a2p_window
+
+                    if self._pre_alert_task:
+                        self._pre_alert_task()
+                    from homeassistant.helpers.event import async_call_later
+                    self._pre_alert_task = async_call_later(
+                        self.hass,
+                        self._nf_a2p_window,
+                        self._cb_nf_a2p_timeout,
+                    )
+
+                    _LOGGER.info(
+                        "Domolink NF A2P: 1ère détection sur %s, phase de pré-alerte active (%ds)",
+                        self._pre_alert_sensor_name,
+                        self._nf_a2p_window,
+                    )
+                    self._log_event(f"⚠️ Pré-alerte intrusion (NF A2P) : {self._pre_alert_sensor_name}")
+                    self.async_write_ha_state()
+
+                    # Soft chime or deterrent voice
+                    if getattr(self, "_nf_a2p_pre_alert_chime", True):
+                        self.hass.async_create_task(
+                            self._async_play_tts(self._tts_pre_alert_msg, volume=self._tts_volume_info)
+                        )
+
+                    # Silent / info notification to owner
+                    action_data = {
+                        "actions": [
+                            {"action": "DOMOLINK_DISARM", "title": "🔓 Désarmer"},
+                        ]
+                    }
+                    self.hass.async_create_task(
+                        self._async_send_notification(
+                            f"⚠️ Pré-alerte intrusion : {self._pre_alert_sensor_name}.\nEn attente de confirmation (NF A2P - {self._nf_a2p_window}s)...",
+                            custom_data=action_data,
+                            is_alert=False
+                        )
+                    )
+                    return
+                else:
+                    # Phase 2: Confirmation by second detection
+                    is_distinct = (entity_id != self._pre_alert_sensor)
+                    diff = now_loop - (self._pre_alert_expires_at - self._nf_a2p_window)
+
+                    if not getattr(self, "_nf_a2p_strict_distinct", True) or is_distinct or diff >= 3.0:
+                        _LOGGER.info(
+                            "Domolink NF A2P: Intrusion confirmée par 2ème capteur %s (1er: %s) !",
+                            new_state.name,
+                            self._pre_alert_sensor_name,
+                        )
+                        if self._pre_alert_task:
+                            self._pre_alert_task()
+                            self._pre_alert_task = None
+                        self._pre_alert_active = False
+
+                        self._log_event(
+                            f"🚨 Double détection confirmée (NF A2P) : {self._pre_alert_sensor_name} + {new_state.name}"
+                        )
+                        self._record_incident(trigger_sensor=self._pre_alert_sensor, confirmed_sensor=entity_id)
+                        await self._async_trigger_alarm(entity_id)
+                        return
+                    else:
+                        _LOGGER.debug("Domolink NF A2P: Même capteur répété trop vite, en attente d'un 2ème capteur")
+                        return
+
+        elif self._cross_zoning and entity_id in self._motion_sensors and self._state in (AlarmControlPanelState.ARMED_AWAY, AlarmControlPanelState.ARMED_NIGHT):
             now_loop = self.hass.loop.time()
             confirmed = False
             for prev_id, prev_time in list(self._last_motion_detection.items()):
@@ -1830,11 +2334,12 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
     # ─── TTS Helper ───────────────────────────────────────────────
 
-    async def _async_play_tts(self, message):
+    async def _async_play_tts(self, message, volume=None):
         """Prepare media players and play TTS message in background."""
         if not self._media_players:
             return
 
+        target_vol = volume if volume is not None else 0.5
         for player in self._media_players:
             try:
                 # 1. Allumer l'ampli/player
@@ -1846,10 +2351,10 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 pass
                 
             try:
-                # 2. Régler le volume à 50%
+                # 2. Régler le volume
                 await self.hass.services.async_call(
                     "media_player", "volume_set",
-                    {"entity_id": player, "volume_level": 0.5},
+                    {"entity_id": player, "volume_level": target_vol},
                 )
             except Exception as e:
                 pass
@@ -1951,6 +2456,17 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             self._log_event(f"🚨 Alarme DÉCLENCHÉE par {self._triggered_by}")
         name = state.name if state else triggering_entity
 
+        # Certified incident recording
+        self._record_incident(
+            "intrusion",
+            {
+                "sensor": triggering_entity,
+                "sensor_name": self._triggered_by,
+                "mode": str(self._pre_trigger_state),
+            }
+        )
+        self.hass.async_create_task(self._async_sync_keypads("triggered"))
+
         # ─── 1. INSTANT SIRENS & PANIC LIGHTS (Priority #1: Immediate deterrent) ───
         should_siren = (
             self._pre_trigger_state == AlarmControlPanelState.ARMED_AWAY
@@ -2012,14 +2528,15 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             or triggering_entity in self._tamper_sensors
         )
         if should_tts:
-            tts_message = (
+            tts_message = getattr(self, "_audio_alarm_message", None) or (
                 "Alerte intrusion détectée, le propriétaire et la police ont été prévenus. "
                 "Les enregistrements photos et vidéo ont été réalisés à l'intérieur mais aussi "
                 "à l'extérieur dès que vous avez pénétré dans la propriété. "
                 "Tout est d'ores et déjà sauvegardé en ligne, sur des serveurs sécurisés."
             )
+            tts_vol = getattr(self, "_audio_alarm_volume", 1.0)
             self.hass.async_create_task(
-                self._async_play_tts(tts_message)
+                self._async_play_tts(tts_message, volume=tts_vol)
             )
 
         # ─── 4. NON-BLOCKING CAMERA SNAPSHOTS & RECORDINGS ────────────────────────
@@ -3785,6 +4302,12 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         if self._presence_simulation_task and not self._presence_simulation_forced:
             self._presence_simulation_task()
             self._presence_simulation_task = None
+        if hasattr(self, "_pre_alert_task") and self._pre_alert_task:
+            self._pre_alert_task()
+            self._pre_alert_task = None
+        self._pre_alert_active = False
+        self._pre_alert_sensor = None
+        self._pre_alert_remaining = 0
 
     # ─── Presence Simulation Engine ───────────────────────────────
 
@@ -3831,6 +4354,18 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             CONF_GOOGLE_DRIVE_CLIENT_ID, CONF_GOOGLE_DRIVE_CLIENT_SECRET, CONF_GOOGLE_DRIVE_REFRESH_TOKEN,
             CONF_GOOGLE_DRIVE_FOLDER_ID,
             CONF_MEDIA_PATH, CONF_MEDIA_RETENTION_DAYS, CONF_MEDIA_MAX_SIZE_MB,
+            # NF A2P Double Detection
+            CONF_NF_A2P_MODE, CONF_NF_A2P_WINDOW, CONF_NF_A2P_STRICT_DISTINCT, CONF_NF_A2P_PRE_ALERT_CHIME,
+            # User Profiles
+            CONF_USERS_PROFILES,
+            # Predictive Geofencing
+            CONF_PROXIMITY_SENSOR, CONF_GEOFENCE_APPROACH_REMINDER, CONF_GEOFENCE_APPROACH_DISTANCE,
+            # Physical Keypads
+            CONF_KEYPAD_ENABLED, CONF_KEYPAD_BEEP_ENTRY, CONF_KEYPAD_BEEP_EXIT,
+            # Audio Deterrence
+            CONF_DETERRENCE_ENABLED, CONF_DETERRENCE_LEVEL, CONF_TTS_PRE_ALERT_MSG, CONF_TTS_ALARM_MSG, CONF_TTS_VOLUME_ALERT, CONF_TTS_VOLUME_INFO,
+            # Network Failover
+            CONF_FAILOVER_GSM_ENABLED, CONF_FAILOVER_GSM_SERVICE, CONF_FAILOVER_LOCAL_ALARM,
         }
         
         updated = False
@@ -3981,6 +4516,128 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         except Exception as e:
             _LOGGER.debug("Domolink: Simulation Présence tick error: %s", e)
 
+    # ─── NF A2P, Profiles & Certified Reports ─────────────────────
+
+    @callback
+    def _cb_nf_a2p_timeout(self, now=None):
+        """Handle expiration of NF A2P double detection confirmation window."""
+        _LOGGER.info("Domolink NF A2P: Fenêtre de confirmation expirée sans second détecteur.")
+        self._pre_alert_active = False
+        self._pre_alert_sensor = None
+        self._pre_alert_remaining = 0
+        self._pre_alert_task = None
+        self._log_event("NF A2P : Fin de pré-alerte (fausse alerte écartée)")
+        self.async_write_ha_state()
+        self.hass.async_create_task(self._async_sync_keypads("pre_alert_ended"))
+
+    def _record_incident(self, trigger_type, details=None):
+        """Record certified incident report structure for export."""
+        import hashlib
+        import json
+
+        now = dt_util.now()
+        timestamp = now.isoformat()
+        incident_id = f"INC-{now.strftime('%Y%m%d%H%M%S')}"
+
+        recent_logs = list(self._event_history[:15]) if hasattr(self, "_event_history") else []
+
+        incident_data = {
+            "id": incident_id,
+            "timestamp": timestamp,
+            "french_date": self._get_french_time(),
+            "type": trigger_type,
+            "alarm_name": self.name or "Domolink Alarm",
+            "state_before": str(getattr(self, "_pre_trigger_state", self._state)),
+            "trigger_sensor": getattr(self, "_last_triggered_by", None),
+            "trigger_name": getattr(self, "_triggered_by", "Inconnu"),
+            "details": details or {},
+            "active_faults": list(self._faults),
+            "bypassed_sensors": list(self._bypassed_sensors),
+            "recent_events": recent_logs,
+            "system_version": "0.9.71",
+        }
+
+        raw_payload = json.dumps(incident_data, sort_keys=True, ensure_ascii=False)
+        sha256_hash = hashlib.sha256(raw_payload.encode("utf-8")).hexdigest()
+        incident_data["sha256_token"] = sha256_hash.upper()
+
+        self._last_incident_report = incident_data
+        _LOGGER.info("Domolink: Rapport d'incident certifié créé: %s (SHA256: %s)", incident_id, sha256_hash[:12])
+        return incident_data
+
+    def get_incident_report_data(self):
+        """Return latest incident report data or build one from recent state."""
+        if hasattr(self, "_last_incident_report") and self._last_incident_report:
+            return self._last_incident_report
+        return self._record_incident("system_snapshot", {"reason": "export_manuel"})
+
+    async def async_add_user_profile(
+        self,
+        name,
+        pin,
+        role="guest",
+        valid_from=None,
+        valid_to=None,
+        allowed_days=None,
+        allowed_hours=None,
+        single_use=False,
+        enabled=True,
+    ):
+        """Add or update a temporary / guest user profile."""
+        if not name or not pin:
+            raise HomeAssistantError("Nom et code PIN obligatoires.")
+
+        self._users_profiles = [
+            p for p in self._users_profiles
+            if p.get("pin") != str(pin).strip() and p.get("name") != str(name).strip()
+        ]
+
+        profile = {
+            "name": str(name).strip(),
+            "pin": str(pin).strip(),
+            "role": str(role).strip(),
+            "valid_from": valid_from,
+            "valid_to": valid_to,
+            "allowed_days": allowed_days if allowed_days is not None else [1, 2, 3, 4, 5, 6, 7],
+            "allowed_hours": allowed_hours,
+            "single_use": bool(single_use),
+            "enabled": bool(enabled),
+            "created_at": dt_util.utcnow().isoformat(),
+        }
+        self._users_profiles.append(profile)
+        await self._async_persist_user_profiles()
+        self._log_event(f"Profil utilisateur ajouté : {name} ({role})")
+        self.async_write_ha_state()
+
+    async def async_delete_user_profile(self, pin=None, name=None):
+        """Delete a user profile by pin or name."""
+        initial_len = len(self._users_profiles)
+        self._users_profiles = [
+            p for p in self._users_profiles
+            if (pin is None or p.get("pin") != str(pin).strip())
+            and (name is None or p.get("name") != str(name).strip())
+        ]
+        if len(self._users_profiles) != initial_len:
+            await self._async_persist_user_profiles()
+            self._log_event(f"Profil utilisateur supprimé : {name or pin}")
+            self.async_write_ha_state()
+
+    async def _async_persist_user_profiles(self):
+        """Save user profiles into config entry options."""
+        if not self._entry:
+            return
+        new_options = dict(self._entry.options if self._entry.options else self._entry.data)
+        import json
+        new_options[CONF_USERS_PROFILES] = json.dumps(self._users_profiles)
+        self.hass.config_entries.async_update_entry(self._entry, options=new_options)
+
+    async def async_snooze_reminder(self, duration_minutes=15):
+        """Snooze geofencing departure reminder."""
+        _LOGGER.info("Domolink: Rappel d'armement mis en pause pour %s minutes", duration_minutes)
+        self._geofence_snooze_until = self.hass.loop.time() + (int(duration_minutes) * 60)
+        self._log_event(f"Rappel départ reporté de {duration_minutes} min")
+        self.async_write_ha_state()
+
     # ─── Code Validation ──────────────────────────────────────────
 
     def _validate_code(self, code):
@@ -4009,10 +4666,78 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         if self._duress_code and code == self._duress_code:
             return "DURESS"
 
+        # Check permanent users
         user_name = self._users.get(code)
         if user_name:
             self._failed_attempts = 0
             return user_name
+
+        # Check Temporary / Guest User Profiles
+        if hasattr(self, "_users_profiles") and self._users_profiles:
+            now_dt = dt_util.now()
+            for profile in self._users_profiles:
+                if str(profile.get("pin")) != str(code):
+                    continue
+                if not profile.get("enabled", True):
+                    _LOGGER.warning("Domolink: Profil '%s' désactivé", profile.get("name"))
+                    break
+
+                # Check date validity window
+                valid_from = profile.get("valid_from")
+                if valid_from:
+                    try:
+                        from_dt = dt_util.parse_datetime(valid_from)
+                        if from_dt and now_dt < from_dt:
+                            _LOGGER.warning("Domolink: Profil '%s' pas encore actif", profile.get("name"))
+                            break
+                    except Exception:
+                        pass
+
+                valid_to = profile.get("valid_to")
+                if valid_to:
+                    try:
+                        to_dt = dt_util.parse_datetime(valid_to)
+                        if to_dt and now_dt > to_dt:
+                            _LOGGER.warning("Domolink: Profil '%s' expiré", profile.get("name"))
+                            break
+                    except Exception:
+                        pass
+
+                # Check day of week (ISO 1=Monday .. 7=Sunday)
+                allowed_days = profile.get("allowed_days")
+                if allowed_days:
+                    today_iso = now_dt.isoweekday()
+                    if today_iso not in allowed_days and str(today_iso) not in [str(d) for d in allowed_days]:
+                        _LOGGER.warning("Domolink: Profil '%s' non autorisé le jour %s", profile.get("name"), today_iso)
+                        break
+
+                # Check hour window (e.g. "08:00-18:00")
+                allowed_hours = profile.get("allowed_hours")
+                if allowed_hours and "-" in allowed_hours:
+                    try:
+                        sh, sm = map(int, allowed_hours.split("-")[0].strip().split(":"))
+                        eh, em = map(int, allowed_hours.split("-")[1].strip().split(":"))
+                        cur_minutes = now_dt.hour * 60 + now_dt.minute
+                        start_minutes = sh * 60 + sm
+                        end_minutes = eh * 60 + em
+                        if cur_minutes < start_minutes or cur_minutes > end_minutes:
+                            _LOGGER.warning("Domolink: Profil '%s' hors plage horaire (%s)", profile.get("name"), allowed_hours)
+                            break
+                    except Exception as e:
+                        _LOGGER.debug("Domolink: Erreur vérification horaires: %s", e)
+
+                # Valid profile!
+                self._failed_attempts = 0
+                prof_name = profile.get("name", "Invité")
+                prof_role = profile.get("role", "invité")
+
+                if profile.get("single_use", False):
+                    profile["enabled"] = False
+                    profile["used_at"] = dt_util.utcnow().isoformat()
+                    self.hass.async_create_task(self._async_persist_user_profiles())
+                    _LOGGER.info("Domolink: Profil à usage unique '%s' consommé", prof_name)
+
+                return f"{prof_name} ({prof_role})"
 
         # Invalid code
         self._failed_attempts += 1
@@ -4072,6 +4797,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self.async_write_ha_state()
 
         await self._async_turn_off_siren()
+        self.hass.async_create_task(self._async_sync_keypads("disarmed"))
 
         if user != "DURESS":
             # Personalized TTS greeting
@@ -4179,6 +4905,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._record_arm_event("arm", self._last_user, "HOME")
         self._log_event(f"Alarme Armée (Mode: Présent) par {self._last_user}")
         self.hass.async_create_task(self._async_sync_cameras(True))
+        self.hass.async_create_task(self._async_sync_keypads("armed_home"))
         self.async_write_ha_state()
 
     async def async_alarm_arm_away(self, code=None):
@@ -4198,6 +4925,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         if self._exit_delay > 0:
             self._state = AlarmControlPanelState.ARMING
             self.async_write_ha_state()
+            self.hass.async_create_task(self._async_sync_keypads("arming"))
             self._arming_task = async_call_later(
                 self.hass,
                 self._exit_delay,
@@ -4214,6 +4942,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._log_event(f"Alarme Armée (Mode: Absent) par {self._last_user}")
         self._start_presence_simulation()
         self.hass.async_create_task(self._async_sync_cameras(True))
+        self.hass.async_create_task(self._async_sync_keypads("armed_away"))
         self.async_write_ha_state()
         self._arming_task = None
 
@@ -4233,6 +4962,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._record_arm_event("arm", self._last_user, "NIGHT")
         self._log_event(f"Alarme Armée (Mode: Nuit) par {self._last_user}")
         self.hass.async_create_task(self._async_sync_cameras(True))
+        self.hass.async_create_task(self._async_sync_keypads("armed_night"))
         self.async_write_ha_state()
 
     # ─── New Services & Scheduled Actions ─────────────────────────

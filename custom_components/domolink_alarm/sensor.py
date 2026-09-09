@@ -11,11 +11,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     alarm_entity = hass.data[DOMAIN][entry.entry_id].get("entity")
     name = entry.data.get(CONF_NAME, DEFAULT_NAME)
     
-    sensor = DomolinkEventLogSensor(entry.entry_id, name, alarm_entity)
-    async_add_entities([sensor])
+    log_sensor = DomolinkEventLogSensor(entry.entry_id, name, alarm_entity)
+    watch_sensor = DomolinkWatchStatusSensor(entry.entry_id, name, alarm_entity)
+    async_add_entities([log_sensor, watch_sensor])
     
     if alarm_entity:
-        alarm_entity.set_log_sensor(sensor)
+        alarm_entity.set_log_sensor(log_sensor)
+        alarm_entity.set_watch_sensor(watch_sensor)
 
 
 class DomolinkEventLogSensor(SensorEntity):
@@ -56,4 +58,41 @@ class DomolinkEventLogSensor(SensorEntity):
         if len(self._events) > 20:
             self._events = self._events[:20]
             
+        self.async_write_ha_state()
+
+
+class DomolinkWatchStatusSensor(SensorEntity):
+    """Compact smartwatch & complication sensor for Apple Watch and Wear OS."""
+
+    def __init__(self, entry_id, alarm_name, alarm_entity):
+        """Initialize."""
+        self._alarm_entity = alarm_entity
+        self._attr_name = "Statut Montre Connectée"
+        self._attr_has_entity_name = True
+        self._attr_unique_id = f"domolink_watch_status_{entry_id}"
+        self._attr_icon = "mdi:shield-check"
+        
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, f"domolink_alarm_{entry_id}")},
+            name=alarm_name,
+            manufacturer="Domolink",
+            model="Domolink Smart Alarm",
+        )
+        self._attr_native_value = "Désarmée"
+        self._compact_state = "DISARMED"
+
+    @property
+    def extra_state_attributes(self):
+        """Return the state attributes for smartwatches."""
+        return {
+            "compact_state": self._compact_state,
+            "label": self._attr_native_value,
+        }
+
+    @callback
+    def async_update_status(self, label, compact_state, icon):
+        """Update compact watch status."""
+        self._attr_native_value = label
+        self._compact_state = compact_state
+        self._attr_icon = icon
         self.async_write_ha_state()

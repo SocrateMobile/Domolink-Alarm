@@ -245,3 +245,97 @@ test_google_drive:
   name: Tester la connexion Google Drive
   description: Force un test complet de diagnostic de synchronisation avec Google Drive (Webhook ou API OAuth2) avec vérification des droits d'écriture.
 
+add_user_profile:
+  name: Ajouter / Mettre à jour un Profil Utilisateur
+  description: Crée ou modifie un code PIN avec plages horaires, jours d'accès et options de validité temporaire.
+  fields:
+    name:
+      name: Nom de l'utilisateur
+      description: Prénom ou nom du profil (ex: Ménage, Voisins).
+      required: true
+      selector:
+        text: {}
+    code:
+      name: Code PIN
+      description: Code PIN à 4 ou 6 chiffres.
+      required: true
+      selector:
+        text: {}
+    role:
+      name: Rôle
+      description: Type de profil (user, guest, cleaner, babysitter).
+      required: false
+      default: guest
+      selector:
+        select:
+          options:
+            - user
+            - guest
+            - cleaner
+            - babysitter
+    allowed_days:
+      name: Jours autorisés
+      description: Jours de la semaine autorisés (mon,tue,wed,thu,fri,sat,sun).
+      required: false
+      selector:
+        text: {}
+    allowed_time_start:
+      name: Heure de début
+      description: Heure de début au format HH:MM (ex: 08:00).
+      required: false
+      selector:
+        text: {}
+    allowed_time_end:
+      name: Heure de fin
+      description: Heure de fin au format HH:MM (ex: 18:00).
+      required: false
+      selector:
+        text: {}
+    valid_until:
+      name: Date d'expiration
+      description: Date de fin de validité au format AAAA-MM-JJ (ex: 2026-12-31).
+      required: false
+      selector:
+        text: {}
+    single_use:
+      name: Code à usage unique
+      description: Invalide le code après le premier désarmement réussi.
+      required: false
+      default: false
+      selector:
+        boolean: {}
+
+delete_user_profile:
+  name: Supprimer un Profil Utilisateur
+  description: Supprime un profil utilisateur ou code PIN temporaire.
+  fields:
+    name:
+      name: Nom de l'utilisateur
+      description: Nom du profil à supprimer.
+      required: true
+      selector:
+        text: {}
+
+snooze_reminder:
+  name: Reporter le rappel d'armement (Snooze)
+  description: Repousse le rappel d'oubli d'armement de 15 minutes.
+  fields:
+    minutes:
+      name: Durée du report (minutes)
+      description: Nombre de minutes avant le prochain rappel.
+      required: false
+      default: 15
+      selector:
+        number:
+          min: 5
+          max: 120
+
+sync_physical_keypad:
+  name: Synchroniser les Claviers Physiques
+  description: Émet manuellement les commandes de synchronisation d'état et bips vers les claviers Zigbee / Z-Wave.
+
+generate_incident_report:
+  name: Générer les données du Rapport d'Incident
+  description: Prépare et certifie les données de l'incident le plus récent pour l'export PDF officiel.
+
+
