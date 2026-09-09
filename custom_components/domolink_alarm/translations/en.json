@@ -1,6 +1,5 @@
 {
   "config": {
-    "title": "Domolink Alarm",
     "step": {
       "sensors": {
         "title": "Domolink Alarm Configuration (1/3)",
@@ -155,25 +154,20 @@
       }
     }
   },
-  "state": {
+  "entity": {
     "alarm_control_panel": {
       "domolink_alarm": {
-        "disarmed": "Disarmed",
-        "armed_home": "Armed (Home)",
-        "armed_away": "Armed (Away)",
-        "armed_night": "Armed (Night)",
-        "arming": "Arming...",
-        "pending": "Pending...",
-        "triggered": "TRIGGERED"
+        "state": {
+          "disarmed": "Disarmed",
+          "armed_home": "Armed (Home)",
+          "armed_away": "Armed (Away)",
+          "armed_night": "Armed (Night)",
+          "arming": "Arming...",
+          "pending": "Pending...",
+          "triggered": "TRIGGERED"
+        }
       }
     },
-    "sensor": {
-      "domolink_event_log": {
-        "unknown": "Unknown"
-      }
-    }
-  },
-  "entity": {
     "button": {
       "domolink_sos": {
         "name": "Panic SOS"
@@ -181,7 +175,10 @@
     },
     "sensor": {
       "domolink_event_log": {
-        "name": "Last Event"
+        "name": "Last Event",
+        "state": {
+          "unknown": "Unknown"
+        }
       }
     }
   }
