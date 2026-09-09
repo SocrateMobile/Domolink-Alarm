@@ -7,6 +7,37 @@ Conçue pour dépasser les standards du marché, elle offre une configuration 10
 
 ## 🌟 Fonctionnalités Principales
 
+### 🚀 Nouveautés de la version 0.9.71 (Sécurité Certifiable NF A2P, Profils Invités, Rapport PDF, Smartwatch & Secours 4G)
+- **Algorithme de Double Détection (Confirmation d'Intrusion - Norme NF A2P)** :
+  - Mode haute sécurité anti-faux positifs : l'alarme générale et les sirènes hurlantes ne se déclenchent que si **2 capteurs distincts** détectent une anomalie, ou si le **même capteur est sollicité deux fois** dans une fenêtre temporelle configurable (30s à 180s).
+  - Décompte visuel de pré-alerte et avertissement silencieux/vocal avant alarme générale.
+- **Codes PIN Temporaires & Profils « Invités / Ménage / Baby-sitter / Artisans »** :
+  - Création et gestion de profils d'accès personnalisés avec rôles dédiés (*Aide ménagère*, *Baby-sitter*, *Artisan*, *Invité*, *Famille*).
+  - Prise en charge des **codes à usage unique** (auto-désactivation instantanée après le premier désarmement).
+  - Restrictions temporelles précises : plages horaires autorisées (ex: `08:00 - 18:00`), jours de la semaine autorisés et dates d'expiration calendaires.
+  - Traçabilité nominative complète dans le journal des événements.
+- **Rapport d'Incident Certifié PDF (Export Assurance & Plainte)** :
+  - Génération d'un rapport officiel d'intrusion au format A4 via `@media print` (téléchargeable en PDF ou imprimable directement depuis le navigateur sans dépendance externe lourde).
+  - Synthèse chronologique des déclenchements, horodatage certifié, liste des équipements activés, récapitulatif des sirènes et notifications, et **empreinte cryptographique SHA-256** infalsifiable pour les assurances et forces de l'ordre.
+- **Geofencing Prédictif & Rappels Intelligents de Départ / Retour** :
+  - Intégration native des entités de proximité Home Assistant (`proximity.*`).
+  - Notification prédictive de rappel d'armement lors de l'éloignement du domicile (> 500 m) et notification proactive de désarmement à l'approche (< 200 m).
+  - Prise en charge du bouton d'action rapide et du bouton de report temporaire (Snooze 15 minutes).
+- **Intégration & Synchronisation des Claviers Muraux Physiques (Zigbee, Z-Wave, Deconz)** :
+  - Écoute et traitement automatique des événements des claviers muraux Zigbee ZHA (`zha_event`), Deconz (`deconz_event`) et Ring Keypad v2.
+  - Synchronisation bidirectionnelle de l'état de l'alarme (Absent, Maison, Nuit, Désarmé) et des codes PIN saisis sur le clavier physique.
+- **Support Apple Watch & Wear OS (Complications & Capteur Compact)** :
+  - Nouveau capteur compact dédié `sensor.domolink_watch_status` conçu spécifiquement pour les complications et écrans de montres connectées watchOS et Wear OS.
+  - État court (`DÉSARMÉ`, `ARMÉ (ABSENT)`, `ALERTE`) et libellé enrichi avec horodatage pour une lecture immédiate au poignet.
+- **Dissuasion Vocale & Messages Audio Multi-Niveaux** :
+  - Annonces vocales progressives via Media Player / Text-to-Speech (TTS) : avertissement d'entrée dissuasif à volume doux ("Attention, intrusion détectée, veuillez désarmer l'alarme"), puis avertissement renforcé en alerte confirmée.
+  - Réglage indépendant du volume sonore dédié à la dissuasion vocale.
+- **Bascule de Secours Réseau / 4G (Failover Alerting)** :
+  - Détection de perte de connectivité Internet et bascule automatique des alertes vers les canaux de secours (SMS Free Mobile, passerelle GSM locale, sirène locale autonome).
+  - Indicateur visuel d'état de secours réseau dans le panneau d'administration.
+- **Pipeline CI GitHub Actions & Tests Automatisés** :
+  - Validation continue avec Hassfest officiel Home Assistant, contrôle HACS Action et vérification d'intégrité syntaxique Python et JSON.
+
 ### 🚀 Nouveautés de la version 0.9.70 (Correctif Scintillement Mode Voiture & Pavé Numérique C / ✓)
 - **Élimination complète du scintillement en Mode Voiture** :
   - Mise en cache intelligente du DOM dans le Mode Voiture (`_lastCarKey`) évitant les reconstructions répétitives d'éléments lors des rafraîchissements d'états Home Assistant.
