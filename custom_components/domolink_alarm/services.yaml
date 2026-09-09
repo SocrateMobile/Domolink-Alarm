@@ -150,7 +150,7 @@ test_ftp:
   fields:
     nas_type:
       name: Type de NAS
-      description: Identifiant du profil NAS testé (ex: asustor, synology, qnap, truenas, freebox, unraid, generic).
+      description: "Identifiant du profil NAS testé (ex: asustor, synology, qnap, truenas, freebox, unraid, generic)."
       required: false
       selector:
         text: {}
@@ -208,7 +208,7 @@ test_webdav:
   fields:
     nas_type:
       name: Type de NAS
-      description: Identifiant du profil NAS testé (ex: asustor, synology, qnap, truenas, freebox, unraid, generic).
+      description: "Identifiant du profil NAS testé (ex: asustor, synology, qnap, truenas, freebox, unraid, generic)."
       required: false
       selector:
         text: {}
@@ -251,7 +251,7 @@ add_user_profile:
   fields:
     name:
       name: Nom de l'utilisateur
-      description: Prénom ou nom du profil (ex: Ménage, Voisins).
+      description: "Prénom ou nom du profil (ex: Ménage, Voisins)."
       required: true
       selector:
         text: {}
@@ -281,19 +281,19 @@ add_user_profile:
         text: {}
     allowed_time_start:
       name: Heure de début
-      description: Heure de début au format HH:MM (ex: 08:00).
+      description: "Heure de début au format HH:MM (ex: 08:00)."
       required: false
       selector:
         text: {}
     allowed_time_end:
       name: Heure de fin
-      description: Heure de fin au format HH:MM (ex: 18:00).
+      description: "Heure de fin au format HH:MM (ex: 18:00)."
       required: false
       selector:
         text: {}
     valid_until:
       name: Date d'expiration
-      description: Date de fin de validité au format AAAA-MM-JJ (ex: 2026-12-31).
+      description: "Date de fin de validité au format AAAA-MM-JJ (ex: 2026-12-31)."
       required: false
       selector:
         text: {}
