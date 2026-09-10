@@ -263,7 +263,7 @@ DEFAULT_NAS_CONFIGS = {
         "ftp_port": 21,
         "ftp_user": "freebox",
         "ftp_pass": "",
-        "ftp_path": "/",
+        "ftp_path": "/Disque 1",
         "webdav_enabled": False,
         "webdav_url": "",
         "webdav_user": "",
