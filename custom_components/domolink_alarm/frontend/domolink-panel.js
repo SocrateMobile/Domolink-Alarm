@@ -444,6 +444,13 @@ class DomolinkPanel extends HTMLElement {
           --d-key-border: rgba(0, 0, 0, 0.08);
         }
 
+        .panel-wrap,
+        .panel-wrap *,
+        .panel-wrap *::before,
+        .panel-wrap *::after {
+          box-sizing: border-box;
+        }
+
         .panel-wrap {
           background-color: var(--d-bg);
           background-image: 
@@ -922,13 +929,13 @@ class DomolinkPanel extends HTMLElement {
         /* ─── 3-Column Dashboard Layout ──────────── */
         .arm-layout-grid {
           display: grid;
-          grid-template-columns: 290px 1fr 340px;
+          grid-template-columns: 290px minmax(0, 1fr) 340px;
           gap: 20px;
           align-items: start;
         }
         @media (max-width: 1180px) {
-          .arm-layout-grid { grid-template-columns: 1fr 1fr; }
-          .left-widgets-col { grid-column: span 2; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+          .arm-layout-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+          .left-widgets-col { grid-column: span 2; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
         }
         @media (max-width: 820px) {
           .arm-layout-grid {
@@ -959,6 +966,8 @@ class DomolinkPanel extends HTMLElement {
           display: flex;
           flex-direction: column;
           gap: 16px;
+          min-width: 0;
+          box-sizing: border-box;
         }
 
         .widget-card {
@@ -967,6 +976,9 @@ class DomolinkPanel extends HTMLElement {
           flex-direction: column;
           gap: 10px;
           border-radius: 20px;
+          min-width: 0;
+          box-sizing: border-box;
+          overflow: hidden;
         }
         .widget-header {
           display: flex;
@@ -1049,6 +1061,21 @@ class DomolinkPanel extends HTMLElement {
           padding-top: 2px;
         }
 
+        .cam-test-widget-box {
+          width: 100%;
+          max-width: 100%;
+          box-sizing: border-box;
+          margin-top: 10px;
+          background: rgba(245, 158, 11, 0.08);
+          border: 1px solid rgba(245, 158, 11, 0.25);
+          border-radius: 10px;
+          padding: 9px 12px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          overflow: hidden;
+        }
+
         .stat-big-value {
           font-size: 24px;
           font-weight: 800;
@@ -1091,6 +1118,23 @@ class DomolinkPanel extends HTMLElement {
           display: flex;
           flex-direction: column;
           gap: 20px;
+          min-width: 0;
+          box-sizing: border-box;
+        }
+
+        .camera-test-progress-card {
+          display: flex;
+          flex-direction: column;
+          width: 100%;
+          max-width: 100%;
+          box-sizing: border-box;
+          gap: 12px;
+          background: rgba(245, 158, 11, 0.06);
+          border-radius: 12px;
+          border: 1px solid rgba(245, 158, 11, 0.3);
+          padding: 14px;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+          overflow: hidden;
         }
 
         /* Large Rounded Encadré Pill with Neon Glow */
@@ -3081,9 +3125,9 @@ class DomolinkPanel extends HTMLElement {
       const cameraLabel = info.camera_name && info.camera_name !== '...' ? info.camera_name : (current > 0 ? `Caméra ${current}/${total}` : 'Initialisation...');
 
       return `
-        <div class="camera-test-progress-card" style="display:flex; flex-direction:column; width:100%; gap:12px; background:rgba(245,158,11,0.06); border-radius:12px; border:1px solid rgba(245,158,11,0.3); padding:14px; box-shadow:0 4px 16px rgba(0,0,0,0.1);">
+        <div class="camera-test-progress-card" style="display:flex; flex-direction:column; width:100%; max-width:100%; box-sizing:border-box; gap:12px; background:rgba(245,158,11,0.06); border-radius:12px; border:1px solid rgba(245,158,11,0.3); padding:14px; box-shadow:0 4px 16px rgba(0,0,0,0.1); overflow:hidden;">
           <!-- Total Progress -->
-          <div>
+          <div style="width:100%; box-sizing:border-box;">
             <div style="display:flex; justify-content:space-between; font-size:11px; font-weight:800; margin-bottom:6px; color:#10b981;">
               <span class="cam-test-global-text">GLOBAL (${current}/${total})</span>
               <span class="cam-test-global-pct">${Math.round(globalPct)}%</span>
@@ -3093,10 +3137,10 @@ class DomolinkPanel extends HTMLElement {
             </div>
           </div>
           <!-- Current Camera Progress -->
-          <div>
+          <div style="width:100%; box-sizing:border-box;">
             <div style="font-size:12px; font-weight:800; margin-bottom:6px; color:var(--d-text); display:flex; justify-content:space-between; align-items:center;">
-              <div>Caméra : <span class="cam-test-camera-name" style="color:#f59e0b;">${this.escapeHtml(cameraLabel)}</span></div>
-              <span style="font-size:10px; font-weight:700; color:#f59e0b; background:rgba(245,158,11,0.15); padding:2px 6px; border-radius:4px;">${current > 0 ? `${current}/${total}` : '...'}</span>
+              <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; margin-right:8px;">Caméra : <span class="cam-test-camera-name" style="color:#f59e0b;">${this.escapeHtml(cameraLabel)}</span></div>
+              <span style="font-size:10px; font-weight:700; color:#f59e0b; background:rgba(245,158,11,0.15); padding:2px 6px; border-radius:4px; flex-shrink:0;">${current > 0 ? `${current}/${total}` : '...'}</span>
             </div>
             ${stepHtml}
           </div>
@@ -3157,17 +3201,17 @@ class DomolinkPanel extends HTMLElement {
 
             <!-- Test d'enregistrement vidéo Button (Widget 1) -->
             ${attrs.camera_test_running ? `
-            <div style="width:100%; margin-top:10px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.25); border-radius:10px; padding:9px 12px; display:flex; align-items:center; gap:8px;">
+            <div class="cam-test-widget-box" style="width:100%; max-width:100%; box-sizing:border-box; margin-top:10px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.25); border-radius:10px; padding:9px 12px; display:flex; align-items:center; gap:8px; overflow:hidden;">
               <ha-icon icon="mdi:loading" style="--mdc-icon-size:18px; color:#f59e0b; animation:spin 1s linear infinite; flex-shrink:0;"></ha-icon>
-              <div style="flex:1; min-width:0;">
-                <div class="cam-test-widget-current" style="font-size:10px; font-weight:800; color:#f59e0b; text-transform:uppercase; letter-spacing:0.5px;">Test en cours (${Math.max(0, (attrs.camera_test_info || {}).current || 0)}/${Math.max(1, (attrs.camera_test_info || {}).total || 1)})</div>
+              <div style="flex:1; min-width:0; overflow:hidden;">
+                <div class="cam-test-widget-current" style="font-size:10px; font-weight:800; color:#f59e0b; text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Test en cours (${Math.max(0, (attrs.camera_test_info || {}).current || 0)}/${Math.max(1, (attrs.camera_test_info || {}).total || 1)})</div>
                 <div class="cam-test-widget-cam" style="font-size:11.5px; font-weight:700; color:var(--d-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${this.escapeHtml((attrs.camera_test_info || {}).camera_name || 'Initialisation...')}</div>
               </div>
             </div>
             ` : `
-            <button class="btn-test-cameras-record" id="btn-test-cameras-record-widget" style="width:100%; margin-top:10px; background:linear-gradient(135deg, rgba(245,158,11,0.12), rgba(217,119,6,0.22)); border:1px solid rgba(245,158,11,0.45); color:#f59e0b; padding:8px 12px; border-radius:10px; font-size:11px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; transition:all 0.2s ease;">
-              <ha-icon icon="mdi:video-check" style="--mdc-icon-size:16px;"></ha-icon>
-              <span>TEST ENREGISTREMENT VIDÉO</span>
+            <button class="btn-test-cameras-record" id="btn-test-cameras-record-widget" style="width:100%; max-width:100%; box-sizing:border-box; margin-top:10px; background:linear-gradient(135deg, rgba(245,158,11,0.12), rgba(217,119,6,0.22)); border:1px solid rgba(245,158,11,0.45); color:#f59e0b; padding:8px 12px; border-radius:10px; font-size:11px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; transition:all 0.2s ease;">
+              <ha-icon icon="mdi:video-check" style="--mdc-icon-size:16px; flex-shrink:0;"></ha-icon>
+              <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">TEST ENREGISTREMENT VIDÉO</span>
             </button>
             `}
           </div>
@@ -3635,9 +3679,9 @@ class DomolinkPanel extends HTMLElement {
           ` : ''}
 
           <!-- Bouton Test d'enregistrement vidéo (Colonne centrale) -->
-          <div style="margin-top:14px;">
+          <div style="margin-top:14px; width:100%; max-width:100%; box-sizing:border-box; overflow:hidden;">
             ${attrs.camera_test_running ? testProgressHTML : `
-            <button class="btn-test-cameras-record" id="btn-test-cameras-record-center" style="width:100%; background:linear-gradient(135deg, rgba(245,158,11,0.12), rgba(217,119,6,0.22)); border:1px solid rgba(245,158,11,0.45); color:#f59e0b; padding:11px 12px; border-radius:12px; font-size:clamp(10.5px, 2.7vw, 12px); font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; transition:all 0.2s ease; box-shadow:0 4px 14px rgba(245,158,11,0.06); text-align:center; box-sizing:border-box;">
+            <button class="btn-test-cameras-record" id="btn-test-cameras-record-center" style="width:100%; max-width:100%; background:linear-gradient(135deg, rgba(245,158,11,0.12), rgba(217,119,6,0.22)); border:1px solid rgba(245,158,11,0.45); color:#f59e0b; padding:11px 12px; border-radius:12px; font-size:clamp(10.5px, 2.7vw, 12px); font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; transition:all 0.2s ease; box-shadow:0 4px 14px rgba(245,158,11,0.06); text-align:center; box-sizing:border-box;">
               <ha-icon icon="mdi:video-check" style="--mdc-icon-size:18px; flex-shrink:0;"></ha-icon>
               <span>TEST D'ENREGISTREMENT VIDÉO (TOUTES LES CAMÉRAS)</span>
             </button>
@@ -4209,7 +4253,7 @@ class DomolinkPanel extends HTMLElement {
       bypassed_sensors: attrs.bypassed_sensors || [],
       recent_events: (attrs.system_events || []).slice(0, 15),
       sha256_token: "DOMO-" + Math.random().toString(36).substring(2, 10).toUpperCase() + Math.random().toString(36).substring(2, 10).toUpperCase(),
-      system_version: "0.9.71"
+      system_version: attrs.system_version || "0.9.74"
     };
 
     const modal = document.createElement('div');
@@ -5797,7 +5841,7 @@ mode: single`;
             <div>
               <div style="font-size:18px; font-weight:800; color:var(--d-text); display:flex; align-items:center; gap:8px;">
                 Centre de Configuration
-                <span class="nav-badge-pill badge-version">v0.9.71</span>
+                <span class="nav-badge-pill badge-version">v${(this._hass && this._hass.states && this._hass.states['alarm_control_panel.domolink_alarm'] && this._hass.states['alarm_control_panel.domolink_alarm'].attributes && this._hass.states['alarm_control_panel.domolink_alarm'].attributes.system_version) || '0.9.74'}</span>
               </div>
               <div style="font-size:12px; color:var(--d-subtext); margin-top:3px;">
                 Modifiez vos équipements, délais, notifications et sauvegardes en toute simplicité
@@ -6985,7 +7029,7 @@ mode: single`;
       const cloudLabel = countCloud > 1 ? 'MULTI-CLOUD' : (isGdrive ? 'G-DRIVE' : (isDav ? 'WEBDAV' : (isFtp ? 'FTP' : 'LOCAL')));
       elParam.innerHTML = `
         <div class="nav-badge-stack">
-          <span class="nav-badge-pill badge-version">v0.9.71</span>
+          <span class="nav-badge-pill badge-version">v${attrs.system_version || '0.9.74'}</span>
           <span class="nav-badge-pill badge-neutral">${cloudLabel}</span>
         </div>
       `;
