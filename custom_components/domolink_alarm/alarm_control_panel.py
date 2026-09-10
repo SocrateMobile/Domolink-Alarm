@@ -1168,6 +1168,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             # Certified Incident Data
             "last_incident_report": dict(getattr(self, "_last_incident_data", {})),
             "installed_config": self._get_installed_config(),
+            "system_version": "0.9.74",
         }
 
     def _get_compact_state(self):
@@ -4690,7 +4691,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             "active_faults": list(self._faults),
             "bypassed_sensors": list(self._bypassed_sensors),
             "recent_events": recent_logs,
-            "system_version": "0.9.71",
+            "system_version": "0.9.74",
         }
 
         raw_payload = json.dumps(incident_data, sort_keys=True, ensure_ascii=False)
