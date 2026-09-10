@@ -5,6 +5,11 @@ import random
 import logging
 import datetime
 from datetime import timedelta
+import io
+import socket
+import ftplib
+import ssl
+from ssl import SSLSocket
 
 import asyncio
 from homeassistant.components.alarm_control_panel import (
@@ -207,6 +212,210 @@ _STATE_MAP = {
     "arming": AlarmControlPanelState.ARMING,
     "triggered": AlarmControlPanelState.TRIGGERED,
 }
+
+
+class _ReusedSslSocket(SSLSocket):
+    """SSL socket wrapper that suppresses unexpected EOF/shutdown errors on close."""
+    def unwrap(self):
+        try:
+            return super().unwrap()
+        except Exception:
+            return None
+
+
+class ReusedSessionFTP_TLS(ftplib.FTP_TLS):
+    """FTP_TLS subclass enforcing TLS session reuse on data connections.
+    Required by Freebox OS, vsftpd, and ProFTPD to avoid '522 SSL connection failed: session reuse required'.
+    """
+    def ntransfercmd(self, cmd, rest=None):
+        conn, size = ftplib.FTP.ntransfercmd(self, cmd, rest)
+        if self._prot_p:
+            session = getattr(self.sock, "session", None)
+            conn = self.context.wrap_socket(
+                conn,
+                server_hostname=self.host,
+                session=session,
+            )
+            conn.__class__ = _ReusedSslSocket
+        return conn, size
+
+
+def _build_ftp_target_path(raw_path: str, nas_type: str = "") -> list[str]:
+    """Build the target path directory segments for NAS upload / test."""
+    p_str = str(raw_path or "").strip()
+    if nas_type == "freebox" and (not p_str or p_str == "/"):
+        p_str = "/Disque 1"
+
+    parts = [p.strip() for p in p_str.split('/') if p.strip()]
+    if parts:
+        res = list(parts)
+        if "alarm" not in res:
+            if "domolink" not in res:
+                res.append("domolink")
+            res.append("alarm")
+        return res
+    return ["domolink", "alarm"]
+
+
+def _ftp_navigate_and_ensure_dirs(ftp, target_parts: list[str], log_step=None) -> tuple[bool, str, str]:
+    """Navigate and create directories sequentially on FTP server.
+    Handles root-level read-only virtual mounts (e.g. Freebox /Disque 1).
+    Returns (success, current_path_str, error_message).
+    """
+    try:
+        ftp.cwd("/")
+    except Exception:
+        pass
+
+    navigated = []
+    for part in target_parts:
+        try:
+            ftp.cwd(part)
+            navigated.append(part)
+            if log_step:
+                log_step(f"   ✓ Dossier '{part}' accessible.", "success")
+        except Exception:
+            created = False
+            try:
+                ftp.mkd(part)
+                ftp.cwd(part)
+                navigated.append(part)
+                if log_step:
+                    log_step(f"   ✓ Dossier '{part}' créé avec succès.", "success")
+                created = True
+            except Exception as mkd_err:
+                # If cannot create at current position and we are at root, check for mounted disk volumes (e.g. Freebox)
+                if len(navigated) == 0:
+                    if log_step:
+                        log_step("   ℹ️ Racine FTP en lecture seule. Détection des volumes montés (ex: Freebox)...", "info")
+                    disk_vols = []
+                    try:
+                        nlst = ftp.nlst()
+                        for item in nlst:
+                            clean_item = item.strip().split('/')[-1]
+                            if clean_item and not clean_item.startswith('.'):
+                                disk_vols.append(clean_item)
+                    except Exception:
+                        pass
+
+                    chosen = None
+                    for v in disk_vols:
+                        if any(k in v.lower() for k in ["disque", "volume", "disk", "share", "hdd", "ssd"]):
+                            chosen = v
+                            break
+                    if not chosen and disk_vols:
+                        chosen = disk_vols[0]
+
+                    if chosen:
+                        try:
+                            ftp.cwd(chosen)
+                            navigated.append(chosen)
+                            if log_step:
+                                log_step(f"   ✓ Volume détecté et sélectionné : '{chosen}'", "success")
+                            try:
+                                ftp.cwd(part)
+                                navigated.append(part)
+                                if log_step:
+                                    log_step(f"   ✓ Dossier '{part}' accessible dans '{chosen}'.", "success")
+                                created = True
+                            except Exception:
+                                ftp.mkd(part)
+                                ftp.cwd(part)
+                                navigated.append(part)
+                                if log_step:
+                                    log_step(f"   ✓ Dossier '{part}' créé dans '{chosen}'.", "success")
+                                created = True
+                        except Exception as vol_err:
+                            if log_step:
+                                log_step(f"   ✗ Impossible d'accéder au volume '{chosen}' : {vol_err}", "error")
+
+                if not created:
+                    err_msg = str(mkd_err)
+                    if log_step:
+                        log_step(f"   ✗ Impossible d'accéder ou créer '{part}' : {err_msg}", "error")
+                    return False, "/".join(navigated), err_msg
+
+    current_path = "/" + "/".join(navigated) if navigated else "/"
+    return True, current_path, ""
+
+
+def _sftp_navigate_and_ensure_dirs(sftp, target_parts: list[str], log_step=None) -> tuple[bool, str, str]:
+    """Navigate and create directories sequentially on SFTP server."""
+    try:
+        sftp.chdir("/")
+    except Exception:
+        pass
+
+    navigated = []
+    for part in target_parts:
+        try:
+            sftp.chdir(part)
+            navigated.append(part)
+            if log_step:
+                log_step(f"   ✓ Dossier SFTP '{part}' accessible.", "success")
+        except Exception:
+            try:
+                sftp.mkdir(part)
+                sftp.chdir(part)
+                navigated.append(part)
+                if log_step:
+                    log_step(f"   ✓ Dossier SFTP '{part}' créé avec succès.", "success")
+            except Exception as mkd_err:
+                err_msg = str(mkd_err)
+                if log_step:
+                    log_step(f"   ✗ Impossible d'accéder ou créer '{part}' : {err_msg}", "error")
+                return False, "/".join(navigated), err_msg
+
+    current_path = "/" + "/".join(navigated) if navigated else "/"
+    return True, current_path, ""
+
+
+def _create_ftp_client(proto: str, host: str, port: int, user: str, password: str, timeout: int = 15):
+    """Create, connect and login to FTP or FTPS server with TLS session reuse and auto-upgrade support."""
+    clean_host = str(host).strip()
+    clean_user = str(user or "").strip()
+    clean_pass = str(password or "")
+    port_int = int(port or 21)
+
+    use_tls = (proto == "ftps")
+    if use_tls:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        ftp = ReusedSessionFTP_TLS(context=ctx)
+    else:
+        ftp = ftplib.FTP()
+
+    ftp.encoding = "utf-8"
+    ftp.connect(clean_host, port_int, timeout=timeout)
+
+    try:
+        ftp.login(clean_user, clean_pass)
+    except Exception as login_err:
+        err_lower = str(login_err).lower()
+        if not use_tls and any(k in err_lower for k in ["ssl", "tls", "encrypt", "534", "policy requires", "530 non-anonymous"]):
+            try:
+                ftp.close()
+            except Exception:
+                pass
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            ftp = ReusedSessionFTP_TLS(context=ctx)
+            ftp.encoding = "utf-8"
+            ftp.connect(clean_host, port_int, timeout=timeout)
+            ftp.login(clean_user, clean_pass)
+            use_tls = True
+        else:
+            raise login_err
+
+    if isinstance(ftp, ftplib.FTP_TLS):
+        try:
+            ftp.prot_p()
+        except Exception:
+            pass
+
+    return ftp
 
 
 async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
@@ -749,6 +958,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._ftp_user = str(active_nas_cfg.get("ftp_user", "") or "").strip()
         self._ftp_pass = str(active_nas_cfg.get("ftp_pass", "") or "").strip()
         self._ftp_path = str(active_nas_cfg.get("ftp_path", "/") or "/").strip()
+        if self._nas_type == "freebox" and (not self._ftp_path or self._ftp_path == "/"):
+            self._ftp_path = "/Disque 1"
         self._ftp_status = "Connecté" if (self._ftp_enabled and self._ftp_host) else "Désactivé"
 
         self._webdav_enabled = bool(active_nas_cfg.get("webdav_enabled", False))
@@ -2982,8 +3193,13 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self.async_write_ha_state()
 
     def _upload_to_ftp_sync(self, file_path):
-        """Upload photo or video to FTP/FTPS/SFTP in domolink/alarm/[custom_path]."""
+        """Upload photo or video to FTP/FTPS/SFTP in configured target path."""
         proto = getattr(self, "_ftp_protocol", "ftp").lower()
+        nas_type = getattr(self, "_nas_type", "asustor").lower()
+        custom_dir = str(self._ftp_path or "").strip()
+        target_parts = _build_ftp_target_path(custom_dir, nas_type)
+        filename = os.path.basename(file_path)
+
         if proto == "sftp":
             try:
                 import paramiko
@@ -3000,28 +3216,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                     allow_agent=False,
                 )
                 sftp = ssh.open_sftp()
-                for base_dir in ["domolink", "alarm"]:
-                    try:
-                        sftp.chdir(base_dir)
-                    except IOError:
-                        try:
-                            sftp.mkdir(base_dir)
-                            sftp.chdir(base_dir)
-                        except Exception as mkd_err:
-                            _LOGGER.warning("Domolink SFTP: Impossible de créer '%s': %s", base_dir, mkd_err)
-                custom_dir = str(self._ftp_path or "").strip()
-                if custom_dir and custom_dir != "/":
-                    parts = [p for p in custom_dir.split('/') if p and p not in ("domolink", "alarm")]
-                    for part in parts:
-                        try:
-                            sftp.chdir(part)
-                        except IOError:
-                            try:
-                                sftp.mkdir(part)
-                                sftp.chdir(part)
-                            except Exception as mkd_err:
-                                _LOGGER.warning("Domolink SFTP: Impossible d'accéder au sous-dossier '%s': %s", part, mkd_err)
-                filename = os.path.basename(file_path)
+                _sftp_navigate_and_ensure_dirs(sftp, target_parts)
                 sftp.put(file_path, filename)
                 sftp.close()
                 ssh.close()
@@ -3030,53 +3225,20 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 _LOGGER.error("Domolink: Erreur lors de l'envoi SFTP de %s : %s", file_path, sftp_err)
                 return False
 
-        import ftplib
         try:
-            if proto == "ftps":
-                import ssl
-                ctx = ssl.create_default_context()
-                ctx.check_hostname = False
-                ctx.verify_mode = ssl.CERT_NONE
-                ftp = ftplib.FTP_TLS(context=ctx)
-            else:
-                ftp = ftplib.FTP()
-
-            ftp.encoding = "utf-8"
             port_int = int(self._ftp_port or 21)
-            ftp.connect(self._ftp_host, port_int, timeout=25)
-            ftp.login(str(self._ftp_user or ""), str(self._ftp_pass or ""))
-            if proto == "ftps":
-                try:
-                    ftp.prot_p()
-                except Exception as prot_err:
-                    _LOGGER.warning("Domolink FTPS: prot_p() non supporté ou déjà actif: %s", prot_err)
+            ftp = _create_ftp_client(
+                proto=proto,
+                host=self._ftp_host,
+                port=port_int,
+                user=str(self._ftp_user or ""),
+                password=str(self._ftp_pass or ""),
+                timeout=25,
+            )
+            success_nav, current_path, err = _ftp_navigate_and_ensure_dirs(ftp, target_parts)
+            if not success_nav:
+                _LOGGER.warning("Domolink FTP: Erreur navigation dossier (%s): %s", current_path, err)
 
-            # 1. Ensure domolink/alarm directory structure exists on FTP
-            for base_dir in ["domolink", "alarm"]:
-                try:
-                    ftp.cwd(base_dir)
-                except Exception:
-                    try:
-                        ftp.mkd(base_dir)
-                        ftp.cwd(base_dir)
-                    except Exception as err:
-                        _LOGGER.warning("Domolink FTP: Impossible de créer/accéder à '%s': %s", base_dir, err)
-
-            # 2. If user configured a custom path in settings, append it inside domolink/alarm/
-            custom_dir = str(self._ftp_path or "").strip()
-            if custom_dir and custom_dir != "/":
-                parts = [p for p in custom_dir.split('/') if p and p not in ("domolink", "alarm")]
-                for part in parts:
-                    try:
-                        ftp.cwd(part)
-                    except Exception:
-                        try:
-                            ftp.mkd(part)
-                            ftp.cwd(part)
-                        except Exception as mkd_err:
-                            _LOGGER.warning("Domolink FTP: Impossible d'accéder au sous-dossier '%s': %s", part, mkd_err)
-
-            filename = os.path.basename(file_path)
             with open(file_path, "rb") as f:
                 ftp.storbinary(f"STOR {filename}", f)
             try:
@@ -3198,6 +3360,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             user = "freebox"
         password = data.get("ftp_pass") if "ftp_pass" in data else (nas_cfg.get("ftp_pass") if "ftp_pass" in nas_cfg else (getattr(self, "_ftp_pass", "") if is_cur_active else ""))
         path = data.get("ftp_path") if "ftp_path" in data else (nas_cfg.get("ftp_path") if "ftp_path" in nas_cfg else (getattr(self, "_ftp_path", "/") if is_cur_active else "/"))
+        if cur_nas == "freebox" and (not path or path == "/"):
+            path = "/Disque 1"
 
         def run_test_sync():
             import time
@@ -3276,16 +3440,11 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                     )
                     log_step("   ✓ Authentification SSH acceptée.", "success")
                     sftp = ssh.open_sftp()
-                    save_path = "domolink/alarm"
-                    for base_dir in ["domolink", "alarm"]:
-                        try:
-                            sftp.chdir(base_dir)
-                        except IOError:
-                            try:
-                                sftp.mkdir(base_dir)
-                                sftp.chdir(base_dir)
-                            except Exception as mkd_err:
-                                log_step(f"   ⚠️ Dossier '{base_dir}': {mkd_err}", "warning")
+                    target_parts = _build_ftp_target_path(path, cur_nas)
+                    success_nav, save_path, nav_err = _sftp_navigate_and_ensure_dirs(sftp, target_parts, log_step=log_step)
+                    if not success_nav:
+                        ssh.close()
+                        return False, 550, f"Erreur répertoire SFTP ({nav_err})", save_path
 
                     probe_f = sftp.file(".domolink_test_probe", "w")
                     probe_f.write("Domolink SFTP write probe")
@@ -3309,19 +3468,18 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                     return False, 530, f"Authentification SFTP échouée ({err_str})", ""
 
             # --- CAS FTP & FTPS ---
-            import ftplib
             log_step(f"2. Connexion réseau au serveur {clean_host}:{port_int}...", "info")
-            if protocol == "ftps":
-                import ssl
+            use_tls = (protocol == "ftps")
+            if use_tls:
                 ctx = ssl.create_default_context()
                 ctx.check_hostname = False
                 ctx.verify_mode = ssl.CERT_NONE
-                ftp = ftplib.FTP_TLS(context=ctx)
+                ftp = ReusedSessionFTP_TLS(context=ctx)
             else:
                 ftp = ftplib.FTP()
             ftp.encoding = "utf-8"
             try:
-                ftp.connect(clean_host, port_int, timeout=10)
+                ftp.connect(clean_host, port_int, timeout=12)
                 log_step("   ✓ Connexion TCP établie avec succès.", "success")
             except Exception as e:
                 err_str = str(e)
@@ -3353,93 +3511,69 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             try:
                 ftp.login(clean_user, clean_pass)
                 log_step("   ✓ Authentification acceptée par le serveur.", "success")
-                if protocol == "ftps":
-                    try:
-                        ftp.prot_p()
-                        log_step("   ✓ Canal de données sécurisé par chiffrement TLS (prot_p).", "success")
-                    except Exception as tls_err:
-                        log_step(f"   ⚠️ prot_p() ignoré ou non supporté : {tls_err}", "warning")
             except Exception as e:
                 err_str = str(e)
-                log_step(f"   ✗ Échec d'authentification : {err_str}", "error")
+                # Auto-upgrade to FTPS if plain FTP was used but server requires TLS/SSL
+                if not use_tls and any(k in err_str.lower() for k in ["ssl", "tls", "encrypt", "534", "policy requires", "530 non-anonymous"]):
+                    log_step("   ℹ️ Le serveur exige un chiffrement TLS. Basculement automatique en FTPS...", "info")
+                    try:
+                        ftp.close()
+                    except Exception:
+                        pass
+                    ctx = ssl.create_default_context()
+                    ctx.check_hostname = False
+                    ctx.verify_mode = ssl.CERT_NONE
+                    ftp = ReusedSessionFTP_TLS(context=ctx)
+                    ftp.encoding = "utf-8"
+                    try:
+                        ftp.connect(clean_host, port_int, timeout=12)
+                        ftp.login(clean_user, clean_pass)
+                        use_tls = True
+                        log_step("   ✓ Authentification FTPS acceptée.", "success")
+                    except Exception as retry_err:
+                        err_str = str(retry_err)
+                        log_step(f"   ✗ Échec d'authentification FTPS : {err_str}", "error")
+                        try:
+                            ftp.close()
+                        except Exception:
+                            pass
+                        m_rfc = re.search(r'\b([1-5]\d{2})\b', err_str)
+                        code = int(m_rfc.group(1)) if m_rfc else 530
+                        return False, code, f"Identifiants incorrects ou refusés ({err_str})", ""
+                else:
+                    log_step(f"   ✗ Échec d'authentification : {err_str}", "error")
+                    try:
+                        ftp.quit()
+                    except Exception:
+                        pass
+                    m_rfc = re.search(r'\b([1-5]\d{2})\b', err_str)
+                    if m_rfc:
+                        code = int(m_rfc.group(1))
+                    elif hasattr(e, "errno") and e.errno is not None:
+                        code = abs(e.errno)
+                    else:
+                        code = 530
+                    return False, code, f"Identifiants incorrects ou refusés ({err_str})", ""
+
+            if use_tls or isinstance(ftp, ftplib.FTP_TLS):
+                try:
+                    ftp.prot_p()
+                    log_step("   ✓ Canal de données sécurisé TLS avec réutilisation de session (prot_p).", "success")
+                except Exception as tls_err:
+                    log_step(f"   ⚠️ prot_p() ignoré ou non supporté : {tls_err}", "warning")
+
+            time.sleep(0.2)
+            log_step("4. Contrôle de l'arborescence des répertoires...", "info")
+            target_parts = _build_ftp_target_path(path, cur_nas)
+            success_nav, save_path, nav_err = _ftp_navigate_and_ensure_dirs(ftp, target_parts, log_step=log_step)
+            if not success_nav:
                 try:
                     ftp.quit()
                 except Exception:
                     pass
-
-                code = None
-                m_rfc = re.search(r'\b([1-5]\d{2})\b', err_str)
-                if m_rfc:
-                    code = int(m_rfc.group(1))
-                elif hasattr(e, "errno") and e.errno is not None:
-                    code = abs(e.errno)
-                if code is None:
-                    code = 530
-                return False, code, f"Identifiants incorrects ou refusés ({err_str})", ""
-
-            time.sleep(0.2)
-            log_step("4. Contrôle de l'arborescence des répertoires...", "info")
-
-            # Verify / create 'domolink'
-            try:
-                ftp.cwd("domolink")
-                log_step("   ✓ Dossier 'domolink' accessible.", "success")
-            except Exception:
-                try:
-                    ftp.mkd("domolink")
-                    ftp.cwd("domolink")
-                    log_step("   ✓ Dossier 'domolink' créé avec succès.", "success")
-                except Exception as mkd_err:
-                    err_str = str(mkd_err)
-                    log_step(f"   ✗ Impossible d'accéder ou créer 'domolink' : {err_str}", "error")
-                    try:
-                        ftp.quit()
-                    except Exception:
-                        pass
-                    m_rfc = re.search(r'\b([1-5]\d{2})\b', err_str)
-                    code = int(m_rfc.group(1)) if m_rfc else 550
-                    return False, code, f"Permissions insuffisantes pour créer 'domolink' ({err_str})", ""
-
-            time.sleep(0.2)
-            # Verify / create 'alarm'
-            try:
-                ftp.cwd("alarm")
-                log_step("   ✓ Sous-dossier 'alarm' accessible.", "success")
-            except Exception:
-                try:
-                    ftp.mkd("alarm")
-                    ftp.cwd("alarm")
-                    log_step("   ✓ Sous-dossier 'alarm' créé avec succès.", "success")
-                except Exception as mkd_err:
-                    err_str = str(mkd_err)
-                    log_step(f"   ✗ Impossible d'accéder ou créer 'alarm' : {err_str}", "error")
-                    try:
-                        ftp.quit()
-                    except Exception:
-                        pass
-                    m_rfc = re.search(r'\b([1-5]\d{2})\b', err_str)
-                    code = int(m_rfc.group(1)) if m_rfc else 550
-                    return False, code, f"Permissions insuffisantes pour créer 'alarm' ({err_str})", ""
-
-            time.sleep(0.2)
-            # Verify / create custom path if configured
-            save_path = "domolink/alarm"
-            custom_dir = str(path or "").strip()
-            if custom_dir and custom_dir != "/":
-                parts = [p for p in custom_dir.split('/') if p and p not in ("domolink", "alarm")]
-                for part in parts:
-                    try:
-                        ftp.cwd(part)
-                        log_step(f"   ✓ Sous-dossier personnalisé '{part}' accessible.", "info")
-                    except Exception:
-                        try:
-                            ftp.mkd(part)
-                            ftp.cwd(part)
-                            log_step(f"   ✓ Sous-dossier personnalisé '{part}' créé.", "success")
-                        except Exception as custom_err:
-                            log_step(f"   ✗ Impossible d'accéder ou créer '{part}' : {custom_err}", "warning")
-                if parts:
-                    save_path = f"domolink/alarm/{'/'.join(parts)}"
+                m_rfc = re.search(r'\b([1-5]\d{2})\b', nav_err)
+                code = int(m_rfc.group(1)) if m_rfc else 550
+                return False, code, f"Impossible de créer ou accéder à l'arborescence ({nav_err})", save_path
 
             time.sleep(0.2)
             log_step("5. Test des permissions d'écriture...", "info")

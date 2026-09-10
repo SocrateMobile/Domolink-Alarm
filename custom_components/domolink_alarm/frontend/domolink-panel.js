@@ -4500,7 +4500,7 @@ class DomolinkPanel extends HTMLElement {
       synology: { ftp_enabled: true, ftp_protocol: "ftp", ftp_host: "", ftp_port: 21, ftp_user: "", ftp_pass: "", ftp_path: "/", webdav_enabled: false, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" },
       qnap: { ftp_enabled: true, ftp_protocol: "ftp", ftp_host: "", ftp_port: 21, ftp_user: "", ftp_pass: "", ftp_path: "/", webdav_enabled: false, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" },
       truenas: { ftp_enabled: false, ftp_protocol: "ftp", ftp_host: "", ftp_port: 21, ftp_user: "", ftp_pass: "", ftp_path: "/", webdav_enabled: true, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" },
-      freebox: { ftp_enabled: true, ftp_protocol: "ftp", ftp_host: "mafreebox.freebox.fr", ftp_port: 21, ftp_user: "freebox", ftp_pass: "", ftp_path: "/", webdav_enabled: false, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" },
+      freebox: { ftp_enabled: true, ftp_protocol: "ftp", ftp_host: "mafreebox.freebox.fr", ftp_port: 21, ftp_user: "freebox", ftp_pass: "", ftp_path: "/Disque 1", webdav_enabled: false, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" },
       unraid: { ftp_enabled: true, ftp_protocol: "ftp", ftp_host: "", ftp_port: 21, ftp_user: "", ftp_pass: "", ftp_path: "/", webdav_enabled: false, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" },
       generic: { ftp_enabled: true, ftp_protocol: "ftp", ftp_host: "", ftp_port: 21, ftp_user: "", ftp_pass: "", ftp_path: "/", webdav_enabled: false, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" }
     };
@@ -4524,7 +4524,7 @@ class DomolinkPanel extends HTMLElement {
       mergedNasConfigs[activeNas].ftp_port = c.ftp_port !== undefined ? c.ftp_port : 21;
       mergedNasConfigs[activeNas].ftp_user = c.ftp_user || "";
       mergedNasConfigs[activeNas].ftp_pass = c.ftp_pass || "";
-      mergedNasConfigs[activeNas].ftp_path = c.ftp_path || "/";
+      mergedNasConfigs[activeNas].ftp_path = c.ftp_path || (activeNas === 'freebox' ? "/Disque 1" : "/");
     }
     if (c.webdav_url && (!savedNasConfigs[activeNas] || !savedNasConfigs[activeNas].webdav_url)) {
       mergedNasConfigs[activeNas].webdav_enabled = Boolean(c.webdav_enabled);
@@ -4540,6 +4540,7 @@ class DomolinkPanel extends HTMLElement {
     if (!mergedNasConfigs.freebox.ftp_protocol) mergedNasConfigs.freebox.ftp_protocol = "ftp";
     if (mergedNasConfigs.freebox.ftp_port === undefined) mergedNasConfigs.freebox.ftp_port = 21;
     if (mergedNasConfigs.freebox.ftp_enabled === undefined) mergedNasConfigs.freebox.ftp_enabled = true;
+    if (!mergedNasConfigs.freebox.ftp_path || mergedNasConfigs.freebox.ftp_path === "/") mergedNasConfigs.freebox.ftp_path = "/Disque 1";
 
     const curNasCfg = mergedNasConfigs[activeNas] || mergedNasConfigs.asustor;
 
@@ -5371,7 +5372,7 @@ function doGet(e) {
           ${this._renderNumberField("Port de connexion", "Port de connexion selon protocole (21 FTP/FTPS, 22 SFTP, 445 SAMBA)", "ftp_port", "mdi:numeric", 1, 65535, 1, "")}
           ${this._renderTextField("Identifiant de connexion", "Nom d'utilisateur du compte NAS", "ftp_user", "mdi:account")}
           ${this._renderPasswordField("Mot de passe", "Mot de passe du compte", "ftp_pass", "mdi:lock")}
-          ${this._renderTextField("Répertoire distant", "Chemin distant (créera automatiquement domolink/alarm/...)", "ftp_path", "mdi:folder-network", "text", "/")}
+          ${this._renderTextField("Répertoire distant", curNas === 'freebox' ? "Chemin distant Freebox (ex: /Disque 1 ou /Disque 1/domolink)" : "Chemin distant (créera automatiquement domolink/alarm/...)", "ftp_path", "mdi:folder-network", "text", curNas === 'freebox' ? '/Disque 1' : '/')}
 
           <!-- Partage Réseau SAMBA -->
           <div id="samba-link-card" style="margin-top:14px; padding:12px 14px; border-radius:10px; background:linear-gradient(135deg, rgba(16,185,129,0.08), rgba(59,130,246,0.08)); border:1px solid rgba(16,185,129,0.25); display:flex; flex-direction:column; gap:10px;">
@@ -6150,7 +6151,7 @@ mode: single`;
           ftp_port: portInput ? parseInt(portInput.value, 10) || defaultPortForProto : (targetCfg.ftp_port || defaultPortForProto),
           ftp_user: userInput ? userInput.value.trim() : (targetCfg.ftp_user !== undefined ? targetCfg.ftp_user : (targetNas === 'freebox' ? 'freebox' : '')),
           ftp_pass: passInput ? passInput.value : (targetCfg.ftp_pass || ''),
-          ftp_path: pathInput ? pathInput.value.trim() : (targetCfg.ftp_path || '/'),
+          ftp_path: pathInput ? (pathInput.value.trim() || (targetNas === 'freebox' ? '/Disque 1' : '/')) : (targetCfg.ftp_path !== undefined ? targetCfg.ftp_path : (targetNas === 'freebox' ? '/Disque 1' : '/')),
           ftp_enabled: enabledInput ? Boolean(enabledInput.checked) : (targetCfg.ftp_enabled !== undefined ? targetCfg.ftp_enabled : true),
         };
       } else {
@@ -6468,7 +6469,7 @@ mode: single`;
             ftp_port: 21,
             ftp_user: newNas === 'freebox' ? 'freebox' : '',
             ftp_pass: '',
-            ftp_path: '/',
+            ftp_path: newNas === 'freebox' ? '/Disque 1' : '/',
             webdav_enabled: newNas === 'truenas',
             webdav_url: '',
             webdav_user: '',
@@ -6484,6 +6485,7 @@ mode: single`;
           if (!this._configDraft.nas_configs.freebox.ftp_protocol) this._configDraft.nas_configs.freebox.ftp_protocol = 'ftp';
           if (this._configDraft.nas_configs.freebox.ftp_port === undefined) this._configDraft.nas_configs.freebox.ftp_port = 21;
           if (this._configDraft.nas_configs.freebox.ftp_enabled === undefined) this._configDraft.nas_configs.freebox.ftp_enabled = true;
+          if (!this._configDraft.nas_configs.freebox.ftp_path || this._configDraft.nas_configs.freebox.ftp_path === '/') this._configDraft.nas_configs.freebox.ftp_path = '/Disque 1';
         }
 
         const targetCfg = this._configDraft.nas_configs[newNas];
@@ -6495,7 +6497,7 @@ mode: single`;
         this._configDraft.ftp_port = targetCfg.ftp_port !== undefined ? targetCfg.ftp_port : 21;
         this._configDraft.ftp_user = targetCfg.ftp_user !== undefined ? targetCfg.ftp_user : (newNas === 'freebox' ? 'freebox' : '');
         this._configDraft.ftp_pass = targetCfg.ftp_pass !== undefined ? targetCfg.ftp_pass : '';
-        this._configDraft.ftp_path = targetCfg.ftp_path !== undefined ? targetCfg.ftp_path : '/';
+        this._configDraft.ftp_path = targetCfg.ftp_path !== undefined ? targetCfg.ftp_path : (newNas === 'freebox' ? '/Disque 1' : '/');
         this._configDraft.webdav_enabled = Boolean(targetCfg.webdav_enabled);
         this._configDraft.webdav_url = targetCfg.webdav_url !== undefined ? targetCfg.webdav_url : '';
         this._configDraft.webdav_user = targetCfg.webdav_user !== undefined ? targetCfg.webdav_user : '';
