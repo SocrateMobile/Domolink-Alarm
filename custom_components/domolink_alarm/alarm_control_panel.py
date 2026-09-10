@@ -3446,11 +3446,11 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                         ssh.close()
                         return False, 550, f"Erreur répertoire SFTP ({nav_err})", save_path
 
-                    probe_f = sftp.file(".domolink_test_probe", "w")
+                    probe_f = sftp.file("domolink_write_test.txt", "w")
                     probe_f.write("Domolink SFTP write probe")
                     probe_f.close()
                     try:
-                        sftp.remove(".domolink_test_probe")
+                        sftp.remove("domolink_write_test.txt")
                     except Exception:
                         pass
                     log_step("   ✓ Droits d'écriture validés sur le serveur SFTP.", "success")
@@ -3579,15 +3579,17 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             log_step("5. Test des permissions d'écriture...", "info")
             try:
                 probe_data = io.BytesIO(b"Domolink Alarm write probe test")
-                ftp.storbinary("STOR .domolink_test_probe", probe_data)
+                ftp.storbinary("STOR domolink_write_test.txt", probe_data)
                 try:
-                    ftp.delete(".domolink_test_probe")
+                    ftp.delete("domolink_write_test.txt")
                 except Exception:
                     pass
                 log_step("   ✓ Droits d'écriture validés (fichier test créé et nettoyé).", "success")
             except Exception as write_err:
                 err_str = str(write_err)
                 log_step(f"   ✗ Erreur d'écriture sur le serveur : {err_str}", "error")
+                if "550" in err_str and cur_nas == "freebox":
+                    log_step("   💡 Conseil Freebox OS : Dans mafreebox.freebox.fr > Paramètres > FTP, vérifiez que l'accès en écriture est autorisé, ou essayez avec le protocole FTPS.", "warning")
                 try:
                     ftp.quit()
                 except Exception:
