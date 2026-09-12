@@ -77,7 +77,7 @@ async def async_setup_entry(
     )
 
     entry_data["update_entity"] = update_entity
-    async_add_entities([update_entity], True)
+    async_add_entities([update_entity], False)
 
 
 class DomolinkAlarmUpdateEntity(UpdateEntity):
@@ -197,7 +197,8 @@ class DomolinkAlarmUpdateEntity(UpdateEntity):
                     except Exception:
                         pass
 
-                self.async_write_ha_state()
+                if self.entity_id is not None:
+                    self.async_write_ha_state()
                 _LOGGER.info(
                     "Domolink Alarm update check: installed=%s, latest=%s, update_available=%s",
                     self._attr_installed_version,
@@ -255,7 +256,8 @@ class DomolinkAlarmUpdateEntity(UpdateEntity):
 
         self._attr_in_progress = True
         self._attr_update_percentage = 10
-        self.async_write_ha_state()
+        if self.entity_id is not None:
+            self.async_write_ha_state()
 
         temp_dir = tempfile.mkdtemp(prefix="domolink_update_")
         zip_path = os.path.join(temp_dir, "release.zip")
@@ -264,7 +266,8 @@ class DomolinkAlarmUpdateEntity(UpdateEntity):
             # 1. Download zip using Home Assistant aiohttp session
             session = async_get_clientsession(self.hass)
             self._attr_update_percentage = 20
-            self.async_write_ha_state()
+            if self.entity_id is not None:
+                self.async_write_ha_state()
 
             async with session.get(download_url, timeout=aiohttp.ClientTimeout(total=60)) as resp:
                 if resp.status != 200:
@@ -279,7 +282,8 @@ class DomolinkAlarmUpdateEntity(UpdateEntity):
                         f.write(chunk)
 
             self._attr_update_percentage = 50
-            self.async_write_ha_state()
+            if self.entity_id is not None:
+                self.async_write_ha_state()
 
             def _do_extract_and_copy() -> None:
                 """Extract and copy files synchronously."""
@@ -326,7 +330,8 @@ class DomolinkAlarmUpdateEntity(UpdateEntity):
             await self.hass.async_add_executor_job(_do_extract_and_copy)
 
             self._attr_update_percentage = 90
-            self.async_write_ha_state()
+            if self.entity_id is not None:
+                self.async_write_ha_state()
 
             # Reset sidebar panel title to default
             self._update_sidebar_panel(False)
@@ -334,7 +339,8 @@ class DomolinkAlarmUpdateEntity(UpdateEntity):
             self._attr_update_percentage = 100
             self._attr_installed_version = clean_tag
             self._attr_in_progress = False
-            self.async_write_ha_state()
+            if self.entity_id is not None:
+                self.async_write_ha_state()
 
             _LOGGER.info("Update complete! Requesting Home Assistant restart...")
             await asyncio.sleep(1)
@@ -345,7 +351,8 @@ class DomolinkAlarmUpdateEntity(UpdateEntity):
         except Exception as err:
             self._attr_in_progress = False
             self._attr_update_percentage = None
-            self.async_write_ha_state()
+            if self.entity_id is not None:
+                self.async_write_ha_state()
             _LOGGER.error("Domolink Alarm auto-update failed: %s", err, exc_info=True)
             raise
         finally:
