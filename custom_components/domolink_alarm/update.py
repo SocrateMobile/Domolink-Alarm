@@ -197,8 +197,11 @@ class DomolinkAlarmUpdateEntity(UpdateEntity):
                     except Exception:
                         pass
 
-                if self.entity_id is not None:
-                    self.async_write_ha_state()
+                if getattr(self, "hass", None) and getattr(self, "entity_id", None):
+                    try:
+                        self.async_write_ha_state()
+                    except Exception:
+                        pass
                 _LOGGER.info(
                     "Domolink Alarm update check: installed=%s, latest=%s, update_available=%s",
                     self._attr_installed_version,
@@ -256,8 +259,11 @@ class DomolinkAlarmUpdateEntity(UpdateEntity):
 
         self._attr_in_progress = True
         self._attr_update_percentage = 10
-        if self.entity_id is not None:
-            self.async_write_ha_state()
+        if getattr(self, "hass", None) and getattr(self, "entity_id", None):
+            try:
+                self.async_write_ha_state()
+            except Exception:
+                pass
 
         temp_dir = tempfile.mkdtemp(prefix="domolink_update_")
         zip_path = os.path.join(temp_dir, "release.zip")
