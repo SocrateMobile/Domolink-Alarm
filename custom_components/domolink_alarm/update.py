@@ -53,10 +53,10 @@ def get_installed_version() -> str:
         if os.path.exists(manifest_path):
             with open(manifest_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                return str(data.get("version", "0.9.78"))
+                return str(data.get("version", "0.9.79"))
     except Exception as err:
         _LOGGER.warning("Could not read manifest.json version: %s", err)
-    return "0.9.78"
+    return "0.9.79"
 
 
 async def async_setup_entry(
@@ -240,75 +240,73 @@ class DomolinkAlarmUpdateEntity(UpdateEntity):
         self, version: str | None = None, backup: bool = True, **kwargs
     ) -> None:
         """Download and install update, then restart Home Assistant."""
-        if not self._zip_download_url:
-            raise ValueError("No download URL available for Domolink Alarm update")
+        # Always check for the latest release right now to avoid installing a stale cached tag
+        await self.async_update()
+
+        target_version = version or self._attr_latest_version
+        clean_tag = re.sub(r"^[vV]", "", target_version)
+        download_url = self._zip_download_url or f"https://github.com/{GITHUB_REPO}/archive/refs/tags/v{clean_tag}.zip"
 
         _LOGGER.info(
             "Starting Domolink Alarm update to version %s (download: %s)",
-            self._attr_latest_version,
-            self._zip_download_url,
+            clean_tag,
+            download_url,
         )
 
         self._attr_in_progress = True
         self._attr_update_percentage = 10
         self.async_write_ha_state()
 
-        def _do_download_and_extract() -> None:
-            """Synchronous blocking filesystem work executed in executor."""
-            import urllib.request
-            import ssl
+        temp_dir = tempfile.mkdtemp(prefix="domolink_update_")
+        zip_path = os.path.join(temp_dir, "release.zip")
 
-            ctx = ssl.create_default_context()
-            try:
-                import certifi
-                ctx.load_verify_locations(certifi.where())
-            except Exception:
-                try:
-                    ctx.check_hostname = False
-                    ctx.verify_mode = ssl.CERT_NONE
-                except Exception:
-                    pass
+        try:
+            # 1. Download zip using Home Assistant aiohttp session
+            session = async_get_clientsession(self.hass)
+            self._attr_update_percentage = 20
+            self.async_write_ha_state()
 
-            temp_dir = tempfile.mkdtemp(prefix="domolink_update_")
-            zip_path = os.path.join(temp_dir, "release.zip")
-            try:
-                # 1. Download zip
-                req = urllib.request.Request(
-                    self._zip_download_url,
-                    headers={"User-Agent": "Domolink-Alarm-HA"},
-                )
-                with urllib.request.urlopen(req, context=ctx, timeout=30) as resp, open(
-                    zip_path, "wb"
-                ) as out_file:
-                    shutil.copyfileobj(resp, out_file)
+            async with session.get(download_url, timeout=aiohttp.ClientTimeout(total=60)) as resp:
+                if resp.status != 200:
+                    raise RuntimeError(
+                        f"Failed to download release zip from {download_url} (HTTP {resp.status})"
+                    )
+                with open(zip_path, "wb") as f:
+                    while True:
+                        chunk = await resp.content.read(65536)
+                        if not chunk:
+                            break
+                        f.write(chunk)
 
-                # 2. Extract zip
+            self._attr_update_percentage = 50
+            self.async_write_ha_state()
+
+            def _do_extract_and_copy() -> None:
+                """Extract and copy files synchronously."""
                 extract_path = os.path.join(temp_dir, "extracted")
                 os.makedirs(extract_path, exist_ok=True)
                 with zipfile.ZipFile(zip_path, "r") as zip_ref:
                     zip_ref.extractall(extract_path)
 
-                # 3. Locate custom_components/domolink_alarm inside extracted content
+                # Locate custom_components/domolink_alarm or domolink_alarm inside extracted content
                 source_component_dir = None
                 for root, dirs, _files in os.walk(extract_path):
-                    if (
-                        os.path.basename(root) == "domolink_alarm"
-                        and os.path.basename(os.path.dirname(root)) == "custom_components"
-                    ):
-                        source_component_dir = root
-                        break
+                    if os.path.basename(root) == "domolink_alarm":
+                        if os.path.exists(os.path.join(root, "__init__.py")) and os.path.exists(
+                            os.path.join(root, "manifest.json")
+                        ):
+                            source_component_dir = root
+                            break
 
-                if not source_component_dir or not os.path.exists(
-                    os.path.join(source_component_dir, "__init__.py")
-                ):
+                if not source_component_dir:
                     raise RuntimeError(
-                        "Archive does not contain a valid custom_components/domolink_alarm structure"
+                        "Archive does not contain a valid domolink_alarm component structure"
                     )
 
-                # 4. Target component directory
+                # Target component directory
                 target_dir = os.path.abspath(os.path.dirname(__file__))
 
-                # 5. Optional safety backup of current directory
+                # Optional safety backup of current directory
                 if backup:
                     backup_dir = os.path.join(tempfile.gettempdir(), "domolink_alarm_last_backup")
                     if os.path.exists(backup_dir):
@@ -316,19 +314,16 @@ class DomolinkAlarmUpdateEntity(UpdateEntity):
                     shutil.copytree(target_dir, backup_dir, dirs_exist_ok=True)
                     _LOGGER.info("Domolink Alarm safety backup saved to %s", backup_dir)
 
-                # 6. Overwrite target directory with newly extracted files
+                # Clean stale pycache in target
+                pycache_dir = os.path.join(target_dir, "__pycache__")
+                if os.path.exists(pycache_dir):
+                    shutil.rmtree(pycache_dir, ignore_errors=True)
+
+                # Overwrite target directory with newly extracted files
                 shutil.copytree(source_component_dir, target_dir, dirs_exist_ok=True)
                 _LOGGER.info("Domolink Alarm files successfully updated in %s", target_dir)
 
-            finally:
-                # Clean up download temp directory
-                shutil.rmtree(temp_dir, ignore_errors=True)
-
-        try:
-            self._attr_update_percentage = 30
-            self.async_write_ha_state()
-
-            await self.hass.async_add_executor_job(_do_download_and_extract)
+            await self.hass.async_add_executor_job(_do_extract_and_copy)
 
             self._attr_update_percentage = 90
             self.async_write_ha_state()
@@ -337,7 +332,7 @@ class DomolinkAlarmUpdateEntity(UpdateEntity):
             self._update_sidebar_panel(False)
 
             self._attr_update_percentage = 100
-            self._attr_installed_version = self._attr_latest_version
+            self._attr_installed_version = clean_tag
             self._attr_in_progress = False
             self.async_write_ha_state()
 
@@ -353,3 +348,5 @@ class DomolinkAlarmUpdateEntity(UpdateEntity):
             self.async_write_ha_state()
             _LOGGER.error("Domolink Alarm auto-update failed: %s", err, exc_info=True)
             raise
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
