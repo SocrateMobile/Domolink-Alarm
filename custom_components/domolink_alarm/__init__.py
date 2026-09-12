@@ -10,7 +10,7 @@ PLATFORMS = ["alarm_control_panel", "button", "sensor", "update"]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Domolink Alarm from a config entry."""
-    hass.data.setdefault(DOMAIN, {})
+    hass.data.setdefault(DOMAIN, {}).setdefault(entry.entry_id, {})
 
     # Register frontend panel
     frontend_dir = hass.config.path("custom_components/domolink_alarm/frontend")
@@ -37,7 +37,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 config={
                     "_panel_custom": {
                         "name": "domolink-panel",
-                        "module_url": "/domolink_alarm_panel/domolink-panel.js?v=0.9.76",
+                        "module_url": "/domolink_alarm_panel/domolink-panel.js?v=0.9.77",
                     }
                 },
                 require_admin=False,
@@ -46,7 +46,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             # Panel already registered
             pass
 
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    # First setup the core alarm_control_panel platform
+    await hass.config_entries.async_forward_entry_setups(entry, ["alarm_control_panel"])
+
+    # Then setup dependent platforms (button, sensor, update)
+    remaining_platforms = [p for p in PLATFORMS if p != "alarm_control_panel"]
+    if remaining_platforms:
+        await hass.config_entries.async_forward_entry_setups(entry, remaining_platforms)
 
     async def _async_handle_check_updates(call):
         """Handle manual update check."""

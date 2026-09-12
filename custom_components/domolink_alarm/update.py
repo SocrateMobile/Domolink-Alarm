@@ -63,7 +63,8 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities
 ) -> None:
     """Set up the update platform for Domolink Alarm."""
-    alarm_entity = hass.data[DOMAIN][entry.entry_id].get("entity")
+    entry_data = hass.data.setdefault(DOMAIN, {}).setdefault(entry.entry_id, {})
+    alarm_entity = entry_data.get("entity")
     name = entry.data.get(CONF_NAME, DEFAULT_NAME)
     installed_ver = get_installed_version()
 
@@ -75,7 +76,7 @@ async def async_setup_entry(
         alarm_entity=alarm_entity,
     )
 
-    hass.data[DOMAIN][entry.entry_id]["update_entity"] = update_entity
+    entry_data["update_entity"] = update_entity
     async_add_entities([update_entity], True)
 
 
@@ -185,16 +186,16 @@ class DomolinkAlarmUpdateEntity(UpdateEntity):
                 self._update_sidebar_panel(has_update)
 
                 # Sync update state to main alarm entity attributes if available
-                if self._alarm_entity:
-                    self._alarm_entity._attr_extra_state_attributes.update(
-                        {
-                            "update_available": has_update,
-                            "latest_version": clean_tag,
-                            "release_notes": self._release_body,
-                            "release_url": self._attr_release_url,
-                        }
-                    )
-                    self._alarm_entity.async_write_ha_state()
+                alarm_ent = self._alarm_entity or self.hass.data.get(DOMAIN, {}).get(self._entry_id, {}).get("entity")
+                if alarm_ent:
+                    alarm_ent._update_available = has_update
+                    alarm_ent._latest_version = clean_tag
+                    alarm_ent._release_notes = self._release_body
+                    alarm_ent._release_url = self._attr_release_url
+                    try:
+                        alarm_ent.async_write_ha_state()
+                    except Exception:
+                        pass
 
                 self.async_write_ha_state()
                 _LOGGER.info(
