@@ -5,7 +5,7 @@ from homeassistant.components import frontend
 
 from .const import DOMAIN
 
-PLATFORMS = ["alarm_control_panel", "button", "sensor"]
+PLATFORMS = ["alarm_control_panel", "button", "sensor", "update"]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -37,7 +37,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 config={
                     "_panel_custom": {
                         "name": "domolink-panel",
-                        "module_url": "/domolink_alarm_panel/domolink-panel.js?v=0.9.75",
+                        "module_url": "/domolink_alarm_panel/domolink-panel.js?v=0.9.76",
                     }
                 },
                 require_admin=False,
@@ -47,6 +47,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             pass
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    async def _async_handle_check_updates(call):
+        """Handle manual update check."""
+        for ed in hass.data.get(DOMAIN, {}).values():
+            if isinstance(ed, dict) and "update_entity" in ed:
+                await ed["update_entity"].async_update()
+
+    async def _async_handle_install_update(call):
+        """Handle install update request."""
+        backup = call.data.get("backup", True)
+        for ed in hass.data.get(DOMAIN, {}).values():
+            if isinstance(ed, dict) and "update_entity" in ed:
+                await ed["update_entity"].async_install(backup=backup)
+                break
+
+    if not hass.services.has(DOMAIN, "check_updates"):
+        hass.services.async_register(DOMAIN, "check_updates", _async_handle_check_updates)
+    if not hass.services.has(DOMAIN, "install_update"):
+        hass.services.async_register(DOMAIN, "install_update", _async_handle_install_update)
 
     # Listen for options updates so changes take effect without restarting HA (Fix #5)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))

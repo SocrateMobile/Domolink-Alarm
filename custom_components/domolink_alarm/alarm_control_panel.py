@@ -626,6 +626,12 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             sw_version=_sw_version,
         )
 
+        self._system_version = _sw_version
+        self._update_available = False
+        self._latest_version = _sw_version
+        self._release_notes = ""
+        self._release_url = ""
+
         self._siren_task = None
         self._arming_task = None
         self._pending_task = None
@@ -1168,7 +1174,11 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             # Certified Incident Data
             "last_incident_report": dict(getattr(self, "_last_incident_data", {})),
             "installed_config": self._get_installed_config(),
-            "system_version": "0.9.75",
+            "system_version": getattr(self, "_system_version", "0.9.76"),
+            "update_available": getattr(self, "_update_available", False),
+            "latest_version": getattr(self, "_latest_version", getattr(self, "_system_version", "0.9.76")),
+            "release_notes": getattr(self, "_release_notes", ""),
+            "release_url": getattr(self, "_release_url", ""),
         }
 
     def _get_compact_state(self):
@@ -4697,7 +4707,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             "active_faults": list(self._faults),
             "bypassed_sensors": list(self._bypassed_sensors),
             "recent_events": recent_logs,
-            "system_version": "0.9.75",
+            "system_version": getattr(self, "_system_version", "0.9.76"),
         }
 
         raw_payload = json.dumps(incident_data, sort_keys=True, ensure_ascii=False)

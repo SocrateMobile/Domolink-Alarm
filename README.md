@@ -7,6 +7,20 @@ Conçue pour dépasser les standards du marché, elle offre une configuration 10
 
 ## 🌟 Fonctionnalités Principales
 
+### 🚀 Nouveautés de la version 0.9.76 (Mise à Jour Automatique 1-Clic & Badge Barre Latérale)
+- **Détection Automatique des Mises à Jour & Badge Barre Latérale** :
+  - Détection proactive des nouvelles releases GitHub en arrière-plan sans dépendance externe.
+  - Notification visuelle d'alerte sur l'onglet **Domolink Alarm** dans la barre latérale de Home Assistant (`Domolink Alarm 🔴`, icône d'alerte et pastille `MAJ`).
+  - Intégration dans le compteur officiel de mises à jour de Home Assistant via la plateforme standard `update.domolink_alarm` (`UpdateEntity`).
+- **Déploiement Automatisé 1-Clic & Redémarrage Propre** :
+  - Bouton interactif **« 🚀 Mise à jour auto »** dans le bandeau supérieur du panneau Domolink Alarm.
+  - Fenêtre modale avec comparateur de version, affichage en direct du changelog officiel GitHub et confirmation explicite.
+  - Téléchargement sécurisé de la release ZIP, vérification de l'intégrité de l'arborescence, sauvegarde de précaution automatique, écriture des nouveaux fichiers et redémarrage contrôlé de Home Assistant.
+  - Jauge de progression et reconnexion automatique dès que Home Assistant a terminé son redémarrage.
+- **Services Home Assistant Dédiés** :
+  - `domolink_alarm.check_updates` : Vérification manuelle immédiate auprès de GitHub.
+  - `domolink_alarm.install_update` : Déclenchement de l'installation et du redémarrage.
+
 ### 🚀 Nouveautés de la version 0.9.71 (Sécurité Certifiable NF A2P, Profils Invités, Rapport PDF, Smartwatch & Secours 4G)
 - **Algorithme de Double Détection (Confirmation d'Intrusion - Norme NF A2P)** :
   - Mode haute sécurité anti-faux positifs : l'alarme générale et les sirènes hurlantes ne se déclenchent que si **2 capteurs distincts** détectent une anomalie, ou si le **même capteur est sollicité deux fois** dans une fenêtre temporelle configurable (30s à 180s).

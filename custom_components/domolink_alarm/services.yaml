@@ -338,4 +338,20 @@ generate_incident_report:
   name: Générer les données du Rapport d'Incident
   description: Prépare et certifie les données de l'incident le plus récent pour l'export PDF officiel.
 
+check_updates:
+  name: Vérifier les mises à jour
+  description: Vérifie immédiatement auprès de GitHub si une nouvelle version de Domolink Alarm est disponible.
+
+install_update:
+  name: Installer la mise à jour
+  description: Télécharge et applique la dernière version de Domolink Alarm depuis GitHub, puis redémarre Home Assistant.
+  fields:
+    backup:
+      name: Sauvegarde préalable
+      description: Crée une sauvegarde temporaire du composant avant d'appliquer la mise à jour.
+      required: false
+      default: true
+      selector:
+        boolean: {}
+
 
