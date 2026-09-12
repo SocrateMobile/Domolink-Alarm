@@ -4324,7 +4324,7 @@ class DomolinkPanel extends HTMLElement {
       bypassed_sensors: attrs.bypassed_sensors || [],
       recent_events: (attrs.system_events || []).slice(0, 15),
       sha256_token: "DOMO-" + Math.random().toString(36).substring(2, 10).toUpperCase() + Math.random().toString(36).substring(2, 10).toUpperCase(),
-      system_version: attrs.system_version || "0.9.78"
+      system_version: attrs.system_version || "0.9.79"
     };
 
     const modal = document.createElement('div');
@@ -4473,7 +4473,7 @@ class DomolinkPanel extends HTMLElement {
 
   _showUpdateModal(attrs) {
     const updateEntity = this._hass && this._hass.states && this._hass.states['update.domolink_alarm'];
-    const currentVer = attrs.system_version || '0.9.78';
+    const currentVer = attrs.system_version || '0.9.79';
     const latestVer = attrs.latest_version || (updateEntity && updateEntity.attributes && updateEntity.attributes.latest_version) || currentVer;
     const releaseNotes = attrs.release_notes || (updateEntity && updateEntity.attributes && updateEntity.attributes.release_summary) || 'Mise à jour officielle de Domolink Alarm.';
     const releaseUrl = attrs.release_url || (updateEntity && updateEntity.attributes && updateEntity.attributes.release_url) || `https://github.com/SocrateMobile/Domolink-Alarm/releases/tag/v${latestVer}`;
@@ -4567,7 +4567,7 @@ class DomolinkPanel extends HTMLElement {
     overlay.style = "position:fixed; inset:0; background:rgba(0,0,0,0.92); backdrop-filter:blur(12px); z-index:9999999; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; cursor:wait;";
     overlay.innerHTML = `
       <div style="background:var(--d-card-bg, #1e293b); border:1px solid rgba(245,158,11,0.4); border-radius:20px; padding:32px; width:90vw; max-width:480px; text-align:center; box-shadow:0 30px 70px rgba(0,0,0,0.9);">
-        <div style="width:60px; height:60px; border-radius:50%; background:linear-gradient(135deg, #f59e0b, #d97706); margin:0 auto 20px; display:flex; align-items:center; justify-content:center; color:#fff; box-shadow:0 0 24px rgba(245,158,11,0.6); animation:spin-slow 4s linear infinite;">
+        <div id="update-spinner-icon" style="width:60px; height:60px; border-radius:50%; background:linear-gradient(135deg, #f59e0b, #d97706); margin:0 auto 20px; display:flex; align-items:center; justify-content:center; color:#fff; box-shadow:0 0 24px rgba(245,158,11,0.6); animation:spin-slow 4s linear infinite;">
           <ha-icon icon="mdi:sync" style="--mdc-icon-size:32px;"></ha-icon>
         </div>
         <div style="font-size:18px; font-weight:800; color:#fff; margin-bottom:8px;" id="update-status-title">Mise à jour en cours...</div>
@@ -4582,52 +4582,91 @@ class DomolinkPanel extends HTMLElement {
     `;
     this.appendChild(overlay);
 
-    // Call service
-    try {
-      this._hass.callService('domolink_alarm', 'install_update', { backup: true });
-    } catch (err) {
-      this._hass.callService('update', 'install', { entity_id: 'update.domolink_alarm' });
-    }
-
     const progressBar = overlay.querySelector('#update-progress-bar');
     const statusTitle = overlay.querySelector('#update-status-title');
     const statusDesc = overlay.querySelector('#update-status-desc');
     const timerMsg = overlay.querySelector('#update-timer-msg');
+    const spinnerIcon = overlay.querySelector('#update-spinner-icon');
 
-    let percent = 25;
-    const progressInterval = setInterval(() => {
-      if (percent < 85) {
-        percent += 15;
-        if (progressBar) progressBar.style.width = percent + '%';
+    const showError = (msg) => {
+      overlay.style.cursor = 'default';
+      if (spinnerIcon) {
+        spinnerIcon.style.background = '#ef4444';
+        spinnerIcon.style.animation = 'none';
+        spinnerIcon.innerHTML = '<ha-icon icon="mdi:alert-circle" style="--mdc-icon-size:32px;"></ha-icon>';
       }
-    }, 1500);
+      if (statusTitle) statusTitle.textContent = "Échec du déclenchement";
+      if (statusDesc) {
+        statusDesc.innerHTML = `<span style="color:#ef4444; font-weight:600;">${msg}</span><br><br><span style="color:#94a3b8; font-size:12px;">L'intégration n'a pas pu exécuter la mise à jour automatique. Veuillez mettre à jour via HACS ou recharger l'intégration.</span>`;
+      }
+      if (progressBar) progressBar.style.background = '#ef4444';
+      if (timerMsg) {
+        timerMsg.innerHTML = `<button style="margin-top:8px; padding:10px 20px; background:#334155; color:#fff; border:none; border-radius:10px; font-weight:700; cursor:pointer;" onclick="this.closest('#domolink-update-progress-overlay').remove()">Fermer</button>`;
+      }
+    };
 
-    setTimeout(() => {
-      clearInterval(progressInterval);
-      if (progressBar) progressBar.style.width = '95%';
-      if (statusTitle) statusTitle.textContent = 'Redémarrage de Home Assistant...';
-      if (statusDesc) statusDesc.textContent = 'Fichiers installés avec succès ! Reconnexion automatique au serveur en cours...';
+    let callPromise;
+    try {
+      callPromise = this._hass.callService('domolink_alarm', 'install_update', { backup: true });
+    } catch (err) {
+      try {
+        callPromise = this._hass.callService('update', 'install', { entity_id: 'update.domolink_alarm' });
+      } catch (e2) {
+        showError(e2.message || "Impossible d'appeler le service de mise à jour.");
+        return;
+      }
+    }
 
+    if (!callPromise || typeof callPromise.then !== 'function') {
+      callPromise = Promise.resolve();
+    }
+
+    callPromise.then(() => {
+      let percent = 25;
+      const progressInterval = setInterval(() => {
+        if (percent < 85) {
+          percent += 10;
+          if (progressBar) progressBar.style.width = percent + '%';
+        }
+      }, 1200);
+
+      let serverWentDown = false;
       let count = 0;
       const pollInterval = setInterval(async () => {
         count++;
-        if (timerMsg) timerMsg.textContent = `Tentative de reconnexion (${count * 2}s)...`;
+        if (timerMsg) timerMsg.textContent = serverWentDown 
+          ? `En attente du redémarrage du serveur (${count * 2}s)...` 
+          : `Application des modifications (${count * 2}s)...`;
+
         try {
           const resp = await fetch('/manifest.json', { cache: 'no-store' });
-          if (resp.ok) {
+          if (serverWentDown && resp.ok) {
+            clearInterval(progressInterval);
             clearInterval(pollInterval);
             if (progressBar) progressBar.style.width = '100%';
             if (statusTitle) statusTitle.textContent = 'Mise à jour terminée !';
-            if (statusDesc) statusDesc.textContent = 'Rechargement de la page...';
-            setTimeout(() => {
-              window.location.reload();
-            }, 1000);
+            if (statusDesc) statusDesc.textContent = 'Home Assistant a redémarré avec succès. Rechargement...';
+            setTimeout(() => window.location.reload(), 1200);
+          } else if (!serverWentDown && count > 15) {
+            clearInterval(progressInterval);
+            clearInterval(pollInterval);
+            if (progressBar) progressBar.style.width = '100%';
+            if (statusTitle) statusTitle.textContent = 'Mise à jour effectuée';
+            if (statusDesc) statusDesc.textContent = 'Fichiers mis à jour. Redémarrez Home Assistant pour appliquer.';
+            if (timerMsg) {
+              timerMsg.innerHTML = `<button style="margin-top:8px; padding:10px 20px; background:#10b981; color:#fff; border:none; border-radius:10px; font-weight:700; cursor:pointer;" onclick="window.location.reload()">Recharger la page</button>`;
+            }
           }
         } catch (e) {
-          // Keep waiting for Home Assistant to boot
+          serverWentDown = true;
+          if (progressBar) progressBar.style.width = '90%';
+          if (statusTitle) statusTitle.textContent = 'Redémarrage de Home Assistant...';
+          if (statusDesc) statusDesc.textContent = 'Fichiers installés ! En attente du redémarrage du serveur...';
         }
       }, 2000);
-    }, 8000);
+    }).catch((err) => {
+      showError(err && err.message ? err.message : "Erreur lors de l'appel du service de mise à jour.");
+    });
   }
 
   // ─── Tab 4: Santé ───────────────────────────────
@@ -6091,8 +6130,8 @@ mode: single`;
 
     const updateEntity = this._hass && this._hass.states && this._hass.states['update.domolink_alarm'];
     const hasUpdate = Boolean(attrs.update_available || (updateEntity && updateEntity.state === 'on'));
-    const latestVersion = attrs.latest_version || (updateEntity && updateEntity.attributes && updateEntity.attributes.latest_version) || attrs.system_version || '0.9.78';
-    const currentVer = attrs.system_version || '0.9.78';
+    const latestVersion = attrs.latest_version || (updateEntity && updateEntity.attributes && updateEntity.attributes.latest_version) || attrs.system_version || '0.9.79';
+    const currentVer = attrs.system_version || '0.9.79';
 
     const html = `
       <div style="max-width:960px; margin:0 auto;">
@@ -7317,7 +7356,7 @@ mode: single`;
     // 7. Paramètres Badge & Auto-Update
     const updateEntity = this._hass && this._hass.states && this._hass.states['update.domolink_alarm'];
     const hasUpdate = Boolean(attrs.update_available || (updateEntity && updateEntity.state === 'on'));
-    const latestVersion = attrs.latest_version || (updateEntity && updateEntity.attributes && updateEntity.attributes.latest_version) || attrs.system_version || '0.9.78';
+    const latestVersion = attrs.latest_version || (updateEntity && updateEntity.attributes && updateEntity.attributes.latest_version) || attrs.system_version || '0.9.79';
 
     const elParam = this.querySelector('#nav-badge-param');
     if (elParam) {
@@ -7329,7 +7368,7 @@ mode: single`;
       
       const versionBadgeHtml = hasUpdate
         ? `<span class="nav-badge-pill badge-update-avail" title="Nouvelle version v${latestVersion} disponible !">🚀 v${latestVersion}</span>`
-        : `<span class="nav-badge-pill badge-version">v${attrs.system_version || '0.9.78'}</span>`;
+        : `<span class="nav-badge-pill badge-version">v${attrs.system_version || '0.9.79'}</span>`;
 
       elParam.innerHTML = `
         <div class="nav-badge-stack">
