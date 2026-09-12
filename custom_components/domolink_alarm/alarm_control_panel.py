@@ -1168,7 +1168,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             # Certified Incident Data
             "last_incident_report": dict(getattr(self, "_last_incident_data", {})),
             "installed_config": self._get_installed_config(),
-            "system_version": "0.9.74",
+            "system_version": "0.9.75",
         }
 
     def _get_compact_state(self):
@@ -3226,6 +3226,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 _LOGGER.error("Domolink: Erreur lors de l'envoi SFTP de %s : %s", file_path, sftp_err)
                 return False
 
+        ftp = None
         try:
             port_int = int(self._ftp_port or 21)
             ftp = _create_ftp_client(
@@ -3241,15 +3242,20 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 _LOGGER.warning("Domolink FTP: Erreur navigation dossier (%s): %s", current_path, err)
 
             with open(file_path, "rb") as f:
-                ftp.storbinary(f"STOR {filename}", f)
-            try:
-                ftp.quit()
-            except Exception:
-                ftp.close()
+                ftp.storbinary(f"STOR {filename}", f, blocksize=524288)
             return True
         except Exception as e:
             _LOGGER.error("Domolink: Erreur lors de l'envoi FTP/FTPS de %s : %s", file_path, e)
             return False
+        finally:
+            if ftp:
+                try:
+                    ftp.quit()
+                except Exception:
+                    try:
+                        ftp.close()
+                    except Exception:
+                        pass
 
     async def _async_upload_to_ftp(self, file_path):
         """Handle FTP upload in executor job."""
@@ -4691,7 +4697,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             "active_faults": list(self._faults),
             "bypassed_sensors": list(self._bypassed_sensors),
             "recent_events": recent_logs,
-            "system_version": "0.9.74",
+            "system_version": "0.9.75",
         }
 
         raw_payload = json.dumps(incident_data, sort_keys=True, ensure_ascii=False)
