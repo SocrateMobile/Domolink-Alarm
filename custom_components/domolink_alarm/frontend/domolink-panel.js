@@ -4324,7 +4324,7 @@ class DomolinkPanel extends HTMLElement {
       bypassed_sensors: attrs.bypassed_sensors || [],
       recent_events: (attrs.system_events || []).slice(0, 15),
       sha256_token: "DOMO-" + Math.random().toString(36).substring(2, 10).toUpperCase() + Math.random().toString(36).substring(2, 10).toUpperCase(),
-      system_version: attrs.system_version || "0.9.76"
+      system_version: attrs.system_version || "0.9.77"
     };
 
     const modal = document.createElement('div');
@@ -4473,7 +4473,7 @@ class DomolinkPanel extends HTMLElement {
 
   _showUpdateModal(attrs) {
     const updateEntity = this._hass && this._hass.states && this._hass.states['update.domolink_alarm'];
-    const currentVer = attrs.system_version || '0.9.76';
+    const currentVer = attrs.system_version || '0.9.77';
     const latestVer = attrs.latest_version || (updateEntity && updateEntity.attributes && updateEntity.attributes.latest_version) || currentVer;
     const releaseNotes = attrs.release_notes || (updateEntity && updateEntity.attributes && updateEntity.attributes.release_summary) || 'Mise à jour officielle de Domolink Alarm.';
     const releaseUrl = attrs.release_url || (updateEntity && updateEntity.attributes && updateEntity.attributes.release_url) || `https://github.com/SocrateMobile/Domolink-Alarm/releases/tag/v${latestVer}`;
@@ -6091,8 +6091,8 @@ mode: single`;
 
     const updateEntity = this._hass && this._hass.states && this._hass.states['update.domolink_alarm'];
     const hasUpdate = Boolean(attrs.update_available || (updateEntity && updateEntity.state === 'on'));
-    const latestVersion = attrs.latest_version || (updateEntity && updateEntity.attributes && updateEntity.attributes.latest_version) || attrs.system_version || '0.9.76';
-    const currentVer = attrs.system_version || '0.9.76';
+    const latestVersion = attrs.latest_version || (updateEntity && updateEntity.attributes && updateEntity.attributes.latest_version) || attrs.system_version || '0.9.77';
+    const currentVer = attrs.system_version || '0.9.77';
 
     const html = `
       <div style="max-width:960px; margin:0 auto;">
@@ -7317,7 +7317,7 @@ mode: single`;
     // 7. Paramètres Badge & Auto-Update
     const updateEntity = this._hass && this._hass.states && this._hass.states['update.domolink_alarm'];
     const hasUpdate = Boolean(attrs.update_available || (updateEntity && updateEntity.state === 'on'));
-    const latestVersion = attrs.latest_version || (updateEntity && updateEntity.attributes && updateEntity.attributes.latest_version) || attrs.system_version || '0.9.76';
+    const latestVersion = attrs.latest_version || (updateEntity && updateEntity.attributes && updateEntity.attributes.latest_version) || attrs.system_version || '0.9.77';
 
     const elParam = this.querySelector('#nav-badge-param');
     if (elParam) {
@@ -7329,7 +7329,7 @@ mode: single`;
       
       const versionBadgeHtml = hasUpdate
         ? `<span class="nav-badge-pill badge-update-avail" title="Nouvelle version v${latestVersion} disponible !">🚀 v${latestVersion}</span>`
-        : `<span class="nav-badge-pill badge-version">v${attrs.system_version || '0.9.76'}</span>`;
+        : `<span class="nav-badge-pill badge-version">v${attrs.system_version || '0.9.77'}</span>`;
 
       elParam.innerHTML = `
         <div class="nav-badge-stack">

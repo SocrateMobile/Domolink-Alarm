@@ -421,10 +421,9 @@ def _create_ftp_client(proto: str, host: str, port: int, user: str, password: st
 async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
     """Set up the alarm control panel from a config entry."""
     entity = DomolinkAlarm(hass, entry)
+    # Store entity reference immediately so dependent platforms find it
+    hass.data.setdefault(DOMAIN, {}).setdefault(entry.entry_id, {})["entity"] = entity
     async_add_entities([entity], True)
-    # Store entity reference so __init__.py can forward options updates
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = {"entity": entity}
 
     async def async_handle_bypass_sensor(call):
         """Handle bypass sensor service call."""
@@ -1174,9 +1173,9 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             # Certified Incident Data
             "last_incident_report": dict(getattr(self, "_last_incident_data", {})),
             "installed_config": self._get_installed_config(),
-            "system_version": getattr(self, "_system_version", "0.9.76"),
+            "system_version": getattr(self, "_system_version", "0.9.77"),
             "update_available": getattr(self, "_update_available", False),
-            "latest_version": getattr(self, "_latest_version", getattr(self, "_system_version", "0.9.76")),
+            "latest_version": getattr(self, "_latest_version", getattr(self, "_system_version", "0.9.77")),
             "release_notes": getattr(self, "_release_notes", ""),
             "release_url": getattr(self, "_release_url", ""),
         }
@@ -4707,7 +4706,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             "active_faults": list(self._faults),
             "bypassed_sensors": list(self._bypassed_sensors),
             "recent_events": recent_logs,
-            "system_version": getattr(self, "_system_version", "0.9.76"),
+            "system_version": getattr(self, "_system_version", "0.9.77"),
         }
 
         raw_payload = json.dumps(incident_data, sort_keys=True, ensure_ascii=False)

@@ -8,7 +8,8 @@ from .const import DOMAIN, DEFAULT_NAME, CONF_NAME
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities):
     """Set up the button platform."""
-    alarm_entity = hass.data[DOMAIN][entry.entry_id].get("entity")
+    entry_data = hass.data.setdefault(DOMAIN, {}).setdefault(entry.entry_id, {})
+    alarm_entity = entry_data.get("entity")
     name = entry.data.get(CONF_NAME, DEFAULT_NAME)
     
     async_add_entities([DomolinkPanicButton(entry.entry_id, name, alarm_entity)])
