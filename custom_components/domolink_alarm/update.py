@@ -53,10 +53,10 @@ def get_installed_version() -> str:
         if os.path.exists(manifest_path):
             with open(manifest_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                return str(data.get("version", "0.9.76"))
+                return str(data.get("version", "0.9.78"))
     except Exception as err:
         _LOGGER.warning("Could not read manifest.json version: %s", err)
-    return "0.9.76"
+    return "0.9.78"
 
 
 async def async_setup_entry(
