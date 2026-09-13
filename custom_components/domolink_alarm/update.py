@@ -351,8 +351,13 @@ class DomolinkAlarmUpdateEntity(UpdateEntity):
             _LOGGER.info("Update complete! Requesting Home Assistant restart...")
             await asyncio.sleep(1)
 
-            # Trigger Home Assistant restart
-            await self.hass.services.async_call("homeassistant", "restart")
+            # Synergy: Use Restart-HA if available
+            if self.hass.services.has_service("restart_ha", "start_process"):
+                _LOGGER.info("DomoLink-Alarm: Utilisation de Restart-HA pour le redémarrage (Safe Reboot).")
+                await self.hass.services.async_call("restart_ha", "start_process", {"action": "quick_restart"})
+            else:
+                _LOGGER.info("DomoLink-Alarm: Redémarrage standard Home Assistant.")
+                await self.hass.services.async_call("homeassistant", "restart")
 
         except Exception as err:
             self._attr_in_progress = False
