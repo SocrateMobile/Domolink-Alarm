@@ -1091,6 +1091,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
         return {
             "domolink_alarm": True,
+            "ai_recent_events": [e["message"] for e in self._system_events[:5]],
             "faults": self._faults,
             "triggered_by": self._triggered_by,
             "last_triggered_by": self._last_triggered_by,
@@ -2687,6 +2688,20 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             }
         )
         self.hass.async_create_task(self._async_sync_keypads("triggered"))
+
+        # Synergy: DomoLink-BackUp Emergency Snapshot
+        if self.hass.services.has_service("domolink_backup", "create_backup"):
+            _LOGGER.info("DomoLink-Alarm: Déclenchement d'un backup d'urgence (Snapshot) via DomoLink-BackUp.")
+            import datetime
+            self.hass.async_create_task(
+                self.hass.services.async_call("domolink_backup", "create_backup", {
+                    "name": f"ALARM_SNAPSHOT_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}",
+                    "backup_type": "partial",
+                    "homeassistant": False,
+                    "include_database": True,
+                    "folders": ["share", "media", "www"]
+                }, blocking=False)
+            )
 
         # ─── 1. INSTANT SIRENS & PANIC LIGHTS (Priority #1: Immediate deterrent) ───
         should_siren = (

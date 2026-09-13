@@ -21,6 +21,12 @@
 
 ---
 
+## 🚀 Nouveautés de la Version 0.9.80
+
+- **Synergie DomoLink-BackUp (Emergency Snapshot)** : Si une intrusion est détectée et que DomoLink-BackUp est installé, la centrale déclenche instantanément une sauvegarde d'urgence asynchrone des répertoires `www` (caméras/snapshots) et de la base de données. Vos preuves restent en sécurité sur un NAS ou le Cloud même si la box domotique est détruite.
+- **Synergie Mistral IA** : Les derniers évènements critiques de l'alarme sont désormais exposés de manière compacte dans l'attribut `ai_recent_events`. Mistral IA peut donc lire et résumer instantanément pourquoi l'alarme a sonné.
+- **Synergie Restart-HA** : Lors d'une mise à jour OTA de l'alarme depuis le panneau, le redémarrage utilise `restart_ha.start_process` (Safe Boot / Quick Restart) pour un redémarrage fluide sans perte de contrôle.
+
 ## 💎 Pourquoi Domolink Alarm surpasse les solutions existantes ?
 
 La plupart des alarmes domotiques se limitent à déclencher une sirène sur un simple changement d'état. **Domolink Alarm réinvente la sécurité résidentielle** en intégrant les fonctionnalités réservées jusqu'alors aux centrales professionnelles haut de gamme (**Ajax, Daitem, Somfy Pro**) tout en restant **100% locale, souveraine et personnalisable**.
