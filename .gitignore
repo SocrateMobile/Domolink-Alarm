@@ -1,5 +1,8 @@
 __pycache__/
-*.pyc
-patch_*.py
-update_*.py
-fix_*.py
+*.py[cod]
+*$py.class
+.DS_Store
+.vscode/
+.idea/
+*.log
+

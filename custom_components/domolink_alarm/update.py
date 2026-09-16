@@ -6,9 +6,6 @@ import json
 import logging
 import os
 import re
-import shutil
-import tempfile
-import zipfile
 from datetime import timedelta
 
 import aiohttp
@@ -25,7 +22,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.event import async_track_time_interval
 
-from .const import CONF_NAME, DEFAULT_NAME, DOMAIN
+from .const import CONF_NAME, DEFAULT_NAME, DOMAIN, VERSION
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,11 +31,11 @@ GITHUB_LATEST_RELEASE_URL = f"https://api.github.com/repos/{GITHUB_REPO}/release
 UPDATE_CHECK_INTERVAL = timedelta(hours=4)
 
 
-def parse_semver(version_str: str) -> tuple[int, ...]:
-    """Parse semver string into a comparable tuple of integers."""
-    if not version_str:
+def parse_version(ver_str: str) -> tuple:
+    """Safely parse semantic versions or release tags into integer tuples."""
+    if not ver_str:
         return (0, 0, 0)
-    clean = re.sub(r"^[vV]", "", version_str.strip())
+    clean = ver_str.lstrip("v").strip()
     parts = []
     for segment in clean.split("."):
         digits = re.match(r"^\d+", segment)
@@ -53,10 +50,10 @@ def get_installed_version() -> str:
         if os.path.exists(manifest_path):
             with open(manifest_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                return str(data.get("version", "0.9.79"))
+                return str(data.get("version", VERSION))
     except Exception as err:
         _LOGGER.warning("Could not read manifest.json version: %s", err)
-    return "0.9.79"
+    return VERSION
 
 
 async def async_setup_entry(
@@ -85,11 +82,7 @@ class DomolinkAlarmUpdateEntity(UpdateEntity):
 
     _attr_has_entity_name = True
     _attr_device_class = UpdateDeviceClass.FIRMWARE
-    _attr_supported_features = (
-        UpdateEntityFeature.INSTALL
-        | UpdateEntityFeature.RELEASE_NOTES
-        | UpdateEntityFeature.PROGRESS
-    )
+    _attr_supported_features = UpdateEntityFeature.RELEASE_NOTES
 
     def __init__(
         self,
@@ -243,128 +236,31 @@ class DomolinkAlarmUpdateEntity(UpdateEntity):
     async def async_install(
         self, version: str | None = None, backup: bool = True, **kwargs
     ) -> None:
-        """Download and install update, then restart Home Assistant."""
-        # Always check for the latest release right now to avoid installing a stale cached tag
+        """Inform user to perform update safely via HACS to maintain system security."""
         await self.async_update()
 
         target_version = version or self._attr_latest_version
         clean_tag = re.sub(r"^[vV]", "", target_version)
-        download_url = self._zip_download_url or f"https://github.com/{GITHUB_REPO}/archive/refs/tags/v{clean_tag}.zip"
+        release_url = self._attr_release_url or f"https://github.com/{GITHUB_REPO}/releases/tag/v{clean_tag}"
 
-        _LOGGER.info(
-            "Starting Domolink Alarm update to version %s (download: %s)",
-            clean_tag,
-            download_url,
+        _LOGGER.warning(
+            "Domolink Alarm: Les mises à jour directes par écrasement de fichiers ont été désactivées pour des raisons de sécurité. Veuillez mettre à jour via HACS (%s)",
+            release_url,
         )
 
-        self._attr_in_progress = True
-        self._attr_update_percentage = 10
-        if getattr(self, "hass", None) and getattr(self, "entity_id", None):
-            try:
-                self.async_write_ha_state()
-            except Exception:
-                pass
-
-        temp_dir = tempfile.mkdtemp(prefix="domolink_update_")
-        zip_path = os.path.join(temp_dir, "release.zip")
-
-        try:
-            # 1. Download zip using Home Assistant aiohttp session
-            session = async_get_clientsession(self.hass)
-            self._attr_update_percentage = 20
-            if self.entity_id is not None:
-                self.async_write_ha_state()
-
-            async with session.get(download_url, timeout=aiohttp.ClientTimeout(total=60)) as resp:
-                if resp.status != 200:
-                    raise RuntimeError(
-                        f"Failed to download release zip from {download_url} (HTTP {resp.status})"
-                    )
-                with open(zip_path, "wb") as f:
-                    while True:
-                        chunk = await resp.content.read(65536)
-                        if not chunk:
-                            break
-                        f.write(chunk)
-
-            self._attr_update_percentage = 50
-            if self.entity_id is not None:
-                self.async_write_ha_state()
-
-            def _do_extract_and_copy() -> None:
-                """Extract and copy files synchronously."""
-                extract_path = os.path.join(temp_dir, "extracted")
-                os.makedirs(extract_path, exist_ok=True)
-                with zipfile.ZipFile(zip_path, "r") as zip_ref:
-                    zip_ref.extractall(extract_path)
-
-                # Locate custom_components/domolink_alarm or domolink_alarm inside extracted content
-                source_component_dir = None
-                for root, dirs, _files in os.walk(extract_path):
-                    if os.path.basename(root) == "domolink_alarm":
-                        if os.path.exists(os.path.join(root, "__init__.py")) and os.path.exists(
-                            os.path.join(root, "manifest.json")
-                        ):
-                            source_component_dir = root
-                            break
-
-                if not source_component_dir:
-                    raise RuntimeError(
-                        "Archive does not contain a valid domolink_alarm component structure"
-                    )
-
-                # Target component directory
-                target_dir = os.path.abspath(os.path.dirname(__file__))
-
-                # Optional safety backup of current directory
-                if backup:
-                    backup_dir = os.path.join(tempfile.gettempdir(), "domolink_alarm_last_backup")
-                    if os.path.exists(backup_dir):
-                        shutil.rmtree(backup_dir, ignore_errors=True)
-                    shutil.copytree(target_dir, backup_dir, dirs_exist_ok=True)
-                    _LOGGER.info("Domolink Alarm safety backup saved to %s", backup_dir)
-
-                # Clean stale pycache in target
-                pycache_dir = os.path.join(target_dir, "__pycache__")
-                if os.path.exists(pycache_dir):
-                    shutil.rmtree(pycache_dir, ignore_errors=True)
-
-                # Overwrite target directory with newly extracted files
-                shutil.copytree(source_component_dir, target_dir, dirs_exist_ok=True)
-                _LOGGER.info("Domolink Alarm files successfully updated in %s", target_dir)
-
-            await self.hass.async_add_executor_job(_do_extract_and_copy)
-
-            self._attr_update_percentage = 90
-            if self.entity_id is not None:
-                self.async_write_ha_state()
-
-            # Reset sidebar panel title to default
-            self._update_sidebar_panel(False)
-
-            self._attr_update_percentage = 100
-            self._attr_installed_version = clean_tag
-            self._attr_in_progress = False
-            if self.entity_id is not None:
-                self.async_write_ha_state()
-
-            _LOGGER.info("Update complete! Requesting Home Assistant restart...")
-            await asyncio.sleep(1)
-
-            # Synergy: Use Restart-HA if available
-            if self.hass.services.has_service("restart_ha", "start_process"):
-                _LOGGER.info("DomoLink-Alarm: Utilisation de Restart-HA pour le redémarrage (Safe Reboot).")
-                await self.hass.services.async_call("restart_ha", "start_process", {"action": "quick_restart"})
-            else:
-                _LOGGER.info("DomoLink-Alarm: Redémarrage standard Home Assistant.")
-                await self.hass.services.async_call("homeassistant", "restart")
-
-        except Exception as err:
-            self._attr_in_progress = False
-            self._attr_update_percentage = None
-            if self.entity_id is not None:
-                self.async_write_ha_state()
-            _LOGGER.error("Domolink Alarm auto-update failed: %s", err, exc_info=True)
-            raise
-        finally:
-            shutil.rmtree(temp_dir, ignore_errors=True)
+        # Notify user in Home Assistant UI
+        if "persistent_notification" in self.hass.config.components:
+            await self.hass.services.async_call(
+                "persistent_notification",
+                "create",
+                {
+                    "title": "Mise à jour Domolink Alarm",
+                    "message": (
+                        f"Une nouvelle version **{clean_tag}** de **Domolink Alarm** est disponible.\n\n"
+                        f"Pour garantir la sécurité et l'intégrité de votre serveur Home Assistant, "
+                        f"veuillez appliquer cette mise à jour depuis **HACS** (Home Assistant Community Store).\n\n"
+                        f"[Voir les notes de version sur GitHub]({release_url})"
+                    ),
+                    "notification_id": "domolink_alarm_update_notice",
+                },
+            )

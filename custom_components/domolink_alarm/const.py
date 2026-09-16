@@ -163,12 +163,15 @@ CONF_FTP_USER = "ftp_user"
 CONF_FTP_PASS = "ftp_pass"
 CONF_FTP_PATH = "ftp_path"
 CONF_FTP_PROTOCOL = "ftp_protocol"
+CONF_FTP_ALLOW_INSECURE_TLS = "ftp_allow_insecure_tls"
 
 DEFAULT_TELEGRAM_ENABLED = False
 DEFAULT_FTP_ENABLED = False
 DEFAULT_FTP_PORT = 21
 DEFAULT_FTP_PATH = "/"
 DEFAULT_FTP_PROTOCOL = "ftp"
+DEFAULT_FTP_ALLOW_INSECURE_TLS = False
+SECRET_MASK = "••••••••"
 FTP_PROTOCOLS = ["ftp", "ftps", "sftp", "samba"]
 CONF_CAMERAS_ARM_ENTITIES = "cameras_arm_entities"
 CONF_CAMERAS_ARM_ENTITIES_LABELS = "cameras_arm_entities_labels"

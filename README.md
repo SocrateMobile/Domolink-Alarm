@@ -21,6 +21,21 @@
 
 ---
 
+## 🚀 Nouveautés de la Version 0.9.81
+
+- **Architecture Modulaire Réécrite & Découplée** :
+  - Décomposition du moteur en 5 sous-gestionnaires spécialisés et autonomes : `CloudUploader` (FTPS, SFTP, WebDAV, GDrive, Telegram), `MediaManager` (snapshots, flux 30s, surveillance MP4 et purge FIFO intelligente), `NotificationManager` (Push Companion, SMS Free, iCloud Find My, failover GSM), `PresenceSimulator` (rejeu J-7 avec gigue temporelle) et `GeofenceManager` (proximité GPS et rappels avec snooze).
+- **Sécurité Cryptographique Renforcée (PBKDF2-HMAC-SHA256)** :
+  - Hachage salé des codes PIN et du code de contrainte (100 000 itérations).
+  - Validation en temps constant pour contrer les attaques temporelles (*timing attacks*).
+  - **Auto-migration transparente** : Vos codes existants sont automatiquement et instantanément convertis au format sécurisé dès leur première saisie.
+- **Protection Totale contre les Fuites de Secrets** :
+  - Masquage intégral (`••••••••`) de tous les identifiants et tokens dans les attributs d'état, flux WebSocket et logs MQTT/système.
+  - Protection contre les attaques *Path Traversal* sur les fichiers médias.
+  - Validation stricte des certificats TLS par défaut sur les flux FTPS avec option explicite pour certificats locaux auto-signés.
+- **Suite Complète de 21 Tests Automatisés** :
+  - Tests unitaires complets couvrant la sécurité cryptographique, la machine à états, la double détection **NF A2P** et la gestion des médias.
+
 ## 🚀 Nouveautés de la Version 0.9.80
 
 - **Synergie DomoLink-BackUp (Emergency Snapshot)** : Si une intrusion est détectée et que DomoLink-BackUp est installé, la centrale déclenche instantanément une sauvegarde d'urgence asynchrone des répertoires `www` (caméras/snapshots) et de la base de données. Vos preuves restent en sécurité sur un NAS ou le Cloud même si la box domotique est détruite.
