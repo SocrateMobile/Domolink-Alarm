@@ -3,7 +3,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.components import frontend
 
-from .const import DOMAIN
+from .const import DOMAIN, VERSION
 
 PLATFORMS = ["alarm_control_panel", "button", "sensor", "update"]
 
@@ -37,7 +37,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 config={
                     "_panel_custom": {
                         "name": "domolink-panel",
-                        "module_url": "/domolink_alarm_panel/domolink-panel.js?v=0.9.79",
+                        "module_url": f"/domolink_alarm_panel/domolink-panel.js?v={VERSION}",
                     }
                 },
                 require_admin=False,

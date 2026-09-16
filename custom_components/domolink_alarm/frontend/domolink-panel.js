@@ -4340,7 +4340,7 @@ class DomolinkPanel extends HTMLElement {
       bypassed_sensors: attrs.bypassed_sensors || [],
       recent_events: (attrs.system_events || []).slice(0, 15),
       sha256_token: "DOMO-" + Math.random().toString(36).substring(2, 10).toUpperCase() + Math.random().toString(36).substring(2, 10).toUpperCase(),
-      system_version: attrs.system_version || "0.9.79"
+      system_version: attrs.system_version || "0.9.81"
     };
 
     const modal = document.createElement('div');
@@ -4554,7 +4554,7 @@ class DomolinkPanel extends HTMLElement {
 
   _showUpdateModal(attrs) {
     const updateEntity = this._hass && this._hass.states && this._hass.states['update.domolink_alarm'];
-    const currentVer = attrs.system_version || '0.9.79';
+    const currentVer = attrs.system_version || '0.9.81';
     const latestVer = attrs.latest_version || (updateEntity && updateEntity.attributes && updateEntity.attributes.latest_version) || currentVer;
     const releaseNotes = attrs.release_notes || (updateEntity && updateEntity.attributes && updateEntity.attributes.release_summary) || 'Mise à jour officielle de Domolink Alarm.';
     const releaseUrl = attrs.release_url || (updateEntity && updateEntity.attributes && updateEntity.attributes.release_url) || `https://github.com/SocrateMobile/Domolink-Alarm/releases/tag/v${latestVer}`;
@@ -5639,7 +5639,7 @@ function doGet(e) {
                   <div style="font-family:monospace; background:var(--d-sec-bg); border:1px solid var(--d-border); border-radius:8px; padding:6px 12px; font-size:13px; font-weight:700; color:var(--d-text);">
                     PIN: ••••
                   </div>
-                  <button class="btn-delete-profile" data-pin="${this.escapeHtml(p.pin)}" data-name="${this.escapeHtml(p.name)}" style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); color:#ef4444; padding:6px 12px; border-radius:8px; font-weight:700; font-size:12px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; transition:all 0.2s;">
+                  <button class="btn-delete-profile" data-profile-id="${this.escapeHtml(p.id || '')}" data-name="${this.escapeHtml(p.name)}" style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); color:#ef4444; padding:6px 12px; border-radius:8px; font-weight:700; font-size:12px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; transition:all 0.2s;">
                     <ha-icon icon="mdi:delete-outline" style="--mdc-icon-size:16px;"></ha-icon> Supprimer
                   </button>
                 </div>
@@ -6211,8 +6211,8 @@ mode: single`;
 
     const updateEntity = this._hass && this._hass.states && this._hass.states['update.domolink_alarm'];
     const hasUpdate = Boolean(attrs.update_available || (updateEntity && updateEntity.state === 'on'));
-    const latestVersion = attrs.latest_version || (updateEntity && updateEntity.attributes && updateEntity.attributes.latest_version) || attrs.system_version || '0.9.79';
-    const currentVer = attrs.system_version || '0.9.79';
+    const latestVersion = attrs.latest_version || (updateEntity && updateEntity.attributes && updateEntity.attributes.latest_version) || attrs.system_version || '0.9.81';
+    const currentVer = attrs.system_version || '0.9.81';
 
     const html = `
       <div style="max-width:960px; margin:0 auto;">
@@ -7070,11 +7070,11 @@ mode: single`;
 
     container.querySelectorAll('.btn-delete-profile').forEach((btn) => {
       btn.addEventListener('click', (ev) => {
-        const pin = btn.getAttribute('data-pin');
+        const profileId = btn.getAttribute('data-profile-id');
         const name = btn.getAttribute('data-name');
         if (confirm(`Êtes-vous sûr de vouloir supprimer le profil "${name}" ?`)) {
           this._hass.callService('domolink_alarm', 'delete_user_profile', {
-            pin: pin,
+            id: profileId,
             name: name
           }).then(() => {
             if (this._configDraft && this._configDraft.user_profiles) {
@@ -7082,7 +7082,7 @@ mode: single`;
                 let profs = typeof this._configDraft.user_profiles === 'string'
                   ? JSON.parse(this._configDraft.user_profiles)
                   : this._configDraft.user_profiles;
-                profs = profs.filter(p => p.name !== name && p.pin !== pin);
+                profs = profs.filter(p => (profileId ? p.id !== profileId : true) && p.name !== name);
                 this._configDraft.user_profiles = JSON.stringify(profs);
               } catch (e) {}
             }
@@ -7236,9 +7236,9 @@ mode: single`;
             let profs = typeof this._configDraft.user_profiles === 'string'
               ? JSON.parse(this._configDraft.user_profiles)
               : this._configDraft.user_profiles;
-            profs = profs.filter(p => p.name !== name && p.pin !== pin);
+            profs = profs.filter(p => p.name !== name);
             profs.push({
-              name, pin, role, single_use: singleUse, valid_from: validFrom, valid_to: validTo, allowed_hours: allowedHours, allowed_days: checkedDays, enabled: true
+              name, pin: "••••", role, single_use: singleUse, valid_from: validFrom, valid_to: validTo, allowed_hours: allowedHours, allowed_days: checkedDays, enabled: true
             });
             this._configDraft.user_profiles = JSON.stringify(profs);
           } catch (e) {}
@@ -7437,7 +7437,7 @@ mode: single`;
     // 7. Paramètres Badge & Auto-Update
     const updateEntity = this._hass && this._hass.states && this._hass.states['update.domolink_alarm'];
     const hasUpdate = Boolean(attrs.update_available || (updateEntity && updateEntity.state === 'on'));
-    const latestVersion = attrs.latest_version || (updateEntity && updateEntity.attributes && updateEntity.attributes.latest_version) || attrs.system_version || '0.9.79';
+    const latestVersion = attrs.latest_version || (updateEntity && updateEntity.attributes && updateEntity.attributes.latest_version) || attrs.system_version || '0.9.81';
 
     const elParam = this.querySelector('#nav-badge-param');
     if (elParam) {
@@ -7449,7 +7449,7 @@ mode: single`;
       
       const versionBadgeHtml = hasUpdate
         ? `<span class="nav-badge-pill badge-update-avail" title="Nouvelle version v${latestVersion} disponible !">🚀 v${latestVersion}</span>`
-        : `<span class="nav-badge-pill badge-version">v${attrs.system_version || '0.9.79'}</span>`;
+        : `<span class="nav-badge-pill badge-version">v${attrs.system_version || '0.9.81'}</span>`;
 
       elParam.innerHTML = `
         <div class="nav-badge-stack">
