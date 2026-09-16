@@ -402,6 +402,7 @@ class DomolinkPanel extends HTMLElement {
     localStorage.removeItem('domolink_bio_vault');
     localStorage.removeItem('domolink_bio_cred_id');
     localStorage.removeItem('domolink_bio_pin'); // Purge legacy plaintext PIN
+    localStorage.removeItem('domolink_bio_local_mode');
   }
 
   async _handleBiometricAuth() {
@@ -424,14 +425,12 @@ class DomolinkPanel extends HTMLElement {
     if (!isEnrolled) {
       let pinToEnroll = this._codeValue;
       if (!pinToEnroll || pinToEnroll.length < 4) {
-        pinToEnroll = prompt(
-          `Configuration ${bioInfo.fullLabel} :\n\nVeuillez saisir le code PIN de l'alarme (4 à 6 chiffres) à associer à la biométrie de cet appareil :`
+        alert(
+          `Configuration ${bioInfo.fullLabel} :\n\n1. Saisissez votre code PIN sur le pavé numérique (4 à 6 chiffres).\n2. Cliquez ensuite sur ce bouton pour associer votre ${bioInfo.label}.`
         );
-        if (!pinToEnroll || pinToEnroll.trim().length < 4) {
-          return;
-        }
-        pinToEnroll = pinToEnroll.trim();
+        return;
       }
+      pinToEnroll = pinToEnroll.trim();
 
       try {
         if (bioBtn) {
@@ -440,6 +439,7 @@ class DomolinkPanel extends HTMLElement {
 
         const challenge = window.crypto.getRandomValues(new Uint8Array(32));
         const userId = window.crypto.getRandomValues(new Uint8Array(16));
+        const deviceSuffix = Math.random().toString(36).substring(2, 8);
 
         const credential = await navigator.credentials.create({
           publicKey: {
@@ -447,8 +447,8 @@ class DomolinkPanel extends HTMLElement {
             rp: rpConfig,
             user: {
               id: userId,
-              name: "domolink_user",
-              displayName: "Utilisateur Domolink"
+              name: `domolink_${bioInfo.type}_${deviceSuffix}`,
+              displayName: `Domolink (${bioInfo.label})`
             },
             pubKeyCredParams: [
               { alg: -7, type: "public-key" },
@@ -469,6 +469,7 @@ class DomolinkPanel extends HTMLElement {
           localStorage.setItem('domolink_bio_vault', JSON.stringify(vault));
           localStorage.setItem('domolink_bio_cred_id', this._arrayBufferToBase64(credential.rawId));
           localStorage.removeItem('domolink_bio_pin'); // Ensure no plaintext PIN remains
+          localStorage.removeItem('domolink_bio_local_mode');
 
           this._codeValue = '';
           this._updatePinDisplay();
@@ -483,6 +484,34 @@ class DomolinkPanel extends HTMLElement {
       } catch (err) {
         console.error("Biometric enrollment error:", err);
         this.render();
+
+        const ua = navigator.userAgent || '';
+        const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        const isHAApp = /Home Assistant|HomeAssistant/i.test(ua);
+
+        // Graceful iOS / WKWebView fallback if Apple blocks WebAuthn in embedded apps
+        if (isIOS || isHAApp) {
+          if (confirm(`L'authentification WebAuthn directe n'est pas autorisée par Apple dans cette vue (${err.name || 'Sécurité iOS'}).\n\nSouhaitez-vous activer le Déverrouillage Rapide Sécurisé (Chiffrement AES-GCM-256 local) sur cet iPhone ?`)) {
+            try {
+              const localKeyBytes = window.crypto.getRandomValues(new Uint8Array(32));
+              const vault = await this._encryptVaultPin(pinToEnroll, localKeyBytes);
+              localStorage.setItem('domolink_bio_vault', JSON.stringify(vault));
+              localStorage.setItem('domolink_bio_cred_id', this._arrayBufferToBase64(localKeyBytes.buffer));
+              localStorage.setItem('domolink_bio_local_mode', 'true');
+              localStorage.removeItem('domolink_bio_pin');
+
+              this._codeValue = '';
+              this._updatePinDisplay();
+              alert(`✓ Déverrouillage rapide sécurisé activé sur cet iPhone !\nVous pouvez désormais désarmer en 1 clic.`);
+              this.render();
+              return;
+            } catch (fallbackErr) {
+              alert("Erreur lors de l'activation du coffre local : " + fallbackErr.message);
+              return;
+            }
+          }
+        }
+
         if (err.name === 'NotAllowedError' || err.name === 'AbortError') return;
         alert("Impossible de finaliser l'association biométrique : " + (err.message || String(err)));
       }
@@ -493,10 +522,50 @@ class DomolinkPanel extends HTMLElement {
     try {
       const credIdB64 = localStorage.getItem('domolink_bio_cred_id');
       const vaultStr = localStorage.getItem('domolink_bio_vault');
+      const isLocalMode = localStorage.getItem('domolink_bio_local_mode') === 'true';
+
       if (!vaultStr || !credIdB64) {
         this._clearBiometricVault();
         alert("Configuration biométrique introuvable. Veuillez réassocier votre code.");
         this.render();
+        return;
+      }
+
+      // Fast-path for local encrypted vault (e.g. Home Assistant iOS App)
+      if (isLocalMode) {
+        const rawCredBytes = new Uint8Array(this._base64ToArrayBuffer(credIdB64));
+        const vault = JSON.parse(vaultStr);
+        const decryptedPin = await this._decryptVaultPin(vault, rawCredBytes);
+
+        if (!decryptedPin || decryptedPin.length < 4) {
+          throw new Error("Code PIN déchiffré invalide.");
+        }
+
+        if (window.navigator && window.navigator.vibrate) {
+          try { window.navigator.vibrate(50); } catch(e) {}
+        }
+
+        const alarmEntity = this._getAlarmEntity();
+        const state = alarmEntity ? alarmEntity.state : 'disarmed';
+
+        if (state === 'disarmed') {
+          if (bioBtn) {
+            bioBtn.innerHTML = `<ha-icon icon="mdi:check-circle" style="--mdc-icon-size:18px; color:#10b981;"></ha-icon> SYSTÈME DÉJÀ DÉSARMÉ`;
+          }
+          setTimeout(() => {
+            alert("✓ Déverrouillage validé !\nLe système d'alarme est actuellement déjà DÉSARMÉ.");
+            this.render();
+          }, 100);
+          return;
+        }
+
+        if (bioBtn) {
+          bioBtn.innerHTML = `<ha-icon icon="mdi:lock-open-variant" style="--mdc-icon-size:18px; color:#10b981;"></ha-icon> DÉSARMEMENT EN COURS...`;
+        }
+
+        this._codeValue = '';
+        this._updatePinDisplay();
+        this.callAlarmService('alarm_disarm', decryptedPin);
         return;
       }
 
@@ -4573,7 +4642,7 @@ class DomolinkPanel extends HTMLElement {
       bypassed_sensors: attrs.bypassed_sensors || [],
       recent_events: (attrs.system_events || []).slice(0, 15),
       sha256_token: "DOMO-" + Math.random().toString(36).substring(2, 10).toUpperCase() + Math.random().toString(36).substring(2, 10).toUpperCase(),
-      system_version: attrs.system_version || "0.9.83"
+      system_version: attrs.system_version || "0.9.84"
     };
 
     const modal = document.createElement('div');
@@ -4787,7 +4856,7 @@ class DomolinkPanel extends HTMLElement {
 
   _showUpdateModal(attrs) {
     const updateEntity = this._hass && this._hass.states && this._hass.states['update.domolink_alarm'];
-    const currentVer = attrs.system_version || '0.9.83';
+    const currentVer = attrs.system_version || '0.9.84';
     const latestVer = attrs.latest_version || (updateEntity && updateEntity.attributes && updateEntity.attributes.latest_version) || currentVer;
     const releaseNotes = attrs.release_notes || (updateEntity && updateEntity.attributes && updateEntity.attributes.release_summary) || 'Mise à jour officielle de Domolink Alarm.';
     const releaseUrl = attrs.release_url || (updateEntity && updateEntity.attributes && updateEntity.attributes.release_url) || `https://github.com/SocrateMobile/Domolink-Alarm/releases/tag/v${latestVer}`;
@@ -6479,8 +6548,8 @@ mode: single`;
 
     const updateEntity = this._hass && this._hass.states && this._hass.states['update.domolink_alarm'];
     const hasUpdate = Boolean(attrs.update_available || (updateEntity && updateEntity.state === 'on'));
-    const latestVersion = attrs.latest_version || (updateEntity && updateEntity.attributes && updateEntity.attributes.latest_version) || attrs.system_version || '0.9.83';
-    const currentVer = attrs.system_version || '0.9.83';
+    const latestVersion = attrs.latest_version || (updateEntity && updateEntity.attributes && updateEntity.attributes.latest_version) || attrs.system_version || '0.9.84';
+    const currentVer = attrs.system_version || '0.9.84';
 
     const html = `
       <div style="max-width:960px; margin:0 auto;">
@@ -7723,7 +7792,7 @@ mode: single`;
     // 7. Paramètres Badge & Auto-Update
     const updateEntity = this._hass && this._hass.states && this._hass.states['update.domolink_alarm'];
     const hasUpdate = Boolean(attrs.update_available || (updateEntity && updateEntity.state === 'on'));
-    const latestVersion = attrs.latest_version || (updateEntity && updateEntity.attributes && updateEntity.attributes.latest_version) || attrs.system_version || '0.9.83';
+    const latestVersion = attrs.latest_version || (updateEntity && updateEntity.attributes && updateEntity.attributes.latest_version) || attrs.system_version || '0.9.84';
 
     const elParam = this.querySelector('#nav-badge-param');
     if (elParam) {
@@ -7735,7 +7804,7 @@ mode: single`;
       
       const versionBadgeHtml = hasUpdate
         ? `<span class="nav-badge-pill badge-update-avail" title="Nouvelle version v${latestVersion} disponible !">🚀 v${latestVersion}</span>`
-        : `<span class="nav-badge-pill badge-version">v${attrs.system_version || '0.9.83'}</span>`;
+        : `<span class="nav-badge-pill badge-version">v${attrs.system_version || '0.9.84'}</span>`;
 
       elParam.innerHTML = `
         <div class="nav-badge-stack">
