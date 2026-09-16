@@ -21,6 +21,14 @@
 
 ---
 
+## 🚀 Nouveautés de la Version 0.9.82
+
+- **Déverrouillage Biométrique Matériel Universel (WebAuthn / FIDO2 & WebCrypto AES-GCM-256)** :
+  - **Support multi-plateforme automatique** : Apple Face ID / Touch ID (iOS / iPadOS / macOS), Windows Hello (reconnaissance faciale et empreinte PC), et capteurs d'empreinte / biométrie Android.
+  - **Coffre-fort matériel sécurisé (Zero-Plaintext)** : Le code PIN n'est **jamais stocké en clair** dans le navigateur. Il est chiffré localement avec une clé **AES-GCM-256** dérivée par **PBKDF2-SHA256** (100 000 itérations) scellée dans l'enclave sécurisée de votre matériel (*Apple Secure Enclave*, *TPM 2.0*, *Android Keystore / StrongBox*).
+  - **Désarmement instantané en 1 clic** : Authentification biométrique directe depuis le pavé tactile ou l'onglet de configuration avec vibration haptique.
+  - **Carte de gestion locale & réinitialisation** : Visualisation du statut matériel et réinitialisation du coffre-fort dans l'onglet *Paramètres > Profils & Invités*.
+
 ## 🚀 Nouveautés de la Version 0.9.81
 
 - **Architecture Modulaire Réécrite & Découplée** :
