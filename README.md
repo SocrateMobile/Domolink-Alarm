@@ -21,6 +21,13 @@
 
 ---
 
+## 🚀 Nouveautés de la Version 0.9.83
+
+- **Optimisation Touch ID / Face ID & Retour d'État en Direct** :
+  - **Filtre de transport matériel direct (`transports: ["internal"]`)** : Élimine les blocages de sélection de clé sur Apple macOS/iOS et active immédiatement le capteur d'empreinte sans attente.
+  - **Gestion dynamique de l'état système** : Indication explicite si l'alarme est déjà désarmée lors de la vérification biométrique avec retour visuel immédiat sur le bouton.
+  - **Feedback interactif en temps réel** : Affichage dynamique des étapes de scan (`SCAN EN COURS...`, `DÉVERROUILLÉ !`, `DÉSARMEMENT...`) pour un confort d'usage optimal.
+
 ## 🚀 Nouveautés de la Version 0.9.82
 
 - **Déverrouillage Biométrique Matériel Universel (WebAuthn / FIDO2 & WebCrypto AES-GCM-256)** :

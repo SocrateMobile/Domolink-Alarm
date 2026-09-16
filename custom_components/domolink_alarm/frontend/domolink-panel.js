@@ -412,6 +412,7 @@ class DomolinkPanel extends HTMLElement {
 
     const isEnrolled = this._isBiometricEnrolled();
     const bioInfo = this._getBiometricInfo();
+    const bioBtn = this.querySelector('#btn-biometric-unlock');
 
     const hostname = window.location.hostname;
     const rpConfig = { name: "Domolink Alarm" };
@@ -433,6 +434,10 @@ class DomolinkPanel extends HTMLElement {
       }
 
       try {
+        if (bioBtn) {
+          bioBtn.innerHTML = `<ha-icon icon="mdi:loading" style="--mdc-icon-size:18px; animation:spin 1s linear infinite;"></ha-icon> ASSOCIATION EN COURS...`;
+        }
+
         const challenge = window.crypto.getRandomValues(new Uint8Array(32));
         const userId = window.crypto.getRandomValues(new Uint8Array(16));
 
@@ -472,12 +477,12 @@ class DomolinkPanel extends HTMLElement {
             try { window.navigator.vibrate([40, 60, 40]); } catch(e) {}
           }
 
-          alert(`✓ ${bioInfo.fullLabel} configuré avec succès !\nVotre code PIN est désormais chiffré dans l'enclave sécurisée de cet appareil.`);
-          this.callAlarmService('alarm_disarm', pinToEnroll);
+          alert(`✓ ${bioInfo.fullLabel} associé avec succès !\n\nVotre code PIN est désormais chiffré dans l'enclave sécurisée de cet appareil.\nVous pouvez désormais désarmer en 1 clic.`);
           this.render();
         }
       } catch (err) {
         console.error("Biometric enrollment error:", err);
+        this.render();
         if (err.name === 'NotAllowedError' || err.name === 'AbortError') return;
         alert("Impossible de finaliser l'association biométrique : " + (err.message || String(err)));
       }
@@ -495,33 +500,86 @@ class DomolinkPanel extends HTMLElement {
         return;
       }
 
+      if (bioBtn) {
+        bioBtn.innerHTML = `<ha-icon icon="mdi:loading" style="--mdc-icon-size:18px; animation:spin 1s linear infinite;"></ha-icon> SCAN EN COURS...`;
+      }
+
       const challenge = window.crypto.getRandomValues(new Uint8Array(32));
+      const credBuffer = this._base64ToArrayBuffer(credIdB64);
+      
       const getOptions = {
         publicKey: {
           challenge: challenge,
           timeout: 60000,
-          userVerification: "required"
+          userVerification: "preferred",
+          allowCredentials: [
+            {
+              id: credBuffer,
+              type: "public-key",
+              transports: ["internal"]
+            }
+          ]
         }
       };
       if (rpConfig.id) {
         getOptions.publicKey.rpId = rpConfig.id;
       }
-      if (credIdB64) {
-        getOptions.publicKey.allowCredentials = [{
-          id: this._base64ToArrayBuffer(credIdB64),
-          type: "public-key"
-        }];
+
+      let assertion = null;
+      try {
+        assertion = await navigator.credentials.get(getOptions);
+      } catch (getErr) {
+        if (getErr && getErr.name === 'NotAllowedError') {
+          console.warn("First get attempt failed, trying fallback without transports filter:", getErr);
+          const fallbackOptions = {
+            publicKey: {
+              challenge: challenge,
+              timeout: 60000,
+              userVerification: "preferred",
+              allowCredentials: [
+                {
+                  id: credBuffer,
+                  type: "public-key"
+                }
+              ]
+            }
+          };
+          if (rpConfig.id) fallbackOptions.publicKey.rpId = rpConfig.id;
+          assertion = await navigator.credentials.get(fallbackOptions);
+        } else {
+          throw getErr;
+        }
       }
 
-      const assertion = await navigator.credentials.get(getOptions);
-
       if (assertion) {
-        const rawCredBytes = new Uint8Array(assertion.rawId || this._base64ToArrayBuffer(credIdB64));
+        const rawCredBytes = new Uint8Array(credBuffer);
         const vault = JSON.parse(vaultStr);
         const decryptedPin = await this._decryptVaultPin(vault, rawCredBytes);
 
+        if (!decryptedPin || decryptedPin.length < 4) {
+          throw new Error("Code PIN déchiffré invalide ou corrompu.");
+        }
+
         if (window.navigator && window.navigator.vibrate) {
           try { window.navigator.vibrate(60); } catch(e) {}
+        }
+
+        const alarmEntity = this._getAlarmEntity();
+        const state = alarmEntity ? alarmEntity.state : 'disarmed';
+
+        if (state === 'disarmed') {
+          if (bioBtn) {
+            bioBtn.innerHTML = `<ha-icon icon="mdi:check-circle" style="--mdc-icon-size:18px; color:#10b981;"></ha-icon> SYSTÈME DÉJÀ DÉSARMÉ`;
+          }
+          setTimeout(() => {
+            alert(`✓ ${bioInfo.fullLabel} validé avec succès !\n\nLe système d'alarme est actuellement déjà DÉSARMÉ.`);
+            this.render();
+          }, 100);
+          return;
+        }
+
+        if (bioBtn) {
+          bioBtn.innerHTML = `<ha-icon icon="mdi:lock-open-variant" style="--mdc-icon-size:18px; color:#10b981;"></ha-icon> DÉSARMEMENT EN COURS...`;
         }
 
         this._codeValue = '';
@@ -530,9 +588,10 @@ class DomolinkPanel extends HTMLElement {
       }
     } catch (err) {
       console.warn("Biometric verification error:", err);
+      this.render();
       if (err.name === 'NotAllowedError' || err.name === 'AbortError') return;
 
-      if (confirm(`L'authentification ${bioInfo.fullLabel} a échoué. Souhaitez-vous réinitialiser le coffre-fort biométrique de cet appareil ?`)) {
+      if (confirm(`L'authentification ${bioInfo.fullLabel} a échoué (${err.message || String(err)}).\n\nSouhaitez-vous réinitialiser le coffre-fort biométrique de cet appareil ?`)) {
         this._clearBiometricVault();
         alert("Biométrie réinitialisée. Vous pouvez ressaisir votre code PIN pour reconfigurer.");
         this.render();
@@ -4514,7 +4573,7 @@ class DomolinkPanel extends HTMLElement {
       bypassed_sensors: attrs.bypassed_sensors || [],
       recent_events: (attrs.system_events || []).slice(0, 15),
       sha256_token: "DOMO-" + Math.random().toString(36).substring(2, 10).toUpperCase() + Math.random().toString(36).substring(2, 10).toUpperCase(),
-      system_version: attrs.system_version || "0.9.82"
+      system_version: attrs.system_version || "0.9.83"
     };
 
     const modal = document.createElement('div');
@@ -4728,7 +4787,7 @@ class DomolinkPanel extends HTMLElement {
 
   _showUpdateModal(attrs) {
     const updateEntity = this._hass && this._hass.states && this._hass.states['update.domolink_alarm'];
-    const currentVer = attrs.system_version || '0.9.82';
+    const currentVer = attrs.system_version || '0.9.83';
     const latestVer = attrs.latest_version || (updateEntity && updateEntity.attributes && updateEntity.attributes.latest_version) || currentVer;
     const releaseNotes = attrs.release_notes || (updateEntity && updateEntity.attributes && updateEntity.attributes.release_summary) || 'Mise à jour officielle de Domolink Alarm.';
     const releaseUrl = attrs.release_url || (updateEntity && updateEntity.attributes && updateEntity.attributes.release_url) || `https://github.com/SocrateMobile/Domolink-Alarm/releases/tag/v${latestVer}`;
@@ -6420,8 +6479,8 @@ mode: single`;
 
     const updateEntity = this._hass && this._hass.states && this._hass.states['update.domolink_alarm'];
     const hasUpdate = Boolean(attrs.update_available || (updateEntity && updateEntity.state === 'on'));
-    const latestVersion = attrs.latest_version || (updateEntity && updateEntity.attributes && updateEntity.attributes.latest_version) || attrs.system_version || '0.9.82';
-    const currentVer = attrs.system_version || '0.9.82';
+    const latestVersion = attrs.latest_version || (updateEntity && updateEntity.attributes && updateEntity.attributes.latest_version) || attrs.system_version || '0.9.83';
+    const currentVer = attrs.system_version || '0.9.83';
 
     const html = `
       <div style="max-width:960px; margin:0 auto;">
@@ -7664,7 +7723,7 @@ mode: single`;
     // 7. Paramètres Badge & Auto-Update
     const updateEntity = this._hass && this._hass.states && this._hass.states['update.domolink_alarm'];
     const hasUpdate = Boolean(attrs.update_available || (updateEntity && updateEntity.state === 'on'));
-    const latestVersion = attrs.latest_version || (updateEntity && updateEntity.attributes && updateEntity.attributes.latest_version) || attrs.system_version || '0.9.82';
+    const latestVersion = attrs.latest_version || (updateEntity && updateEntity.attributes && updateEntity.attributes.latest_version) || attrs.system_version || '0.9.83';
 
     const elParam = this.querySelector('#nav-badge-param');
     if (elParam) {
@@ -7676,7 +7735,7 @@ mode: single`;
       
       const versionBadgeHtml = hasUpdate
         ? `<span class="nav-badge-pill badge-update-avail" title="Nouvelle version v${latestVersion} disponible !">🚀 v${latestVersion}</span>`
-        : `<span class="nav-badge-pill badge-version">v${attrs.system_version || '0.9.82'}</span>`;
+        : `<span class="nav-badge-pill badge-version">v${attrs.system_version || '0.9.83'}</span>`;
 
       elParam.innerHTML = `
         <div class="nav-badge-stack">
