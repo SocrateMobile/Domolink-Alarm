@@ -1,7 +1,7 @@
 """Constants for the Domolink Alarm integration."""
 
 DOMAIN = "domolink_alarm"
-VERSION = "0.9.83"
+VERSION = "0.9.84"
 
 CONF_NAME = "name"
 DEFAULT_NAME = "Domolink Alarm"

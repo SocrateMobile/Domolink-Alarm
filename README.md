@@ -21,6 +21,13 @@
 
 ---
 
+## 🚀 Nouveautés de la Version 0.9.84
+
+- **Compatibilité Totale Apple iOS (Safari & Application Home Assistant)** :
+  - **Préservation du Geste Utilisateur (`User Gesture`)** : Suppression des fenêtres de dialogue bloquantes sous iOS pour garantir l'activation immédiate de **Face ID** / **Touch ID** sans restriction WebKit.
+  - **Isolation Multi-Appareils iCloud Keychain** : Identifiants matériels uniques par appareil pour éliminer les conflits de trousseau iCloud entre Mac et iPhone.
+  - **Repli Automatique Déverrouillage Rapide AES-GCM-256 (WKWebView)** : Prise en charge transparente et instantanée dans l'application native Home Assistant iOS avec coffre chiffré local.
+
 ## 🚀 Nouveautés de la Version 0.9.83
 
 - **Optimisation Touch ID / Face ID & Retour d'État en Direct** :
