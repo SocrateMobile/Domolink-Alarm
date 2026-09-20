@@ -5221,7 +5221,7 @@ class DomolinkPanel extends HTMLElement {
     const c = (attrs && attrs.installed_config) ? attrs.installed_config : {};
     
     const defaultNasConfigs = {
-      asustor: { ftp_enabled: true, ftp_protocol: "ftp", ftp_host: "", ftp_port: 21, ftp_user: "", ftp_pass: "", ftp_path: "/", webdav_enabled: false, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" },
+      asustor: { ftp_enabled: true, ftp_protocol: "ftp", ftp_host: "", ftp_port: 21, ftp_user: "", ftp_pass: "", ftp_path: "/BackUp", webdav_enabled: false, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "BackUp/domolink/alarm" },
       synology: { ftp_enabled: true, ftp_protocol: "ftp", ftp_host: "", ftp_port: 21, ftp_user: "", ftp_pass: "", ftp_path: "/", webdav_enabled: false, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" },
       qnap: { ftp_enabled: true, ftp_protocol: "ftp", ftp_host: "", ftp_port: 21, ftp_user: "", ftp_pass: "", ftp_path: "/", webdav_enabled: false, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" },
       truenas: { ftp_enabled: false, ftp_protocol: "ftp", ftp_host: "", ftp_port: 21, ftp_user: "", ftp_pass: "", ftp_path: "/", webdav_enabled: true, webdav_url: "", webdav_user: "", webdav_pass: "", webdav_path: "domolink/alarm" },
@@ -5654,7 +5654,7 @@ function doGet(e) {
           <div class="config-help">${help}</div>
         </div>
         <div style="display:flex; align-items:center; gap:8px;">
-          <input type="password" class="config-input config-pwd-field" data-field="${fieldName}" value="${this.escapeHtml(val)}" style="min-width:200px;" />
+          <input type="password" class="config-input config-pwd-field" data-field="${fieldName}" value="${this.escapeHtml(val)}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" style="min-width:200px;" />
           <button type="button" class="btn-pwd-toggle" title="Afficher/Masquer le mot de passe" style="background:transparent; border:none; color:var(--d-subtext); cursor:pointer; padding:4px;">
             <ha-icon icon="mdi:eye" style="--mdc-icon-size:20px;"></ha-icon>
           </button>
@@ -6032,7 +6032,7 @@ function doGet(e) {
           </div>
           <div class="nas-selector-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:10px; margin-bottom:8px;">
             ${[
-              { key: "asustor", label: "ASUSTOR", icon: "mdi:server", desc: "ADM • FTP 21 / WebDAV 8001", proto: "both" },
+              { key: "asustor", label: "ASUSTOR", icon: "mdi:server", desc: "ADM • FTP 21 / WebDAV 9800/9802", proto: "both" },
               { key: "synology", label: "Synology", icon: "mdi:nas", desc: "DSM • FTP 21 / WebDAV 5006", proto: "both" },
               { key: "qnap", label: "QNAP", icon: "mdi:server-network", desc: "QTS • FTP 21 / WebDAV 5001", proto: "both" },
               { key: "truenas", label: "TrueNAS", icon: "mdi:harddisk", desc: "SCALE/CORE • WebDAV", proto: "webdav" },
@@ -6764,17 +6764,53 @@ mode: single`;
       });
     });
 
-    // Password show/hide toggle
+    // Password show/hide toggle with dynamic secret reveal
     container.querySelectorAll('.btn-pwd-toggle').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', async (e) => {
         const row = btn.closest('.config-row');
         if (!row) return;
         const input = row.querySelector('.config-pwd-field');
         const icon = btn.querySelector('ha-icon');
-        if (input) {
-          const isPwd = input.type === 'password';
-          input.type = isPwd ? 'text' : 'password';
-          if (icon) icon.setAttribute('icon', isPwd ? 'mdi:eye-off' : 'mdi:eye');
+        if (!input) return;
+
+        const isPwd = input.type === 'password';
+        if (isPwd) {
+          const field = input.getAttribute('data-field');
+          const currentVal = input.value;
+          // If value is masked bullets or dots, fetch real stored secret from HA backend
+          if (!currentVal || currentVal === '••••••••' || currentVal === '••••' || currentVal === '********') {
+            if (icon) icon.setAttribute('icon', 'mdi:loading');
+            try {
+              const curNas = (this._configDraft && this._configDraft.nas_type) ? this._configDraft.nas_type : 'asustor';
+              let revealedSecret = null;
+              if (this._hass && this._hass.callWS) {
+                const wsResp = await this._hass.callWS({
+                  type: 'call_service',
+                  domain: 'domolink_alarm',
+                  service: 'reveal_secret',
+                  service_data: { field: field, nas_type: curNas },
+                  return_response: true,
+                });
+                if (wsResp && wsResp.response && wsResp.response.secret !== undefined) {
+                  revealedSecret = wsResp.response.secret;
+                }
+              }
+              if (revealedSecret !== null) {
+                input.value = revealedSecret;
+                if (this._configDraft) {
+                  this._configDraft[field] = revealedSecret;
+                  this._syncDraftToNasConfig(field, revealedSecret);
+                }
+              }
+            } catch (err) {
+              console.warn('[Domolink] reveal_secret failed:', err);
+            }
+          }
+          input.type = 'text';
+          if (icon) icon.setAttribute('icon', 'mdi:eye-off');
+        } else {
+          input.type = 'password';
+          if (icon) icon.setAttribute('icon', 'mdi:eye');
         }
       });
     });
@@ -6940,13 +6976,16 @@ mode: single`;
 
         const defaultPortForProto = activeProto === 'samba' ? 445 : (activeProto === 'sftp' ? 22 : 21);
 
+        const rawFtpPass = passInput ? passInput.value : (targetCfg.ftp_pass || '');
+        const cleanFtpPass = (rawFtpPass === '••••••••' || rawFtpPass === '••••' || rawFtpPass === '********') ? '' : rawFtpPass;
+
         payload = {
           nas_type: targetNas,
           ftp_protocol: activeProto,
           ftp_host: hostInput ? hostInput.value.trim() : (targetCfg.ftp_host !== undefined ? targetCfg.ftp_host : (targetNas === 'freebox' ? 'mafreebox.freebox.fr' : '')),
           ftp_port: portInput ? parseInt(portInput.value, 10) || defaultPortForProto : (targetCfg.ftp_port || defaultPortForProto),
           ftp_user: userInput ? userInput.value.trim() : (targetCfg.ftp_user !== undefined ? targetCfg.ftp_user : (targetNas === 'freebox' ? 'freebox' : '')),
-          ftp_pass: passInput ? passInput.value : (targetCfg.ftp_pass || ''),
+          ftp_pass: cleanFtpPass,
           ftp_path: pathInput ? (pathInput.value.trim() || (targetNas === 'freebox' ? '/Disque 1' : '/')) : (targetCfg.ftp_path !== undefined ? targetCfg.ftp_path : (targetNas === 'freebox' ? '/Disque 1' : '/')),
           ftp_enabled: enabledInput ? Boolean(enabledInput.checked) : (targetCfg.ftp_enabled !== undefined ? targetCfg.ftp_enabled : true),
         };
@@ -6958,11 +6997,14 @@ mode: single`;
         const pathInput = isCurActive ? container.querySelector('input[data-field="webdav_path"]') : null;
         const enabledInput = isCurActive ? container.querySelector('input[data-field="webdav_enabled"]') : null;
 
+        const rawWebdavPass = passInput ? passInput.value : (targetCfg.webdav_pass || '');
+        const cleanWebdavPass = (rawWebdavPass === '••••••••' || rawWebdavPass === '••••' || rawWebdavPass === '********') ? '' : rawWebdavPass;
+
         payload = {
           nas_type: targetNas,
           webdav_url: urlInput ? urlInput.value.trim() : (targetCfg.webdav_url || ''),
           webdav_user: userInput ? userInput.value.trim() : (targetCfg.webdav_user || ''),
-          webdav_pass: passInput ? passInput.value : (targetCfg.webdav_pass || ''),
+          webdav_pass: cleanWebdavPass,
           webdav_path: pathInput ? pathInput.value.trim() : (targetCfg.webdav_path || 'domolink/alarm'),
           webdav_enabled: enabledInput ? Boolean(enabledInput.checked) : (targetCfg.webdav_enabled !== undefined ? targetCfg.webdav_enabled : true),
         };
@@ -7282,6 +7324,12 @@ mode: single`;
           if (this._configDraft.nas_configs.freebox.ftp_port === undefined) this._configDraft.nas_configs.freebox.ftp_port = 21;
           if (this._configDraft.nas_configs.freebox.ftp_enabled === undefined) this._configDraft.nas_configs.freebox.ftp_enabled = true;
           if (!this._configDraft.nas_configs.freebox.ftp_path || this._configDraft.nas_configs.freebox.ftp_path === '/') this._configDraft.nas_configs.freebox.ftp_path = '/Disque 1';
+        }
+
+        // Asustor guarantee defaults if empty
+        if (newNas === 'asustor') {
+          if (!this._configDraft.nas_configs.asustor.ftp_path || this._configDraft.nas_configs.asustor.ftp_path === '/') this._configDraft.nas_configs.asustor.ftp_path = '/BackUp';
+          if (!this._configDraft.nas_configs.asustor.webdav_path || this._configDraft.nas_configs.asustor.webdav_path === 'domolink/alarm') this._configDraft.nas_configs.asustor.webdav_path = 'BackUp/domolink/alarm';
         }
 
         const targetCfg = this._configDraft.nas_configs[newNas];
