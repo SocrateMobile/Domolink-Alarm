@@ -281,6 +281,9 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
     async def async_handle_test_google_drive(call):
         return await entity.async_test_google_drive(call)
 
+    async def async_handle_reveal_secret(call):
+        return await entity.async_reveal_secret(call)
+
     async def async_handle_clean_media(call):
         await entity.async_clean_media(call)
 
@@ -327,12 +330,16 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
             DOMAIN, "test_google_drive", async_handle_test_google_drive, supports_response=supports_opt
         )
         hass.services.async_register(
+            DOMAIN, "reveal_secret", async_handle_reveal_secret, supports_response=supports_opt
+        )
+        hass.services.async_register(
             DOMAIN, "generate_incident_report", async_handle_generate_incident_report, supports_response=supports_opt
         )
     else:
         hass.services.async_register(DOMAIN, "test_ftp", async_handle_test_ftp)
         hass.services.async_register(DOMAIN, "test_webdav", async_handle_test_webdav)
         hass.services.async_register(DOMAIN, "test_google_drive", async_handle_test_google_drive)
+        hass.services.async_register(DOMAIN, "reveal_secret", async_handle_reveal_secret)
         hass.services.async_register(DOMAIN, "generate_incident_report", async_handle_generate_incident_report)
 
     hass.services.async_register(DOMAIN, "clean_media", async_handle_clean_media)
@@ -2492,42 +2499,106 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 new_options[key] = value
                 updated = True
 
+        top_ftp_pass = call.data.get(CONF_FTP_PASS)
+        top_webdav_pass = call.data.get(CONF_WEBDAV_PASS)
+
+        has_new_top_ftp = bool(top_ftp_pass and top_ftp_pass not in (SECRET_MASK, "••••••••", "••••", "********"))
+        has_new_top_webdav = bool(top_webdav_pass and top_webdav_pass not in (SECRET_MASK, "••••••••", "••••", "********"))
+
+        cur_nas = str(call.data.get(CONF_NAS_TYPE, new_options.get(CONF_NAS_TYPE, self._get_config_value(CONF_NAS_TYPE, DEFAULT_NAS_TYPE)))).lower()
+
         if CONF_NAS_CONFIGS in call.data:
-            nas_cfgs = call.data[CONF_NAS_CONFIGS]
-            if isinstance(nas_cfgs, dict):
-                orig_cfgs = self._get_config_value(CONF_NAS_CONFIGS, DEFAULT_NAS_CONFIGS) or {}
-                for brand, cfg in nas_cfgs.items():
-                    if isinstance(cfg, dict) and brand in orig_cfgs:
-                        if cfg.get("ftp_pass") in (SECRET_MASK, "••••••••", "••••"):
-                            cfg["ftp_pass"] = orig_cfgs[brand].get("ftp_pass", "")
-                        if cfg.get("webdav_pass") in (SECRET_MASK, "••••••••", "••••"):
-                            cfg["webdav_pass"] = orig_cfgs[brand].get("webdav_pass", "")
-                new_options[CONF_NAS_CONFIGS] = nas_cfgs
-                cur_nas = str(new_options.get(CONF_NAS_TYPE, self._get_config_value(CONF_NAS_TYPE, DEFAULT_NAS_TYPE))).lower()
-                if cur_nas in nas_cfgs and isinstance(nas_cfgs[cur_nas], dict):
-                    cur_cfg = nas_cfgs[cur_nas]
-                    for k in [
-                        "ftp_enabled", "ftp_protocol", "ftp_host", "ftp_port", "ftp_user", "ftp_pass", "ftp_path",
-                        "ftp_allow_insecure_tls", "webdav_enabled", "webdav_url", "webdav_user", "webdav_pass", "webdav_path"
-                    ]:
-                        if k in cur_cfg:
-                            new_options[k] = cur_cfg[k]
-        elif CONF_NAS_TYPE in call.data:
-            cur_nas = str(call.data[CONF_NAS_TYPE]).lower()
-            nas_cfgs = new_options.get(CONF_NAS_CONFIGS, self._get_config_value(CONF_NAS_CONFIGS, DEFAULT_NAS_CONFIGS)) or {}
+            nas_cfgs = dict(call.data[CONF_NAS_CONFIGS]) if isinstance(call.data[CONF_NAS_CONFIGS], dict) else {}
+            orig_cfgs = self._get_config_value(CONF_NAS_CONFIGS, DEFAULT_NAS_CONFIGS) or {}
+
+            # If user provided a new top-level password, inject into cur_nas config
+            if cur_nas in nas_cfgs and isinstance(nas_cfgs[cur_nas], dict):
+                if has_new_top_ftp:
+                    nas_cfgs[cur_nas]["ftp_pass"] = top_ftp_pass
+                if has_new_top_webdav:
+                    nas_cfgs[cur_nas]["webdav_pass"] = top_webdav_pass
+
+            for brand, cfg in nas_cfgs.items():
+                if isinstance(cfg, dict):
+                    orig_brand_cfg = orig_cfgs.get(brand, {}) if isinstance(orig_cfgs, dict) else {}
+                    if cfg.get("ftp_pass") in (SECRET_MASK, "••••••••", "••••", "********", None, ""):
+                        cfg["ftp_pass"] = orig_brand_cfg.get("ftp_pass", "")
+                    if cfg.get("webdav_pass") in (SECRET_MASK, "••••••••", "••••", "********", None, ""):
+                        cfg["webdav_pass"] = orig_brand_cfg.get("webdav_pass", "")
+
+            new_options[CONF_NAS_CONFIGS] = nas_cfgs
+
             if cur_nas in nas_cfgs and isinstance(nas_cfgs[cur_nas], dict):
                 cur_cfg = nas_cfgs[cur_nas]
                 for k in [
                     "ftp_enabled", "ftp_protocol", "ftp_host", "ftp_port", "ftp_user", "ftp_pass", "ftp_path",
-                    "webdav_enabled", "webdav_url", "webdav_user", "webdav_pass", "webdav_path"
+                    "ftp_allow_insecure_tls", "webdav_enabled", "webdav_url", "webdav_user", "webdav_pass", "webdav_path"
                 ]:
                     if k in cur_cfg:
                         new_options[k] = cur_cfg[k]
+            updated = True
+        elif CONF_NAS_TYPE in call.data or has_new_top_ftp or has_new_top_webdav:
+            nas_cfgs = dict(new_options.get(CONF_NAS_CONFIGS, self._get_config_value(CONF_NAS_CONFIGS, DEFAULT_NAS_CONFIGS)) or {})
+            if cur_nas in nas_cfgs and isinstance(nas_cfgs[cur_nas], dict):
+                cur_cfg = dict(nas_cfgs[cur_nas])
+                if has_new_top_ftp:
+                    cur_cfg["ftp_pass"] = top_ftp_pass
+                if has_new_top_webdav:
+                    cur_cfg["webdav_pass"] = top_webdav_pass
+                nas_cfgs[cur_nas] = cur_cfg
+                new_options[CONF_NAS_CONFIGS] = nas_cfgs
+                for k in [
+                    "ftp_enabled", "ftp_protocol", "ftp_host", "ftp_port", "ftp_user", "ftp_pass", "ftp_path",
+                    "ftp_allow_insecure_tls", "webdav_enabled", "webdav_url", "webdav_user", "webdav_pass", "webdav_path"
+                ]:
+                    if k in cur_cfg:
+                        new_options[k] = cur_cfg[k]
+            updated = True
 
         if updated:
             self.hass.config_entries.async_update_entry(self._entry, options=new_options)
+            self._load_config()
+            self.async_write_ha_state()
             _LOGGER.info("Domolink: Settings updated -> %s", list(call.data.keys()))
             self._log_event("Paramètres mis à jour")
+
+    async def async_reveal_secret(self, call=None):
+        """Service handler: reveal stored secret for authorized panel view."""
+        data = call.data if (call and hasattr(call, "data")) else {}
+        field = str(data.get("field", "")).strip()
+        nas_type = str(data.get("nas_type") or self._get_config_value(CONF_NAS_TYPE, DEFAULT_NAS_TYPE)).strip().lower()
+
+        valid_secret_fields = {
+            CONF_FTP_PASS,
+            CONF_WEBDAV_PASS,
+            CONF_FREE_MOBILE_PASS,
+            CONF_TELEGRAM_TOKEN,
+            CONF_GOOGLE_DRIVE_CLIENT_SECRET,
+            CONF_GOOGLE_DRIVE_REFRESH_TOKEN,
+            CONF_DURESS_CODE,
+        }
+        if field not in valid_secret_fields:
+            return {"field": field, "secret": "", "error": "Champ non autorisé"}
+
+        secret = ""
+        if field in (CONF_FTP_PASS, CONF_WEBDAV_PASS):
+            nas_cfgs = self._get_config_value(CONF_NAS_CONFIGS, DEFAULT_NAS_CONFIGS) or {}
+            target_cfg = nas_cfgs.get(nas_type, {}) if isinstance(nas_cfgs, dict) else {}
+            if target_cfg and target_cfg.get(field):
+                secret = target_cfg.get(field)
+            if not secret:
+                secret = self._get_config_value(field, "")
+        else:
+            secret = self._get_config_value(field, "")
+
+        if secret in (SECRET_MASK, "••••••••", "••••", "********"):
+            secret = ""
+
+        return {
+            "field": field,
+            "nas_type": nas_type,
+            "secret": str(secret) if secret else "",
+        }
 
     # ─── Delegated Service & Manager Methods ──────────────────────
 

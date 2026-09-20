@@ -1,7 +1,7 @@
 """Constants for the Domolink Alarm integration."""
 
 DOMAIN = "domolink_alarm"
-VERSION = "0.9.84"
+VERSION = "0.9.85"
 
 CONF_NAME = "name"
 DEFAULT_NAME = "Domolink Alarm"
@@ -211,12 +211,12 @@ DEFAULT_NAS_CONFIGS = {
         "ftp_port": 21,
         "ftp_user": "",
         "ftp_pass": "",
-        "ftp_path": "/",
+        "ftp_path": "/BackUp",
         "webdav_enabled": False,
         "webdav_url": "",
         "webdav_user": "",
         "webdav_pass": "",
-        "webdav_path": "domolink/alarm",
+        "webdav_path": "BackUp/domolink/alarm",
     },
     "synology": {
         "ftp_enabled": True,

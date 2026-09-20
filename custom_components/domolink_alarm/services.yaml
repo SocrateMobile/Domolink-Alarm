@@ -354,4 +354,24 @@ install_update:
       selector:
         boolean: {}
 
+reveal_secret:
+  name: Révéler un secret ou mot de passe
+  description: Récupère la valeur en clair d'un mot de passe ou clé secrète pour affichage sécurisé dans le panneau de configuration.
+  fields:
+    field:
+      name: Identifiant du champ
+      description: Nom du paramètre secret (ex. ftp_pass, webdav_pass, free_mobile_pass, telegram_token).
+      required: true
+      example: "ftp_pass"
+      selector:
+        text: {}
+    nas_type:
+      name: Profil NAS
+      description: Marque du profil NAS ciblé (ex. asustor, freebox, synology).
+      required: false
+      example: "asustor"
+      selector:
+        text: {}
+
+
 

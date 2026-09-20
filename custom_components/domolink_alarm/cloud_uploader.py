@@ -81,6 +81,8 @@ def _build_ftp_target_path(raw_path: str, nas_type: str = "") -> list[str]:
     p_str = str(raw_path or "").strip()
     if nas_type == "freebox" and (not p_str or p_str == "/"):
         p_str = "/Disque 1"
+    elif nas_type == "asustor" and (not p_str or p_str == "/"):
+        p_str = "/BackUp"
 
     parts = [p.strip() for p in p_str.split("/") if p.strip()]
     if parts:
@@ -647,15 +649,18 @@ class CloudUploader:
         )
         if not user and cur_nas == "freebox":
             user = "freebox"
-        password = (
-            data.get("ftp_pass")
-            if "ftp_pass" in data
-            else (
+        raw_ftp_pass = data.get("ftp_pass")
+        if raw_ftp_pass in (None, "", "••••••••", "••••", "********"):
+            password = (
                 nas_cfg.get("ftp_pass")
-                if "ftp_pass" in nas_cfg
+                if (
+                    "ftp_pass" in nas_cfg
+                    and nas_cfg.get("ftp_pass") not in (None, "", "••••••••", "••••", "********")
+                )
                 else (self._cfg(CONF_FTP_PASS, "") if is_cur_active else "")
             )
-        )
+        else:
+            password = raw_ftp_pass
         path = (
             data.get("ftp_path")
             if "ftp_path" in data
@@ -667,6 +672,8 @@ class CloudUploader:
         )
         if cur_nas == "freebox" and (not path or path == "/"):
             path = "/Disque 1"
+        elif cur_nas == "asustor" and (not path or path == "/"):
+            path = "/BackUp"
 
         def run_test_sync():
             import time
@@ -1068,6 +1075,7 @@ class CloudUploader:
             auth = aiohttp.BasicAuth(user, passwd) if user and passwd else None
 
             base_url = webdav_url.rstrip("/")
+            ssl_opt = False if base_url.startswith("https://") else None
 
             # Ensure target directories exist via MKCOL
             target_path = str(self._cfg(CONF_WEBDAV_PATH, "domolink/alarm")).strip().strip("/")
@@ -1077,7 +1085,7 @@ class CloudUploader:
                 cur_url = f"{cur_url}/{d}"
                 try:
                     async with session.request(
-                        "MKCOL", cur_url, auth=auth, timeout=aiohttp.ClientTimeout(total=8)
+                        "MKCOL", cur_url, auth=auth, ssl=ssl_opt, timeout=aiohttp.ClientTimeout(total=8)
                     ):
                         pass
                 except Exception:
@@ -1097,6 +1105,7 @@ class CloudUploader:
                 data=file_data,
                 headers={"Content-Type": content_type},
                 auth=auth,
+                ssl=ssl_opt,
                 timeout=aiohttp.ClientTimeout(total=60 if is_video else 20),
             ) as put_resp:
                 if put_resp.status in (200, 201, 204):
@@ -1200,15 +1209,18 @@ class CloudUploader:
                 else (self._cfg(CONF_WEBDAV_USER, "") if is_cur_active else "") or ""
             )
         ).strip()
-        passwd = str(
-            data.get("webdav_pass")
-            if "webdav_pass" in data
-            else (
+        raw_webdav_pass = data.get("webdav_pass")
+        if raw_webdav_pass in (None, "", "••••••••", "••••", "********"):
+            passwd = str(
                 nas_cfg.get("webdav_pass")
-                if "webdav_pass" in nas_cfg
+                if (
+                    "webdav_pass" in nas_cfg
+                    and nas_cfg.get("webdav_pass") not in (None, "", "••••••••", "••••", "********")
+                )
                 else (self._cfg(CONF_WEBDAV_PASS, "") if is_cur_active else "") or ""
             )
-        )
+        else:
+            passwd = str(raw_webdav_pass)
         path = str(
             data.get("webdav_path")
             if "webdav_path" in data
@@ -1272,6 +1284,7 @@ class CloudUploader:
             session = async_get_clientsession(self.hass)
             auth = aiohttp.BasicAuth(user, passwd) if user and passwd else None
             base_url = url.rstrip("/")
+            ssl_opt = False if base_url.startswith("https://") else None
 
             try:
                 async with session.request(
@@ -1279,6 +1292,7 @@ class CloudUploader:
                     base_url,
                     headers={"Depth": "0"},
                     auth=auth,
+                    ssl=ssl_opt,
                     timeout=aiohttp.ClientTimeout(total=12),
                 ) as resp:
                     if resp.status in (401, 403):
@@ -1337,7 +1351,7 @@ class CloudUploader:
                 cur_url = f"{cur_url}/{d}"
                 try:
                     async with session.request(
-                        "MKCOL", cur_url, auth=auth, timeout=aiohttp.ClientTimeout(total=8)
+                        "MKCOL", cur_url, auth=auth, ssl=ssl_opt, timeout=aiohttp.ClientTimeout(total=8)
                     ):
                         pass
                 except Exception:
@@ -1357,6 +1371,7 @@ class CloudUploader:
                     data=test_data,
                     headers={"Content-Type": "text/plain"},
                     auth=auth,
+                    ssl=ssl_opt,
                     timeout=aiohttp.ClientTimeout(total=12),
                 ) as put_resp:
                     if put_resp.status not in (200, 201, 204):
@@ -1364,9 +1379,10 @@ class CloudUploader:
                             f"   ✗ Échec écriture fichier test (Code {put_resp.status})",
                             "error",
                         )
-                        return record_result(
-                            False, put_resp.status, f"Écriture refusée (HTTP {put_resp.status})"
-                        )
+                        err_msg = f"Écriture refusée (HTTP {put_resp.status})"
+                        if put_resp.status == 403 and cur_nas == "asustor":
+                            err_msg += " - Sur ASUSTOR, le chemin doit commencer par un dossier partagé existant (ex: BackUp/... ou Public/...)"
+                        return record_result(False, put_resp.status, err_msg)
                     self._append_webdav_log("   ✓ Droits d'écriture validés.", "success")
             except Exception as put_err:
                 err_str = str(put_err)
@@ -1378,7 +1394,7 @@ class CloudUploader:
             self._append_webdav_log("5. Nettoyage du fichier de test (DELETE)...", "info")
             try:
                 async with session.delete(
-                    test_url, auth=auth, timeout=aiohttp.ClientTimeout(total=8)
+                    test_url, auth=auth, ssl=ssl_opt, timeout=aiohttp.ClientTimeout(total=8)
                 ):
                     self._append_webdav_log("   ✓ Nettoyage effectué.", "success")
             except Exception:
