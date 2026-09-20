@@ -6791,8 +6791,9 @@ mode: single`;
                   service_data: { field: field, nas_type: curNas },
                   return_response: true,
                 });
-                if (wsResp && wsResp.response && wsResp.response.secret !== undefined) {
-                  revealedSecret = wsResp.response.secret;
+                const respObj = (wsResp && wsResp.response) ? wsResp.response : ((wsResp && wsResp.service_response) ? wsResp.service_response : wsResp);
+                if (respObj && respObj.secret !== undefined) {
+                  revealedSecret = respObj.secret;
                 }
               }
               if (revealedSecret !== null) {
