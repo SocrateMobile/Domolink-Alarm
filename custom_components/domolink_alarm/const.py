@@ -1,7 +1,15 @@
-"""Constants for the Domolink Alarm integration."""
+import json
+import os
 
 DOMAIN = "domolink_alarm"
-VERSION = "0.9.86"
+
+# Source unique de vérité : la version est lue directement depuis manifest.json (requis par HA & HACS)
+_MANIFEST_PATH = os.path.join(os.path.dirname(__file__), "manifest.json")
+try:
+    with open(_MANIFEST_PATH, "r", encoding="utf-8") as _f:
+        VERSION = json.load(_f).get("version", "unknown")
+except Exception:
+    VERSION = "unknown"
 
 CONF_NAME = "name"
 DEFAULT_NAME = "Domolink Alarm"

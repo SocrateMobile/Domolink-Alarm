@@ -1,0 +1,994 @@
+# =============================================================================
+#  DOMOLINK ALARM — Firmware ESPHome pour Sunton ESP32-S3 7.0" (800x480)
+# =============================================================================
+#  Matériel : Sunton ESP32-8048S070  (ESP32-S3, 16MB Flash, Octal PSRAM)
+#  Écran    : MIPI RGB 800x480, GT911 tactile capacitif
+#  Auteur   : SocrateMobile / Domolink
+#  Version  : 1.0.0
+# =============================================================================
+
+substitutions:
+  devicename: "domolink-alarm"
+  friendly_name: "Domolink Alarm Écran 7 Pouces"
+  project_name: "Domolink.Alarm-Screen"
+  project_version: "1.0.0"
+
+esphome:
+  name: ${devicename}
+  min_version: 2024.11.0
+  project:
+    name: ${project_name}
+    version: ${project_version}
+  build_flags:
+    - "-DBOARD_HAS_PSRAM"
+  on_boot:
+    priority: 600
+    then:
+      - light.turn_on: display_backlight
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240: y
+      CONFIG_ESP32S3_DATA_CACHE_64KB: y
+      CONFIG_SPIRAM_FETCH_INSTRUCTIONS: y
+      CONFIG_SPIRAM_RODATA: y
+      CONFIG_ESP_MAIN_TASK_STACK_SIZE: "32768"
+      CONFIG_FREERTOS_HZ: "1000"
+      CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG: n
+
+api:
+  encryption:
+    key: "vR4VDfiJLMzj0Gv4SbULJ5YuZCdBIJRPS8v4/PN0sRA="
+  services:
+    # Service appelable depuis HA pour déclencher une alarme locale (buzzer futur)
+    - service: trigger_screen_alert
+      then:
+        - lambda: |-
+            id(screen_alert_active) = true;
+
+captive_portal:
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: false
+
+logger:
+  hardware_uart: UART0
+  baud_rate: 0
+  level: INFO
+
+ota:
+  - platform: esphome
+    encryption:
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+# =============================================================================
+#  VARIABLES GLOBALES
+# =============================================================================
+globals:
+  # --- État du boot ---
+  - id: boot_done
+    type: bool
+    initial_value: 'false'
+
+  # --- Navigation par pages ---
+  - id: display_page
+    type: int
+    restore_value: false
+    initial_value: '0'
+
+  # --- Code PIN saisi (max 8 chiffres) ---
+  - id: pin_buffer
+    type: std::string
+    restore_value: false
+    initial_value: '""'
+
+  # --- Nombre de chiffres saisis ---
+  - id: pin_length
+    type: int
+    initial_value: '0'
+
+  # --- Compteur d'inactivité du clavier (secondes) ---
+  - id: pin_idle_counter
+    type: int
+    initial_value: '0'
+
+  # --- Message d'état temporaire (CODE OK, INCORRECT, etc.) ---
+  - id: keypad_message
+    type: std::string
+    restore_value: false
+    initial_value: '""'
+
+  # --- Compteur pour effacer le message temporaire ---
+  - id: msg_display_counter
+    type: int
+    initial_value: '0'
+
+  # --- Mode d'armement en attente (0=désarmer, 1=absent, 2=nuit) ---
+  - id: pending_arm_mode
+    type: int
+    initial_value: '0'
+
+  # --- Alerte écran active ---
+  - id: screen_alert_active
+    type: bool
+    initial_value: 'false'
+
+  # --- Compteur clignotement alerte ---
+  - id: alert_blink_counter
+    type: int
+    initial_value: '0'
+
+  # --- Niveau de luminosité (0=25%, 1=50%, 2=75%, 3=100%) ---
+  - id: brightness_level
+    type: int
+    restore_value: true
+    initial_value: '3'
+
+  # --- Confirmation SOS active ---
+  - id: sos_confirm_active
+    type: bool
+    initial_value: 'false'
+
+  # --- Compteur timeout SOS (secondes) ---
+  - id: sos_confirm_counter
+    type: int
+    initial_value: '0'
+
+# =============================================================================
+#  INTERVALLES / TIMERS
+# =============================================================================
+interval:
+  # Vérification boot rapide (500ms)
+  - interval: 500ms
+    then:
+      - lambda: |-
+          if (!id(boot_done)) {
+            bool api_ok  = api_is_connected();
+            bool time_ok = id(ha_time).now().is_valid();
+            if (api_ok && time_ok) {
+              id(boot_done) = true;
+              id(display_page) = 0;
+            }
+            id(my_display).update();
+          }
+
+  # Tick principal chaque seconde
+  - interval: 1s
+    then:
+      - lambda: |-
+          if (!id(boot_done)) return;
+
+          // --- Timeout clavier PIN (15s d'inactivité) ---
+          if (id(pin_length) > 0) {
+            id(pin_idle_counter)++;
+            if (id(pin_idle_counter) >= 15) {
+              id(pin_buffer) = "";
+              id(pin_length) = 0;
+              id(pin_idle_counter) = 0;
+              id(pending_arm_mode) = 0;
+            }
+          }
+
+          // --- Effacement message temporaire après 3s ---
+          if (!id(keypad_message).empty()) {
+            id(msg_display_counter)++;
+            if (id(msg_display_counter) >= 3) {
+              id(keypad_message) = "";
+              id(msg_display_counter) = 0;
+            }
+          }
+
+          // --- Clignotement alerte ---
+          if (id(screen_alert_active)) {
+            id(alert_blink_counter)++;
+          }
+
+          // --- Timeout confirmation SOS (10s) ---
+          if (id(sos_confirm_active)) {
+            id(sos_confirm_counter)++;
+            if (id(sos_confirm_counter) >= 10) {
+              id(sos_confirm_active) = false;
+              id(sos_confirm_counter) = 0;
+            }
+          }
+
+          id(my_display).update();
+
+# =============================================================================
+#  BUS I2C & ÉCRAN TACTILE GT911
+# =============================================================================
+i2c:
+  - id: bus_a
+    sda: 19
+    scl: 20
+    frequency: 400kHz
+    scan: true
+
+touchscreen:
+  platform: gt911
+  id: my_touchscreen
+  i2c_id: bus_a
+  address: 0x5D
+  transform:
+    swap_xy: false
+    mirror_x: false
+    mirror_y: false
+  on_touch:
+    - lambda: |-
+        if (!id(boot_done)) return;
+        static uint32_t last_touch_ms = 0;
+        uint32_t now_ms = millis();
+        if (now_ms - last_touch_ms < 300) return;
+        last_touch_ms = now_ms;
+
+        int x = touch.x;
+        int y = touch.y;
+
+        // =============================================================
+        // BARRE DE NAVIGATION INFÉRIEURE (y >= 420)
+        // =============================================================
+        if (y >= 420) {
+          int next_page = id(display_page);
+          if (x < 267) next_page = 0;
+          else if (x < 534) next_page = 1;
+          else next_page = 2;
+          if (next_page != id(display_page)) {
+            id(display_page) = next_page;
+            // Réinitialiser SOS si on quitte la page
+            if (next_page != 2) {
+              id(sos_confirm_active) = false;
+              id(sos_confirm_counter) = 0;
+            }
+            id(my_display).update();
+          }
+          return;
+        }
+
+        // =============================================================
+        // PAGE 0 : ALARME & CLAVIER
+        // =============================================================
+        if (id(display_page) == 0) {
+
+          // --- CLAVIER NUMÉRIQUE (partie droite x:480-790, y:80-380) ---
+          if (x >= 480 && x <= 790 && y >= 115 && y <= 415) {
+
+            // Grille 3 colonnes x 4 lignes
+            // Colonnes : 480-580, 585-685, 690-790
+            // Lignes   : 115-185, 190-255, 260-325, 330-400
+            int col = -1, row = -1;
+            if (x >= 480 && x < 583) col = 0;
+            else if (x >= 583 && x < 687) col = 1;
+            else if (x >= 687 && x <= 790) col = 2;
+
+            if (y >= 115 && y < 190) row = 0;
+            else if (y >= 190 && y < 260) row = 1;
+            else if (y >= 260 && y < 330) row = 2;
+            else if (y >= 330 && y <= 415) row = 3;
+
+            if (col >= 0 && row >= 0) {
+              id(pin_idle_counter) = 0;  // Reset du timeout
+
+              // Mapping : 1-9 puis C, 0, Valider
+              if (row < 3) {
+                // Chiffres 1-9
+                int digit = row * 3 + col + 1;
+                if (id(pin_length) < 8) {
+                  id(pin_buffer) += std::to_string(digit);
+                  id(pin_length)++;
+                }
+              } else {
+                // Dernière ligne
+                if (col == 0) {
+                  // C = Effacer tout
+                  id(pin_buffer) = "";
+                  id(pin_length) = 0;
+                  id(pending_arm_mode) = 0;
+                  id(keypad_message) = "";
+                  id(msg_display_counter) = 0;
+                } else if (col == 1) {
+                  // 0
+                  if (id(pin_length) < 8) {
+                    id(pin_buffer) += "0";
+                    id(pin_length)++;
+                  }
+                } else if (col == 2) {
+                  // Valider (coche)
+                  if (id(pin_length) >= 4) {
+                    std::string code = id(pin_buffer);
+                    int mode = id(pending_arm_mode);
+
+                    if (mode == 1) {
+                      // Armement Absent
+                      id(ha_arm_away_svc).execute(code);
+                      id(keypad_message) = "ARMEMENT ABSENT...";
+                    } else if (mode == 2) {
+                      // Armement Nuit
+                      id(ha_arm_night_svc).execute(code);
+                      id(keypad_message) = "ARMEMENT NUIT...";
+                    } else {
+                      // Désarmement (mode == 0)
+                      id(ha_disarm_svc).execute(code);
+                      id(keypad_message) = "DESARMEMENT...";
+                    }
+
+                    id(msg_display_counter) = 0;
+                    id(pin_buffer) = "";
+                    id(pin_length) = 0;
+                    id(pending_arm_mode) = 0;
+                    id(pin_idle_counter) = 0;
+                  } else {
+                    id(keypad_message) = "CODE TROP COURT";
+                    id(msg_display_counter) = 0;
+                  }
+                }
+              }
+              id(my_display).update();
+            }
+            return;
+          }
+
+          // --- BOUTONS DE MODE (partie gauche, y: 350-400) ---
+          // Bouton "Absent" : x 20-155, y 350-395
+          if (x >= 20 && x <= 155 && y >= 350 && y <= 395) {
+            id(pending_arm_mode) = 1;
+            id(keypad_message) = "SAISIR CODE ABSENT";
+            id(msg_display_counter) = 0;
+            id(pin_idle_counter) = 0;
+            id(my_display).update();
+            return;
+          }
+          // Bouton "Nuit" : x 165-300, y 350-395
+          if (x >= 165 && x <= 300 && y >= 350 && y <= 395) {
+            id(pending_arm_mode) = 2;
+            id(keypad_message) = "SAISIR CODE NUIT";
+            id(msg_display_counter) = 0;
+            id(pin_idle_counter) = 0;
+            id(my_display).update();
+            return;
+          }
+          // Bouton "Désarmer" : x 310-460, y 350-395
+          if (x >= 310 && x <= 460 && y >= 350 && y <= 395) {
+            id(pending_arm_mode) = 0;
+            id(keypad_message) = "SAISIR CODE";
+            id(msg_display_counter) = 0;
+            id(pin_idle_counter) = 0;
+            id(my_display).update();
+            return;
+          }
+        }
+
+        // =============================================================
+        // PAGE 2 : SYSTÈME / SOS
+        // =============================================================
+        if (id(display_page) == 2) {
+
+          // --- Bouton SOS PANIQUE (x:100-700, y:60-140) ---
+          if (x >= 100 && x <= 700 && y >= 60 && y <= 140) {
+            if (!id(sos_confirm_active)) {
+              // Premier appui : demander confirmation
+              id(sos_confirm_active) = true;
+              id(sos_confirm_counter) = 0;
+            } else {
+              // Deuxième appui : confirmer et envoyer
+              id(ha_sos_svc).execute();
+              id(sos_confirm_active) = false;
+              id(sos_confirm_counter) = 0;
+              id(keypad_message) = "SOS ENVOYE !";
+              id(msg_display_counter) = 0;
+            }
+            id(my_display).update();
+            return;
+          }
+
+          // --- Boutons luminosité (y: 200-260) ---
+          // 25% : x 50-200
+          if (x >= 50 && x <= 200 && y >= 200 && y <= 260) {
+            id(brightness_level) = 0;
+            auto call = id(display_backlight).turn_on();
+            call.set_brightness(0.25);
+            call.perform();
+            id(my_display).update();
+            return;
+          }
+          // 50% : x 210-360
+          if (x >= 210 && x <= 360 && y >= 200 && y <= 260) {
+            id(brightness_level) = 1;
+            auto call = id(display_backlight).turn_on();
+            call.set_brightness(0.50);
+            call.perform();
+            id(my_display).update();
+            return;
+          }
+          // 75% : x 370-520
+          if (x >= 370 && x <= 520 && y >= 200 && y <= 260) {
+            id(brightness_level) = 2;
+            auto call = id(display_backlight).turn_on();
+            call.set_brightness(0.75);
+            call.perform();
+            id(my_display).update();
+            return;
+          }
+          // 100% : x 530-700
+          if (x >= 530 && x <= 700 && y >= 200 && y <= 260) {
+            id(brightness_level) = 3;
+            auto call = id(display_backlight).turn_on();
+            call.set_brightness(1.0);
+            call.perform();
+            id(my_display).update();
+            return;
+          }
+
+          // --- Bouton Redémarrer (x:250-550, y:320-380) ---
+          if (x >= 250 && x <= 550 && y >= 320 && y <= 380) {
+            // Redémarrage de l'ESP
+            App.safe_reboot();
+            return;
+          }
+        }
+
+# =============================================================================
+#  POLICES DE CARACTÈRES
+# =============================================================================
+font:
+  - file:
+      type: gfonts
+      family: "Rubik"
+      weight: 700
+    id: font_16
+    size: 16
+    glyphsets: [GF_Latin_Kernel]
+    ignore_missing_glyphs: true
+    glyphs: ' abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!"%()+,-_.:/[]?çéèàùâêîôûëïüÿœæÇÉÈÀÙÂÊÎÔÛËÏÜŸŒÆ°=;|'
+
+  - file:
+      type: gfonts
+      family: "Rubik"
+      weight: 700
+    id: font_20
+    size: 20
+    glyphsets: [GF_Latin_Kernel]
+    ignore_missing_glyphs: true
+    glyphs: ' abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!"%()+,-_.:/[]?çéèàùâêîôûëïüÿœæÇÉÈÀÙÂÊÎÔÛËÏÜŸŒÆ°=;|'
+
+  - file:
+      type: gfonts
+      family: "Rubik"
+      weight: 700
+    id: font_24
+    size: 24
+    glyphsets: [GF_Latin_Kernel]
+    ignore_missing_glyphs: true
+    glyphs: ' abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!"%()+,-_.:/[]?çéèàùâêîôûëïüÿœæÇÉÈÀÙÂÊÎÔÛËÏÜŸŒÆ°=;|'
+
+  - file:
+      type: gfonts
+      family: "Rubik"
+      weight: 700
+    id: font_28
+    size: 28
+    glyphsets: [GF_Latin_Kernel]
+    ignore_missing_glyphs: true
+    glyphs: ' abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!"%()+,-_.:/[]?çéèàùâêîôûëïüÿœæÇÉÈÀÙÂÊÎÔÛËÏÜŸŒÆ°=;|'
+
+  - file:
+      type: gfonts
+      family: "Rubik"
+      weight: 700
+    id: font_32
+    size: 32
+    glyphsets: [GF_Latin_Kernel]
+    ignore_missing_glyphs: true
+    glyphs: ' abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!"%()+,-_.:/[]?çéèàùâêîôûëïüÿœæÇÉÈÀÙÂÊÎÔÛËÏÜŸŒÆ°=;|'
+
+  - file:
+      type: gfonts
+      family: "Rubik"
+      weight: 700
+    id: font_40
+    size: 40
+    glyphsets: [GF_Latin_Kernel]
+    ignore_missing_glyphs: true
+    glyphs: ' abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!"%()+,-_.:/[]?çéèàùâêîôûëïüÿœæÇÉÈÀÙÂÊÎÔÛËÏÜŸŒÆ°=;|'
+
+  - file:
+      type: gfonts
+      family: "Rubik"
+      weight: 700
+    id: font_48
+    size: 48
+    glyphsets: [GF_Latin_Kernel]
+    ignore_missing_glyphs: true
+    glyphs: ' abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!"%()+,-_.:/[]?çéèàùâêîôûëïüÿœæÇÉÈÀÙÂÊÎÔÛËÏÜŸŒÆ°=;|'
+
+# =============================================================================
+#  ÉCRAN MIPI RGB 800x480
+# =============================================================================
+display:
+  - platform: mipi_rgb
+    model: RPI
+    id: my_display
+    color_order: rgb
+    invert_colors: true
+    update_interval: never
+    auto_clear_enabled: true
+    dimensions:
+      width: 800
+      height: 480
+    de_pin: 41
+    hsync_pin: 39
+    vsync_pin: 40
+    pclk_pin: 42
+    pclk_frequency: 16MHz
+    pclk_inverted: true
+    hsync_pulse_width: 4
+    hsync_back_porch: 40
+    hsync_front_porch: 48
+    vsync_pulse_width: 4
+    vsync_back_porch: 31
+    vsync_front_porch: 13
+    data_pins:
+      red: [14, 21, 47, 48, 45]
+      green: [9, 46, 3, 8, 16, 1]
+      blue: [15, 7, 6, 5, 4]
+    lambda: |-
+      // =============================================================
+      //  PALETTE DE COULEURS DOMOLINK ALARM (thème sombre)
+      // =============================================================
+      const auto COLOR_BG           = Color(30, 30, 40);
+      const auto COLOR_WHITE        = Color(255, 255, 255);
+      const auto COLOR_LIGHT_GRAY   = Color(200, 200, 210);
+      const auto COLOR_DARK_GRAY    = Color(100, 100, 110);
+      const auto COLOR_MID_GRAY     = Color(60, 60, 75);
+      const auto COLOR_PANEL_BG     = Color(40, 42, 54);
+      const auto COLOR_GREEN        = Color(16, 185, 129);
+      const auto COLOR_RED          = Color(239, 68, 68);
+      const auto COLOR_ORANGE       = Color(245, 158, 11);
+      const auto COLOR_BLUE         = Color(59, 130, 246);
+      const auto COLOR_DARK_BLUE    = Color(30, 58, 138);
+      const auto COLOR_CYAN         = Color(6, 182, 212);
+      const auto COLOR_KEY_BG       = Color(55, 55, 70);
+      const auto COLOR_KEY_BORDER   = Color(80, 80, 100);
+      const auto COLOR_TAB_ACTIVE   = Color(59, 130, 246);
+      const auto COLOR_TAB_INACTIVE = Color(45, 45, 58);
+      const auto COLOR_SOS_RED      = Color(200, 30, 30);
+
+      // Fond global
+      it.filled_rectangle(0, 0, 800, 480, COLOR_BG);
+
+      // =============================================================
+      //  ÉCRAN DE BOOT
+      // =============================================================
+      if (!id(boot_done)) {
+        bool api_ok  = api_is_connected();
+        bool time_ok = id(ha_time).now().is_valid();
+
+        it.printf(400, 80, id(font_40), COLOR_BLUE, TextAlign::TOP_CENTER, "DOMOLINK ALARM");
+        it.printf(400, 130, id(font_24), COLOR_DARK_GRAY, TextAlign::TOP_CENTER, "Initialisation du systeme...");
+
+        // Barre de progression visuelle
+        it.filled_rectangle(200, 200, 400, 4, COLOR_MID_GRAY);
+        int prog = (api_ok ? 200 : 0) + (time_ok ? 200 : 0);
+        if (prog > 0) it.filled_rectangle(200, 200, prog, 4, COLOR_BLUE);
+
+        it.printf(400, 240, id(font_20), api_ok ? COLOR_GREEN : COLOR_DARK_GRAY, TextAlign::TOP_CENTER,
+                  api_ok ? "[OK] Home Assistant connecte" : "[..] Connexion Home Assistant...");
+        it.printf(400, 270, id(font_20), time_ok ? COLOR_GREEN : COLOR_DARK_GRAY, TextAlign::TOP_CENTER,
+                  time_ok ? "[OK] Horloge synchronisee" : "[..] Synchronisation horloge...");
+
+        it.printf(400, 420, id(font_16), COLOR_DARK_GRAY, TextAlign::TOP_CENTER, "By SocrateMobile");
+        return;
+      }
+
+      // =============================================================
+      //  BARRE SUPÉRIEURE (y: 0-52)
+      // =============================================================
+      it.filled_rectangle(0, 0, 800, 52, COLOR_PANEL_BG);
+
+      // Titre Domolink Alarm
+      it.printf(15, 14, id(font_24), COLOR_BLUE, TextAlign::TOP_LEFT, "DOMOLINK ALARM");
+
+      // État compact au centre
+      std::string alarm_st = id(ha_alarm_state).state;
+      Color status_color = COLOR_GREEN;
+      const char* status_text = "SECURISE";
+      if (alarm_st == "armed_away") { status_color = COLOR_RED; status_text = "ARME ABSENT"; }
+      else if (alarm_st == "armed_night") { status_color = COLOR_ORANGE; status_text = "ARME NUIT"; }
+      else if (alarm_st == "armed_home") { status_color = COLOR_ORANGE; status_text = "ARME MAISON"; }
+      else if (alarm_st == "triggered") { status_color = (id(alert_blink_counter) % 2 == 0) ? COLOR_RED : COLOR_BG; status_text = "ALERTE !"; }
+      else if (alarm_st == "pending") { status_color = COLOR_ORANGE; status_text = "COMPTE A REBOURS"; }
+      else if (alarm_st == "arming") { status_color = COLOR_ORANGE; status_text = "ARMEMENT..."; }
+
+      // Badge d'état central
+      int badge_w = 220;
+      int badge_x = 400 - badge_w / 2;
+      it.filled_rectangle(badge_x, 8, badge_w, 36, status_color);
+      it.printf(400, 26, id(font_20), COLOR_WHITE, TextAlign::CENTER, "%s", status_text);
+
+      // Horloge (droite)
+      char time_str[16] = "--:--";
+      auto now = id(ha_time).now();
+      if (now.is_valid()) {
+        now.strftime(time_str, sizeof(time_str), "%H:%M:%S");
+      }
+      it.printf(710, 16, id(font_20), COLOR_LIGHT_GRAY, TextAlign::TOP_LEFT, "%s", time_str);
+
+      // Barres WiFi (extrême droite)
+      float rssi = id(wifi_rssi).state;
+      int bars = 0;
+      if (!std::isnan(rssi)) {
+        if (rssi > -60) bars = 4;
+        else if (rssi > -70) bars = 3;
+        else if (rssi > -80) bars = 2;
+        else if (rssi > -90) bars = 1;
+      }
+      for (int b = 0; b < 4; b++) {
+        int bar_h = (b + 1) * 5;
+        int bx = 770 + (b * 7);
+        int by = 38 - bar_h;
+        if (b < bars) it.filled_rectangle(bx, by, 4, bar_h, COLOR_GREEN);
+        else it.filled_rectangle(bx, by, 4, bar_h, COLOR_MID_GRAY);
+      }
+
+      // =============================================================
+      //  CONTENU DES PAGES (y: 53-419)
+      // =============================================================
+      int current_p = id(display_page);
+
+      if (current_p == 0) {
+        // =========================================================
+        //  PAGE 0 : ALARME & CLAVIER
+        // =========================================================
+
+        // --- PARTIE GAUCHE : Tableau de bord (x: 0-465) ---
+
+        // Grand panneau d'état (x: 10-460, y: 60-175)
+        Color panel_bg = COLOR_GREEN;
+        const char* panel_title = "SECURISE";
+        const char* panel_sub   = "Systeme pret";
+        if (alarm_st == "armed_away") { panel_bg = COLOR_RED; panel_title = "ARMEMENT TOTAL"; panel_sub = "Surveillance maximale"; }
+        else if (alarm_st == "armed_night") { panel_bg = COLOR_ORANGE; panel_title = "ARMEMENT NUIT"; panel_sub = "Perimetre protege"; }
+        else if (alarm_st == "armed_home") { panel_bg = COLOR_ORANGE; panel_title = "ARME MAISON"; panel_sub = "Perimetre interieur"; }
+        else if (alarm_st == "triggered") {
+          panel_bg = (id(alert_blink_counter) % 2 == 0) ? COLOR_RED : COLOR_SOS_RED;
+          panel_title = "ALERTE INTRUSION";
+          panel_sub = "Declenchement en cours";
+        }
+        else if (alarm_st == "pending") { panel_bg = COLOR_ORANGE; panel_title = "COMPTE A REBOURS"; panel_sub = "Entrez votre code..."; }
+        else if (alarm_st == "arming") { panel_bg = COLOR_ORANGE; panel_title = "ARMEMENT..."; panel_sub = "En cours"; }
+
+        it.filled_rectangle(10, 60, 455, 115, panel_bg);
+        // Bordure arrondie simulée
+        it.filled_rectangle(10, 60, 455, 3, panel_bg);
+        it.printf(237, 95, id(font_32), COLOR_WHITE, TextAlign::CENTER, "%s", panel_title);
+        it.printf(237, 135, id(font_20), COLOR_WHITE, TextAlign::CENTER, "%s", panel_sub);
+
+        // --- 4 mini-tuiles d'état (2x2, y: 185-285) ---
+        // Tuile 1 : Ouvertures (x:10-230, y:185-235)
+        it.filled_rectangle(10, 185, 220, 50, COLOR_PANEL_BG);
+        it.printf(120, 195, id(font_16), COLOR_GREEN, TextAlign::TOP_CENTER, "OUVERTURES");
+        it.printf(120, 215, id(font_16), COLOR_LIGHT_GRAY, TextAlign::TOP_CENTER, "Fermees");
+
+        // Tuile 2 : Mouvements (x:240-460, y:185-235)
+        it.filled_rectangle(240, 185, 225, 50, COLOR_PANEL_BG);
+        it.printf(352, 195, id(font_16), COLOR_GREEN, TextAlign::TOP_CENTER, "MOUVEMENTS");
+        it.printf(352, 215, id(font_16), COLOR_LIGHT_GRAY, TextAlign::TOP_CENTER, "Aucun");
+
+        // Tuile 3 : Sécurité (x:10-230, y:240-290)
+        it.filled_rectangle(10, 240, 220, 50, COLOR_PANEL_BG);
+        it.printf(120, 250, id(font_16), COLOR_CYAN, TextAlign::TOP_CENTER, "SECURITE 24/7");
+        it.printf(120, 270, id(font_16), COLOR_LIGHT_GRAY, TextAlign::TOP_CENTER, "Active");
+
+        // Tuile 4 : Occupation (x:240-460, y:240-290)
+        it.filled_rectangle(240, 240, 225, 50, COLOR_PANEL_BG);
+        it.printf(352, 250, id(font_16), COLOR_CYAN, TextAlign::TOP_CENTER, "OCCUPATION");
+        it.printf(352, 270, id(font_16), COLOR_LIGHT_GRAY, TextAlign::TOP_CENTER, "Surveillance");
+
+        // --- Dernier événement (y: 300-340) ---
+        it.filled_rectangle(10, 300, 455, 38, COLOR_PANEL_BG);
+        std::string journal = id(ha_alarm_journal).state;
+        if (journal.length() > 50) journal = journal.substr(0, 47) + "...";
+        it.printf(237, 310, id(font_16), COLOR_LIGHT_GRAY, TextAlign::CENTER, "%s", journal.c_str());
+
+        // --- Boutons de mode (y: 350-400) ---
+        // Absent
+        Color btn_abs_bg = (id(pending_arm_mode) == 1) ? COLOR_RED : COLOR_PANEL_BG;
+        it.filled_rectangle(20, 350, 135, 45, btn_abs_bg);
+        it.rectangle(20, 350, 135, 45, COLOR_RED);
+        it.printf(87, 372, id(font_20), (id(pending_arm_mode) == 1) ? COLOR_WHITE : COLOR_RED, TextAlign::CENTER, "Absent");
+
+        // Nuit
+        Color btn_nuit_bg = (id(pending_arm_mode) == 2) ? COLOR_ORANGE : COLOR_PANEL_BG;
+        it.filled_rectangle(165, 350, 135, 45, btn_nuit_bg);
+        it.rectangle(165, 350, 135, 45, COLOR_ORANGE);
+        it.printf(232, 372, id(font_20), (id(pending_arm_mode) == 2) ? COLOR_WHITE : COLOR_ORANGE, TextAlign::CENTER, "Nuit");
+
+        // Désarmer
+        Color btn_des_bg = (id(pending_arm_mode) == 0 && !id(keypad_message).empty()) ? COLOR_GREEN : COLOR_PANEL_BG;
+        it.filled_rectangle(310, 350, 150, 45, btn_des_bg);
+        it.rectangle(310, 350, 150, 45, COLOR_GREEN);
+        it.printf(385, 372, id(font_20), (!id(keypad_message).empty() && id(pending_arm_mode) == 0) ? COLOR_WHITE : COLOR_GREEN, TextAlign::CENTER, "Desarmer");
+
+        // --- PARTIE DROITE : Clavier PIN (x: 475-795) ---
+
+        // Titre clavier
+        it.printf(635, 62, id(font_20), COLOR_LIGHT_GRAY, TextAlign::TOP_CENTER, "ENTRER LE CODE PIN");
+
+        // Pastilles de code (y: 85-105)
+        int dot_start_x = 635 - (4 * 18);
+        for (int d = 0; d < 8; d++) {
+          int dx = dot_start_x + d * 36;
+          if (d < id(pin_length)) {
+            it.filled_circle(dx, 95, 8, COLOR_BLUE);
+          } else {
+            it.circle(dx, 95, 8, COLOR_MID_GRAY);
+          }
+        }
+
+        // Grille 3x4 du pavé numérique
+        // Colonnes : 480-580, 585-685, 690-790
+        // Lignes   : 115-180, 185-250, 255-320, 325-400
+        const int key_w = 100;
+        const int key_h = 63;
+        const int key_gap = 5;
+        const int key_start_x = 480;
+        const int key_start_y = 115;
+
+        const char* labels[4][3] = {
+          {"1", "2", "3"},
+          {"4", "5", "6"},
+          {"7", "8", "9"},
+          {"C", "0", "OK"}
+        };
+
+        for (int r = 0; r < 4; r++) {
+          for (int c = 0; c < 3; c++) {
+            int kx = key_start_x + c * (key_w + key_gap);
+            int ky = key_start_y + r * (key_h + key_gap);
+
+            Color key_bg_color = COLOR_KEY_BG;
+            Color key_txt_color = COLOR_WHITE;
+
+            if (r == 3 && c == 0) {
+              // C = rouge
+              key_bg_color = COLOR_RED;
+            } else if (r == 3 && c == 2) {
+              // OK = vert
+              key_bg_color = COLOR_GREEN;
+            }
+
+            it.filled_rectangle(kx, ky, key_w, key_h, key_bg_color);
+            it.rectangle(kx, ky, key_w, key_h, COLOR_KEY_BORDER);
+            it.printf(kx + key_w / 2, ky + key_h / 2, id(font_28), key_txt_color, TextAlign::CENTER, "%s", labels[r][c]);
+          }
+        }
+
+        // Message du clavier (sous les boutons si présent)
+        if (!id(keypad_message).empty()) {
+          Color msg_color = COLOR_ORANGE;
+          std::string msg = id(keypad_message);
+          if (msg.find("DESARM") != std::string::npos || msg.find("OK") != std::string::npos) msg_color = COLOR_GREEN;
+          else if (msg.find("INCORRECT") != std::string::npos || msg.find("COURT") != std::string::npos) msg_color = COLOR_RED;
+          it.printf(635, 408, id(font_16), msg_color, TextAlign::TOP_CENTER, "%s", msg.c_str());
+        }
+
+      } else if (current_p == 1) {
+        // =========================================================
+        //  PAGE 1 : CAPTEURS
+        // =========================================================
+        it.printf(400, 65, id(font_28), COLOR_BLUE, TextAlign::TOP_CENTER, "CAPTEURS ET EQUIPEMENTS");
+
+        // Cadre informatif
+        it.filled_rectangle(20, 100, 760, 300, COLOR_PANEL_BG);
+
+        it.printf(400, 120, id(font_24), COLOR_LIGHT_GRAY, TextAlign::TOP_CENTER, "Etat des capteurs");
+        it.filled_rectangle(100, 150, 600, 2, COLOR_MID_GRAY);
+
+        // Info : alimenté par les attributs de l'entité HA
+        std::string alarm_state_full = id(ha_alarm_state).state;
+        const char* mode_label = "Desarme";
+        if (alarm_state_full == "armed_away") mode_label = "Arme Total (Absent)";
+        else if (alarm_state_full == "armed_night") mode_label = "Arme Nuit";
+        else if (alarm_state_full == "armed_home") mode_label = "Arme Maison";
+        else if (alarm_state_full == "triggered") mode_label = "ALERTE DECLENCHEE";
+        else if (alarm_state_full == "pending") mode_label = "Compte a rebours...";
+
+        it.printf(60, 170, id(font_20), COLOR_LIGHT_GRAY, TextAlign::TOP_LEFT, "Mode actuel :");
+        it.printf(300, 170, id(font_20), COLOR_CYAN, TextAlign::TOP_LEFT, "%s", mode_label);
+
+        it.printf(60, 210, id(font_20), COLOR_LIGHT_GRAY, TextAlign::TOP_LEFT, "Dernier utilisateur :");
+        it.printf(300, 210, id(font_20), COLOR_CYAN, TextAlign::TOP_LEFT, "socrate");
+
+        it.printf(60, 250, id(font_20), COLOR_LIGHT_GRAY, TextAlign::TOP_LEFT, "Journal :");
+        std::string j2 = id(ha_alarm_journal).state;
+        if (j2.length() > 45) j2 = j2.substr(0, 42) + "...";
+        it.printf(300, 250, id(font_20), COLOR_LIGHT_GRAY, TextAlign::TOP_LEFT, "%s", j2.c_str());
+
+        it.printf(60, 290, id(font_20), COLOR_LIGHT_GRAY, TextAlign::TOP_LEFT, "Statut connecte :");
+        std::string watch_st = id(ha_alarm_watch).state;
+        Color watch_color = COLOR_GREEN;
+        if (watch_st.find("Rouge") != std::string::npos || watch_st.find("Arm") != std::string::npos) watch_color = COLOR_RED;
+        it.printf(300, 290, id(font_20), watch_color, TextAlign::TOP_LEFT, "%s", watch_st.c_str());
+
+        it.printf(60, 330, id(font_20), COLOR_LIGHT_GRAY, TextAlign::TOP_LEFT, "Version systeme :");
+        it.printf(300, 330, id(font_20), COLOR_DARK_GRAY, TextAlign::TOP_LEFT, "0.9.86");
+
+        // Signal WiFi
+        char rssi_str[32];
+        snprintf(rssi_str, sizeof(rssi_str), "%.0f dBm", id(wifi_rssi).state);
+        it.printf(60, 370, id(font_20), COLOR_LIGHT_GRAY, TextAlign::TOP_LEFT, "Signal WiFi :");
+        it.printf(300, 370, id(font_20), bars >= 3 ? COLOR_GREEN : (bars >= 2 ? COLOR_ORANGE : COLOR_RED), TextAlign::TOP_LEFT, "%s", rssi_str);
+
+      } else if (current_p == 2) {
+        // =========================================================
+        //  PAGE 2 : SYSTÈME & SOS
+        // =========================================================
+
+        // --- Grand bouton SOS ---
+        Color sos_bg = id(sos_confirm_active) ? COLOR_RED : COLOR_SOS_RED;
+        it.filled_rectangle(100, 60, 600, 80, sos_bg);
+        it.rectangle(100, 60, 600, 80, COLOR_RED);
+        if (id(sos_confirm_active)) {
+          it.printf(400, 100, id(font_28), COLOR_WHITE, TextAlign::CENTER, "CONFIRMER SOS PANIQUE ?");
+        } else {
+          it.printf(400, 100, id(font_28), COLOR_WHITE, TextAlign::CENTER, "SOS PANIQUE IMMEDIAT");
+        }
+
+        // --- Luminosité ---
+        it.printf(400, 165, id(font_24), COLOR_LIGHT_GRAY, TextAlign::TOP_CENTER, "LUMINOSITE DE L'ECRAN");
+
+        const char* bright_labels[] = {"25%", "50%", "75%", "100%"};
+        int bright_xs[] = {50, 210, 370, 530};
+        int bright_w = 150;
+
+        for (int i = 0; i < 4; i++) {
+          Color bg = (id(brightness_level) == i) ? COLOR_BLUE : COLOR_PANEL_BG;
+          it.filled_rectangle(bright_xs[i], 200, bright_w, 60, bg);
+          it.rectangle(bright_xs[i], 200, bright_w, 60, COLOR_BLUE);
+          it.printf(bright_xs[i] + bright_w / 2, 230, id(font_24), (id(brightness_level) == i) ? COLOR_WHITE : COLOR_BLUE, TextAlign::CENTER, "%s", bright_labels[i]);
+        }
+
+        // --- Infos système ---
+        it.printf(400, 285, id(font_20), COLOR_DARK_GRAY, TextAlign::TOP_CENTER, "Domolink Alarm v1.0.0 - ESP32-S3 7.0\"");
+
+        // --- Bouton redémarrer ---
+        it.filled_rectangle(250, 320, 300, 60, COLOR_PANEL_BG);
+        it.rectangle(250, 320, 300, 60, COLOR_ORANGE);
+        it.printf(400, 350, id(font_24), COLOR_ORANGE, TextAlign::CENTER, "REDEMARRER");
+
+        // --- Message si SOS envoyé ---
+        if (!id(keypad_message).empty()) {
+          it.printf(400, 400, id(font_20), COLOR_GREEN, TextAlign::TOP_CENTER, "%s", id(keypad_message).c_str());
+        }
+      }
+
+      // =============================================================
+      //  BARRE DE NAVIGATION INFÉRIEURE (y: 420-480)
+      // =============================================================
+      it.filled_rectangle(0, 420, 800, 60, COLOR_TAB_INACTIVE);
+      it.line(0, 420, 800, 420, COLOR_MID_GRAY);
+      it.line(267, 420, 267, 480, COLOR_MID_GRAY);
+      it.line(534, 420, 534, 480, COLOR_MID_GRAY);
+
+      // Onglet 0 : Alarme
+      if (current_p == 0) it.filled_rectangle(0, 420, 267, 60, COLOR_TAB_ACTIVE);
+      it.printf(133, 450, id(font_20), current_p == 0 ? COLOR_WHITE : COLOR_DARK_GRAY, TextAlign::CENTER, "Alarme");
+
+      // Onglet 1 : Capteurs
+      if (current_p == 1) it.filled_rectangle(267, 420, 267, 60, COLOR_TAB_ACTIVE);
+      it.printf(400, 450, id(font_20), current_p == 1 ? COLOR_WHITE : COLOR_DARK_GRAY, TextAlign::CENTER, "Capteurs");
+
+      // Onglet 2 : Système
+      if (current_p == 2) it.filled_rectangle(534, 420, 266, 60, COLOR_TAB_ACTIVE);
+      it.printf(667, 450, id(font_20), current_p == 2 ? COLOR_WHITE : COLOR_DARK_GRAY, TextAlign::CENTER, "Systeme / SOS");
+
+# =============================================================================
+#  RÉTROÉCLAIRAGE
+# =============================================================================
+output:
+  - platform: ledc
+    id: gpio_backlight_pwm
+    pin: GPIO02
+    frequency: 1220
+
+light:
+  - platform: monochromatic
+    output: gpio_backlight_pwm
+    name: "${friendly_name} Rétroéclairage"
+    icon: mdi:lightbulb-on
+    id: display_backlight
+    restore_mode: ALWAYS_ON
+
+# =============================================================================
+#  HORLOGE HOME ASSISTANT
+# =============================================================================
+time:
+  - platform: homeassistant
+    id: ha_time
+
+# =============================================================================
+#  CAPTEURS & ENTITÉS HOME ASSISTANT
+# =============================================================================
+sensor:
+  - platform: wifi_signal
+    id: wifi_rssi
+    internal: true
+    update_interval: 15s
+
+  - platform: uptime
+    name: "${friendly_name} Uptime"
+    id: uptime_sensor
+    update_interval: 60s
+
+text_sensor:
+  # État de l'alarme Domolink
+  - platform: homeassistant
+    id: ha_alarm_state
+    entity_id: alarm_control_panel.enghien_les_bains_domolink_alarm
+    internal: true
+
+  # Journal des événements
+  - platform: homeassistant
+    id: ha_alarm_journal
+    entity_id: sensor.enghien_les_bains_domolink_alarm_journal_des_evenements
+    internal: true
+
+  # Statut montre connectée
+  - platform: homeassistant
+    id: ha_alarm_watch
+    entity_id: sensor.enghien_les_bains_domolink_alarm_statut_montre_connectee
+    internal: true
+
+# =============================================================================
+#  SCRIPTS — ACTIONS HOME ASSISTANT
+# =============================================================================
+script:
+  # Armement Total (Absent)
+  - id: ha_arm_away_svc
+    parameters:
+      code: string
+    then:
+      - homeassistant.service:
+          service: alarm_control_panel.alarm_arm_away
+          data:
+            entity_id: alarm_control_panel.enghien_les_bains_domolink_alarm
+            code: !lambda 'return code;'
+
+  # Armement Nuit
+  - id: ha_arm_night_svc
+    parameters:
+      code: string
+    then:
+      - homeassistant.service:
+          service: alarm_control_panel.alarm_arm_night
+          data:
+            entity_id: alarm_control_panel.enghien_les_bains_domolink_alarm
+            code: !lambda 'return code;'
+
+  # Désarmement
+  - id: ha_disarm_svc
+    parameters:
+      code: string
+    then:
+      - homeassistant.service:
+          service: alarm_control_panel.alarm_disarm
+          data:
+            entity_id: alarm_control_panel.enghien_les_bains_domolink_alarm
+            code: !lambda 'return code;'
+
+  # SOS Panique
+  - id: ha_sos_svc
+    then:
+      - homeassistant.service:
+          service: button.press
+          data:
+            entity_id: button.enghien_les_bains_domolink_alarm_sos_panic
