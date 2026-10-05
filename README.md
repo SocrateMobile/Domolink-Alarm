@@ -23,6 +23,8 @@
 
 ## 🚀 Nouveautés de la Version 0.9.84
 
+[![Buy Me A Coffee](https://img.buymeacoffee.com/button-api/?text=Buy+me+a+coffee&emoji=☕&slug=Socrate&button_colour=FFDD00&font_colour=000000&font_family=Poppins&outline_colour=000000&coffee_colour=ffffff)](https://www.buymeacoffee.com/Socrate)
+
 - **Compatibilité Totale Apple iOS (Safari & Application Home Assistant)** :
   - **Préservation du Geste Utilisateur (`User Gesture`)** : Suppression des fenêtres de dialogue bloquantes sous iOS pour garantir l'activation immédiate de **Face ID** / **Touch ID** sans restriction WebKit.
   - **Isolation Multi-Appareils iCloud Keychain** : Identifiants matériels uniques par appareil pour éliminer les conflits de trousseau iCloud entre Mac et iPhone.
