@@ -11,6 +11,7 @@
   <a href="https://hacs.xyz"><img src="https://img.shields.io/badge/HACS-Custom%20%26%20Default-orange.svg?style=for-the-badge" alt="HACS"></a>
   <a href="https://www.home-assistant.io"><img src="https://img.shields.io/badge/Home%20Assistant-2024.1%2B-blue?style=for-the-badge&logo=home-assistant" alt="HA Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/SocrateMobile/Domolink-Alarm?style=for-the-badge&color=64748b" alt="Licence"></a>
+  <a href="https://buymeacoffee.com/Socrate"><img src="https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Socrate-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=000000" alt="Buy Me A Coffee"></a>
 </p>
 
 ---
@@ -268,6 +269,11 @@ cards:
 
 * 🐛 **Signaler un problème ou une suggestion** : Ouvrez un ticket sur l'espace [Issues GitHub](https://github.com/SocrateMobile/Domolink-Alarm/issues).
 * ⭐ **Vous aimez cette intégration ?** N'hésitez pas à laisser une étoile sur le dépôt pour soutenir le projet !
+* ☕ **Offrir un café** : Si vous souhaitez soutenir le développement et la maintenance de cette intégration, vous pouvez [m'offrir un café sur Buy Me a Coffee](https://buymeacoffee.com/Socrate) !
+
+<p align="center">
+  <a href="https://buymeacoffee.com/Socrate" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="50" width="210"></a>
+</p>
 
 ---
 

@@ -1,18 +1,70 @@
-# =============================================================================
+# ==========================================================================================
+#   ____                        _          ____                 ____          _        
+#  / ___|  ___   ___ _ __ __ _| |_ ___    |  _ \  _____   __   / ___|___   __| | ___  
+#  \___ \ / _ \ / __| '__/ _` | __/ _ \   | | | |/ _ \ \ / /  | |   / _ \ / _` |/ _ \ 
+#   ___) | (_) | (__| | | (_| | ||  __/   | |_| |  __/\ V /   | |__| (_) | (_| |  __/ 
+#  |____/ \___/ \___|_|  \__,_|\__\___|   |____/ \___| \_/     \____\___/ \__,_|\___| 
+#                                                                                       
+# ==========================================================================================
 #  DOMOLINK ALARM — Firmware ESPHome pour Sunton ESP32-S3 7.0" (800x480)
-# =============================================================================
+# ==========================================================================================
 #  Matériel : Sunton ESP32-8048S070  (ESP32-S3, 16MB Flash, Octal PSRAM)
 #  Écran    : MIPI RGB 800x480, GT911 tactile capacitif
 #  Auteur   : SocrateMobile / Domolink
-#  Version  : 1.0.0
-# =============================================================================
+#  Version  : 2.6.0 (Tuile Heure épurée x2, Énergie Linky, Qualité de l'air, Météo x2)
+# ==========================================================================================
 
 substitutions:
   devicename: "domolink-alarm"
   friendly_name: "Domolink Alarm Écran 7 Pouces"
   project_name: "Domolink.Alarm-Screen"
-  project_version: "1.0.0"
+  project_version: "2.6.0"
 
+  # =========================================================================
+  #  CONFIGURATION DES ENTITÉS HOME ASSISTANT (Personnalisable selon la ville)
+  # =========================================================================
+  # --- MÉTÉO (Météo-France ou Open-Meteo) ---
+  ha_sensor_meteo_temp: "sensor.enghien_les_bains_temperature"
+  ha_sensor_meteo_rain: "sensor.enghien_les_bains_rain_chance"
+  ha_sensor_meteo_freeze: "sensor.enghien_les_bains_freeze_chance"
+  ha_sensor_meteo_cloud: "sensor.enghien_les_bains_cloud_cover"
+  ha_sensor_meteo_condition: "sensor.enghien_les_bains_original_condition"
+
+  # --- ALARME DOMOLINK ---
+  ha_alarm_entity: "alarm_control_panel.enghien_les_bains_domolink_alarm"
+  ha_alarm_sos: "button.enghien_les_bains_domolink_alarm_sos_panic"
+  ha_alarm_journal: "sensor.enghien_les_bains_domolink_alarm_journal_des_evenements"
+  ha_alarm_user: "sensor.enghien_les_bains_domolink_alarm_dernier_utilisateur"
+  ha_alarm_watch: "sensor.enghien_les_bains_domolink_alarm_statut_montre_connectee"
+
+  # --- TRANSPORTS & TRAINS (Domolink Transport / SNCF) ---
+  ha_train_paris_1: "sensor.domolink_transport_enghien_les_bains_domolink_train_enghien_les_bains_paris_nord_1"
+  ha_train_paris_2: "sensor.domolink_transport_enghien_les_bains_domolink_train_enghien_les_bains_paris_nord_2"
+  ha_train_eaubonne_1: "sensor.domolink_transport_enghien_les_bains_domolink_train_enghien_les_bains_ermont_eaubonne_1"
+  ha_train_eaubonne_2: "sensor.domolink_transport_enghien_les_bains_domolink_train_enghien_les_bains_ermont_eaubonne_2"
+  ha_train_dernier_retour: "sensor.domolink_transport_enghien_les_bains_domolink_dernier_retour_paris_nord_enghien_les_bains"
+
+  # --- ÉNERGIE (Compteur Linky & Chauffage) ---
+  ha_sensor_linky_papp: "sensor.compteur_linky_puissance_apparente"
+  ha_sensor_linky_courant: "sensor.compteur_linky_courant"
+  ha_sensor_linky_index_hc: "sensor.compteur_linky_consommation_partie_1"
+  ha_sensor_linky_index_hp: "sensor.compteur_linky_consommation_partie_2"
+  ha_sensor_tado_chauffe_totale: "sensor.enghien_puissance_de_chauffe_totale"
+  ha_sensor_portail_puissance: "sensor.interrupteur_wi_fi_sur_rail_din_avec_mesure_2_puissance"
+
+  # --- QUALITÉ DE L'AIR (Intérieur & Extérieur) ---
+  ha_sensor_air_pm25_in: "sensor.qualite_de_l_air_entree_pm2_5"
+  ha_sensor_air_cov_in: "sensor.qualite_de_l_air_entree_indice_de_cov"
+  ha_sensor_air_temp_in: "sensor.qualite_de_l_air_entree_temperature"
+  ha_sensor_air_hum_in: "sensor.qualite_de_l_air_entree_humidite"
+  ha_sensor_air_co: "sensor.qualite_de_l_air_et_temperature_monoxide_de_carbone"
+  ha_sensor_air_couleur: "sensor.qualite_de_l_air_et_temperature_couleur_de_l_air_2"
+  ha_sensor_air_aqi_ext: "sensor.open_meteo_95880_qualite_de_l_air_aqi_europe"
+  ha_sensor_air_pm25_ext: "sensor.open_meteo_95880_particules_pm2_5"
+  ha_sensor_air_atmo_ext: "sensor.enghien_les_bains_atmo_france_qualite_globale_enghien_les_bains"
+  ha_sensor_air_pollen_ext: "sensor.enghien_les_bains_atmo_france_qualite_globale_pollen_enghien_les_bains"
+  ha_purifier_fan_entity: "fan.air_purifier_entree"
+  ha_purifier_filter_entity: "binary_sensor.air_purifier_entree_replace_filter"
 esphome:
   name: ${devicename}
   min_version: 2024.11.0
@@ -22,9 +74,11 @@ esphome:
   build_flags:
     - "-DBOARD_HAS_PSRAM"
   on_boot:
-    priority: 600
+    priority: -100
     then:
-      - light.turn_on: display_backlight
+      - script.execute:
+          id: set_brightness
+          level: !lambda 'return id(brightness_level);'
 
 esp32:
   board: esp32-s3-devkitc-1
@@ -35,37 +89,60 @@ esp32:
     sdkconfig_options:
       CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240: y
       CONFIG_ESP32S3_DATA_CACHE_64KB: y
+      CONFIG_ESP32S3_DATA_CACHE_LINE_64B: y
       CONFIG_SPIRAM_FETCH_INSTRUCTIONS: y
       CONFIG_SPIRAM_RODATA: y
       CONFIG_ESP_MAIN_TASK_STACK_SIZE: "32768"
+      CONFIG_PTHREAD_TASK_STACK_SIZE_DEFAULT: "8192"
       CONFIG_FREERTOS_HZ: "1000"
       CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG: n
 
 api:
+  reboot_timeout: 0s
   encryption:
-    key: "vR4VDfiJLMzj0Gv4SbULJ5YuZCdBIJRPS8v4/PN0sRA="
-  services:
-    # Service appelable depuis HA pour déclencher une alarme locale (buzzer futur)
-    - service: trigger_screen_alert
+    key: !secret domolink_alarm__encryption_key
+  actions:
+    - action: trigger_screen_alert
       then:
         - lambda: |-
             id(screen_alert_active) = true;
+            id(alert_blink_counter) = 0;
+            id(need_redraw) = true;
 
 captive_portal:
 
 wifi:
+  id: my_wifi
   ssid: !secret wifi_ssid
   password: !secret wifi_password
   fast_connect: false
+  power_save_mode: none
+  ap:
+    ssid: "Domolink-Alarm"
+    password: !secret server_password
 
+web_server:
+  port: 80
+  version: 3
+  auth:
+    type: digest
+    username: !secret server_username
+    password: !secret server_password
+
+# =============================================================================
+#  LOGS (DEBUGGING CRASHS)
+# =============================================================================
 logger:
   hardware_uart: UART0
-  baud_rate: 0
+  baud_rate: 115200
   level: INFO
+
+debug:
+  update_interval: 30s
 
 ota:
   - platform: esphome
-    encryption:
+    password: !secret ecran_sunton_7__OTA_7_Pouces
 
 psram:
   mode: octal
@@ -75,134 +152,526 @@ psram:
 #  VARIABLES GLOBALES
 # =============================================================================
 globals:
-  # --- État du boot ---
   - id: boot_done
     type: bool
     initial_value: 'false'
 
-  # --- Navigation par pages ---
+  - id: need_redraw
+    type: bool
+    initial_value: 'false'
+
   - id: display_page
     type: int
     restore_value: false
     initial_value: '0'
 
-  # --- Code PIN saisi (max 8 chiffres) ---
+  # --- ÉTAT ACTION PORTAIL (0: Repos, 1: En ouverture, 2: En fermeture) ---
+  - id: gate_action_state
+    type: int
+    initial_value: '0'
+
+  - id: gate_action_start_ms
+    type: uint32_t
+    initial_value: '0'
+
+  # --- PIÈCE TADO SÉLECTIONNÉE (0 à 7) ---
+  - id: tado_selected_room
+    type: int
+    restore_value: false
+    initial_value: '0'
+
+  # --- POPIN MENU TADO ---
+  - id: tado_modal_open
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+
+  # Popin clavier
+  - id: pin_modal_active
+    type: bool
+    initial_value: 'false'
+
   - id: pin_buffer
     type: std::string
     restore_value: false
     initial_value: '""'
 
-  # --- Nombre de chiffres saisis ---
   - id: pin_length
     type: int
     initial_value: '0'
 
-  # --- Compteur d'inactivité du clavier (secondes) ---
   - id: pin_idle_counter
     type: int
     initial_value: '0'
 
-  # --- Message d'état temporaire (CODE OK, INCORRECT, etc.) ---
   - id: keypad_message
     type: std::string
     restore_value: false
     initial_value: '""'
 
-  # --- Compteur pour effacer le message temporaire ---
   - id: msg_display_counter
     type: int
     initial_value: '0'
 
-  # --- Mode d'armement en attente (0=désarmer, 1=absent, 2=nuit) ---
-  - id: pending_arm_mode
+  - id: bypass_warning_active
+    type: bool
+    initial_value: 'false'
+
+  - id: bypass_timeout_counter
     type: int
     initial_value: '0'
 
-  # --- Alerte écran active ---
+  - id: target_arm_mode
+    type: int
+    initial_value: '0'
+
+  - id: alarm_bypassed
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+
   - id: screen_alert_active
     type: bool
     initial_value: 'false'
 
-  # --- Compteur clignotement alerte ---
   - id: alert_blink_counter
     type: int
     initial_value: '0'
 
-  # --- Niveau de luminosité (0=25%, 1=50%, 2=75%, 3=100%) ---
   - id: brightness_level
     type: int
     restore_value: true
     initial_value: '3'
 
-  # --- Confirmation SOS active ---
   - id: sos_confirm_active
     type: bool
     initial_value: 'false'
 
-  # --- Compteur timeout SOS (secondes) ---
   - id: sos_confirm_counter
     type: int
     initial_value: '0'
+
+  - id: reboot_confirm_active
+    type: bool
+    initial_value: 'false'
+
+  - id: reboot_confirm_counter
+    type: int
+    initial_value: '0'
+
+# =============================================================================
+#  SCRIPTS SYSTÈME (ASYNCHRONES SÉCURISÉS)
+# =============================================================================
+script:
+  - id: set_brightness
+    parameters:
+      level: int
+    then:
+      - lambda: |-
+          static const float v[] = {0.25f, 0.50f, 0.75f, 1.0f};
+          if (level < 0 || level > 3) level = 3;
+          id(brightness_level) = level;
+          auto call = id(display_backlight).turn_on();
+          call.set_brightness(v[level]);
+          call.perform();
+          id(need_redraw) = true;
+
+  - id: ha_arm_away_svc
+    mode: restart
+    then:
+      - delay: 50ms
+      - homeassistant.action:
+          action: alarm_control_panel.alarm_arm_away
+          data:
+            entity_id: ${ha_alarm_entity}
+
+  # FIX v2.2.3 : force revient en chaîne "true" (avec guillemets).
+  # Test confirmé : le service HA rejette un booléen natif pour ce paramètre
+  # ("Must be string, got <class 'bool'>"). Le schéma attend bien une string.
+  - id: ha_arm_away_force_svc
+    mode: restart
+    then:
+      - delay: 50ms
+      - homeassistant.action:
+          action: alarm_control_panel.alarm_arm_away
+          data:
+            entity_id: ${ha_alarm_entity}
+            force: "true"
+
+  - id: ha_arm_night_svc
+    mode: restart
+    then:
+      - delay: 50ms
+      - homeassistant.action:
+          action: alarm_control_panel.alarm_arm_night
+          data:
+            entity_id: ${ha_alarm_entity}
+
+  - id: ha_arm_night_force_svc
+    mode: restart
+    then:
+      - delay: 50ms
+      - homeassistant.action:
+          action: alarm_control_panel.alarm_arm_night
+          data:
+            entity_id: ${ha_alarm_entity}
+            force: "true"
+
+  - id: ha_disarm_svc
+    mode: restart
+    parameters:
+      code: string
+    then:
+      - delay: 50ms
+      - homeassistant.action:
+          action: alarm_control_panel.alarm_disarm
+          data:
+            entity_id: ${ha_alarm_entity}
+            code: !lambda 'return code;'
+
+  - id: ha_sos_svc
+    mode: restart
+    then:
+      - delay: 50ms
+      - homeassistant.action:
+          action: button.press
+          data:
+            entity_id: ${ha_alarm_sos}
+
+  # --- SCRIPTS ONGLET MAISON ---
+  - id: ha_portail_svc
+    mode: restart
+    then:
+      - delay: 50ms
+      - homeassistant.action:
+          action: switch.turn_on
+          data:
+            entity_id: switch.shelly_ouverture_portail_voiture
+
+  - id: ha_lumieres_on_svc
+    mode: restart
+    then:
+      - delay: 50ms
+      - homeassistant.action:
+          action: script.allumer_les_lumieres_exterieures
+
+  - id: ha_lumieres_off_svc
+    mode: restart
+    then:
+      - delay: 50ms
+      - homeassistant.action:
+          action: script.eteindre_les_lumieres_exterieures
+
+  - id: ha_arrosage_toggle_svc
+    mode: restart
+    then:
+      - delay: 50ms
+      - homeassistant.action:
+          action: switch.toggle
+          data:
+            entity_id: switch.gpioarrosagev6_lancer_5_mn_d_arrosage
+
+  # --- SCRIPTS ONGLET TADO (CHAUFFAGE) ---
+  - id: ha_tado_auto_svc
+    mode: restart
+    then:
+      - delay: 50ms
+      - homeassistant.action:
+          action: domolink_tado.resume_all_schedules
+
+  - id: ha_tado_boost_svc
+    mode: restart
+    then:
+      - delay: 50ms
+      - homeassistant.action:
+          action: domolink_tado.set_boost
+
+  - id: ha_tado_eco_svc
+    mode: restart
+    then:
+      - delay: 50ms
+      - homeassistant.action:
+          action: domolink_tado.set_eco_all
+
+  - id: ha_tado_off_svc
+    mode: restart
+    then:
+      - delay: 50ms
+      - homeassistant.action:
+          action: domolink_tado.set_all_off
+
+  - id: ha_tado_set_temp_svc
+    mode: restart
+    parameters:
+      entity_id: string
+      target_temp: float
+    then:
+      - delay: 50ms
+      - homeassistant.action:
+          action: climate.set_temperature
+          data:
+            entity_id: !lambda "return entity_id;"
+            temperature: !lambda "return target_temp;"
+
+  - id: ha_purifier_toggle_svc
+    then:
+      - homeassistant.action:
+          action: fan.toggle
+          data:
+            entity_id: ${ha_purifier_fan_entity}
+
+  - id: ha_tado_room_hvac_mode_svc
+    mode: restart
+    parameters:
+      entity_id: string
+      mode: string
+    then:
+      - delay: 50ms
+      - homeassistant.action:
+          action: climate.set_hvac_mode
+          data:
+            entity_id: !lambda "return entity_id;"
+            hvac_mode: !lambda "return mode;"
+
+  # --- SCRIPTS ONGLET ARROSAGE (ZONES & ACTIONS) ---
+  - id: ha_arr_z1_svc
+    mode: restart
+    then:
+      - delay: 50ms
+      - homeassistant.action:
+          action: switch.toggle
+          data:
+            entity_id: switch.gpioarrosagev6_1_le_jardin_c_t_droit
+
+  - id: ha_arr_z2_svc
+    mode: restart
+    then:
+      - delay: 50ms
+      - homeassistant.action:
+          action: switch.toggle
+          data:
+            entity_id: switch.gpioarrosagev6_2_le_jardin_c_t_gauche
+
+  - id: ha_arr_z3_svc
+    mode: restart
+    then:
+      - delay: 50ms
+      - homeassistant.action:
+          action: switch.toggle
+          data:
+            entity_id: switch.gpioarrosagev6_3_les_bordures
+
+  - id: ha_arr_z4_svc
+    mode: restart
+    then:
+      - delay: 50ms
+      - homeassistant.action:
+          action: switch.toggle
+          data:
+            entity_id: switch.gpioarrosagev6_4_le_potager
+
+  - id: ha_arr_z5_svc
+    mode: restart
+    then:
+      - delay: 50ms
+      - homeassistant.action:
+          action: switch.toggle
+          data:
+            entity_id: switch.gpioarrosagev6_5_les_bambous
+
+  - id: ha_arr_5m_svc
+    mode: restart
+    then:
+      - delay: 50ms
+      - homeassistant.action:
+          action: switch.toggle
+          data:
+            entity_id: switch.gpioarrosagev6_lancer_5_mn_d_arrosage
+
+  - id: ha_arr_10m_svc
+    mode: restart
+    then:
+      - delay: 50ms
+      - homeassistant.action:
+          action: switch.toggle
+          data:
+            entity_id: switch.gpioarrosagev6_lancer_10_mn_d_arrosage
+
+  - id: ha_arr_stop_svc
+    mode: restart
+    then:
+      - delay: 50ms
+      - homeassistant.action:
+          action: switch.turn_on
+          data:
+            entity_id: switch.gpioarrosagev6_reboot_gpio_arrosage_v6
+
+# =============================================================================
+#  BOUTONS & SÉLECTEUR WEB
+# =============================================================================
+button:
+  - platform: restart
+    name: "Redémarrer l'écran"
+    icon: "mdi:restart"
+
+  - platform: template
+    name: "Déclencher SOS Panique"
+    icon: "mdi:alert-octagon"
+    on_press:
+      - script.execute: ha_sos_svc
+
+select:
+  - platform: template
+    name: "Onglet affiché"
+    id: web_select_tab
+    icon: "mdi:tab"
+    optimistic: true
+    options:
+      - "Maison"
+      - "Tado"
+      - "Trains"
+      - "Arrosage"
+      - "Alarme"
+      - "Capteurs"
+      - "Système"
+    initial_option: "Maison"
+    set_action:
+      - lambda: |-
+          if (x == "Maison") id(display_page) = 0;
+          else if (x == "Tado") id(display_page) = 1;
+          else if (x == "Trains") id(display_page) = 2;
+          else if (x == "Arrosage") id(display_page) = 3;
+          else if (x == "Alarme") id(display_page) = 4;
+          else if (x == "Capteurs") id(display_page) = 5;
+          else if (x == "Système") id(display_page) = 6;
+          id(need_redraw) = true;
 
 # =============================================================================
 #  INTERVALLES / TIMERS
 # =============================================================================
 interval:
-  # Vérification boot rapide (500ms)
-  - interval: 500ms
+  # Render coalescer réactif (25ms pour une réponse quasi-instantanée)
+  - interval: 25ms
     then:
       - lambda: |-
-          if (!id(boot_done)) {
-            bool api_ok  = api_is_connected();
-            bool time_ok = id(ha_time).now().is_valid();
-            if (api_ok && time_ok) {
-              id(boot_done) = true;
-              id(display_page) = 0;
-            }
+          if (id(need_redraw)) {
+            id(need_redraw) = false;
             id(my_display).update();
           }
 
-  # Tick principal chaque seconde
+  - interval: 250ms
+    then:
+      - lambda: |-
+          if (!id(boot_done)) {
+            bool c_wifi    = id(my_wifi).is_connected();
+            bool c_api     = api_is_connected();
+            bool c_time    = id(ha_time).now().is_valid();
+            bool c_alarm   = id(ha_alarm_state).has_state();
+            bool c_open    = id(ha_openings).has_state();
+            bool c_motion  = id(ha_motions).has_state();
+
+            static int last_score = -1;
+            int score = (c_wifi ? 1 : 0) + (c_api ? 1 : 0) + (c_time ? 1 : 0) + (c_alarm ? 1 : 0) + (c_open ? 1 : 0) + (c_motion ? 1 : 0);
+
+            if (score != last_score) {
+              last_score = score;
+              id(need_redraw) = true;
+            }
+
+            // Réduction du timeout max pour ne pas bloquer l'écran à vie
+            if (score == 6 || millis() > 15000) {
+              id(boot_done) = true;
+              id(display_page) = 0;
+              id(need_redraw) = true;
+            }
+          }
+
   - interval: 1s
     then:
       - lambda: |-
           if (!id(boot_done)) return;
+          bool dirty = false;
 
-          // --- Timeout clavier PIN (15s d'inactivité) ---
-          if (id(pin_length) > 0) {
+          // Sécurité Bypass State
+          if (id(ha_alarm_state).state == "disarmed") {
+            id(alarm_bypassed) = false;
+          }
+
+          // Sécurité / Timeout action portail (15 secondes max)
+          if (id(gate_action_state) != 0) {
+            if (millis() - id(gate_action_start_ms) >= 15000) {
+              id(gate_action_state) = 0;
+              dirty = true;
+            }
+          }
+
+          // Timeout modale PIN
+          if (id(pin_modal_active)) {
             id(pin_idle_counter)++;
             if (id(pin_idle_counter) >= 15) {
-              id(pin_buffer) = "";
+              id(pin_buffer).clear();
               id(pin_length) = 0;
               id(pin_idle_counter) = 0;
-              id(pending_arm_mode) = 0;
+              id(pin_modal_active) = false;
+              dirty = true;
             }
           }
 
-          // --- Effacement message temporaire après 3s ---
+          // Timeout modale Bypass Warning
+          if (id(bypass_warning_active)) {
+            id(bypass_timeout_counter)++;
+            if (id(bypass_timeout_counter) >= 15) {
+              id(bypass_warning_active) = false;
+              id(target_arm_mode) = 0;
+              id(bypass_timeout_counter) = 0;
+              dirty = true;
+            }
+          }
+
           if (!id(keypad_message).empty()) {
             id(msg_display_counter)++;
-            if (id(msg_display_counter) >= 3) {
-              id(keypad_message) = "";
+            if (id(msg_display_counter) >= 4) {
+              id(keypad_message).clear();
               id(msg_display_counter) = 0;
+              dirty = true;
             }
           }
 
-          // --- Clignotement alerte ---
-          if (id(screen_alert_active)) {
+          if (id(screen_alert_active) || id(ha_alarm_state).state == "triggered") {
             id(alert_blink_counter)++;
+            dirty = true;
+            if (id(alert_blink_counter) > 30 && id(ha_alarm_state).state != "triggered") {
+              id(screen_alert_active) = false;
+              id(alert_blink_counter) = 0;
+            }
           }
 
-          // --- Timeout confirmation SOS (10s) ---
           if (id(sos_confirm_active)) {
             id(sos_confirm_counter)++;
             if (id(sos_confirm_counter) >= 10) {
               id(sos_confirm_active) = false;
               id(sos_confirm_counter) = 0;
+              dirty = true;
             }
           }
 
-          id(my_display).update();
+          if (id(reboot_confirm_active)) {
+            id(reboot_confirm_counter)++;
+            if (id(reboot_confirm_counter) >= 10) {
+              id(reboot_confirm_active) = false;
+              id(reboot_confirm_counter) = 0;
+              dirty = true;
+            }
+          }
+
+          static int last_min = -1;
+          auto t = id(ha_time).now();
+          if (t.is_valid() && t.minute != last_min) {
+            last_min = t.minute;
+            dirty = true;
+          }
+
+          if (dirty) id(need_redraw) = true;
 
 # =============================================================================
 #  BUS I2C & ÉCRAN TACTILE GT911
@@ -226,214 +695,484 @@ touchscreen:
   on_touch:
     - lambda: |-
         if (!id(boot_done)) return;
-        static uint32_t last_touch_ms = 0;
-        uint32_t now_ms = millis();
-        if (now_ms - last_touch_ms < 300) return;
-        last_touch_ms = now_ms;
+
+        static uint32_t last_action_ms = 0;
+        uint32_t now = millis();
+        if (now - last_action_ms < 200) return;
 
         int x = touch.x;
         int y = touch.y;
 
-        // =============================================================
-        // BARRE DE NAVIGATION INFÉRIEURE (y >= 420)
-        // =============================================================
-        if (y >= 420) {
-          int next_page = id(display_page);
-          if (x < 267) next_page = 0;
-          else if (x < 534) next_page = 1;
-          else next_page = 2;
-          if (next_page != id(display_page)) {
-            id(display_page) = next_page;
-            // Réinitialiser SOS si on quitte la page
-            if (next_page != 2) {
-              id(sos_confirm_active) = false;
-              id(sos_confirm_counter) = 0;
+        // -------------------------------------------------------------
+        // 1. POPIN D'AVERTISSEMENT OUVERTURES (PRIORITÉ Z-INDEX MAX)
+        // -------------------------------------------------------------
+        if (id(bypass_warning_active)) {
+          id(bypass_timeout_counter) = 0;
+
+          if (x >= 120 && x <= 370 && y >= 280 && y <= 340) {
+            last_action_ms = now;
+            id(bypass_warning_active) = false;
+            id(target_arm_mode) = 0;
+            id(keypad_message) = "ARMEMENT ANNULE";
+            id(msg_display_counter) = 0;
+            id(need_redraw) = true;
+            return;
+          }
+          if (x >= 430 && x <= 680 && y >= 280 && y <= 340) {
+            last_action_ms = now;
+            id(bypass_warning_active) = false;
+            id(alarm_bypassed) = true;
+            if (id(target_arm_mode) == 1) {
+              id(ha_arm_away_force_svc).execute();
+              id(keypad_message) = "ARME AVEC BYPASS";
+            } else if (id(target_arm_mode) == 2) {
+              id(ha_arm_night_force_svc).execute();
+              id(keypad_message) = "NUIT AVEC BYPASS";
             }
-            id(my_display).update();
+            id(target_arm_mode) = 0;
+            id(msg_display_counter) = 0;
+            id(need_redraw) = true;
+            return;
           }
           return;
         }
 
-        // =============================================================
-        // PAGE 0 : ALARME & CLAVIER
-        // =============================================================
-        if (id(display_page) == 0) {
+        // -------------------------------------------------------------
+        // 2. POPIN MODALE CLAVIER PIN DÉSARMEMENT (Z-INDEX 2)
+        // -------------------------------------------------------------
+        if (id(pin_modal_active)) {
+          if (x >= 510 && x <= 600 && y >= 20 && y <= 90) {
+            last_action_ms = now;
+            id(pin_modal_active) = false;
+            id(pin_buffer).clear();
+            id(pin_length) = 0;
+            id(need_redraw) = true;
+            return;
+          }
 
-          // --- CLAVIER NUMÉRIQUE (partie droite x:480-790, y:80-380) ---
-          if (x >= 480 && x <= 790 && y >= 115 && y <= 415) {
+          if (x >= 245 && x <= 545 && y >= 110 && y <= 375) {
+            int col = (x - 245) / 105;
+            int row = (y - 110) / 70;
+            if (col > 2) col = 2;
+            if (row > 3) row = 3;
 
-            // Grille 3 colonnes x 4 lignes
-            // Colonnes : 480-580, 585-685, 690-790
-            // Lignes   : 115-185, 190-255, 260-325, 330-400
-            int col = -1, row = -1;
-            if (x >= 480 && x < 583) col = 0;
-            else if (x >= 583 && x < 687) col = 1;
-            else if (x >= 687 && x <= 790) col = 2;
+            id(pin_idle_counter) = 0;
 
-            if (y >= 115 && y < 190) row = 0;
-            else if (y >= 190 && y < 260) row = 1;
-            else if (y >= 260 && y < 330) row = 2;
-            else if (y >= 330 && y <= 415) row = 3;
-
-            if (col >= 0 && row >= 0) {
-              id(pin_idle_counter) = 0;  // Reset du timeout
-
-              // Mapping : 1-9 puis C, 0, Valider
-              if (row < 3) {
-                // Chiffres 1-9
-                int digit = row * 3 + col + 1;
+            if (row < 3) {
+              char digit = '1' + (row * 3 + col);
+              if (id(pin_length) < 8) {
+                id(pin_buffer) += digit;
+                id(pin_length)++;
+              }
+            } else {
+              if (col == 0) {
+                id(pin_buffer).clear();
+                id(pin_length) = 0;
+                id(keypad_message).clear();
+                id(msg_display_counter) = 0;
+              } else if (col == 1) {
                 if (id(pin_length) < 8) {
-                  id(pin_buffer) += std::to_string(digit);
+                  id(pin_buffer) += '0';
                   id(pin_length)++;
                 }
-              } else {
-                // Dernière ligne
-                if (col == 0) {
-                  // C = Effacer tout
-                  id(pin_buffer) = "";
-                  id(pin_length) = 0;
-                  id(pending_arm_mode) = 0;
-                  id(keypad_message) = "";
+              } else if (col == 2) {
+                if (!api_is_connected()) {
+                  id(keypad_message) = "HA HORS LIGNE";
                   id(msg_display_counter) = 0;
-                } else if (col == 1) {
-                  // 0
-                  if (id(pin_length) < 8) {
-                    id(pin_buffer) += "0";
-                    id(pin_length)++;
-                  }
-                } else if (col == 2) {
-                  // Valider (coche)
-                  if (id(pin_length) >= 4) {
-                    std::string code = id(pin_buffer);
-                    int mode = id(pending_arm_mode);
+                  id(need_redraw) = true;
+                  return;
+                }
 
-                    if (mode == 1) {
-                      // Armement Absent
-                      id(ha_arm_away_svc).execute(code);
-                      id(keypad_message) = "ARMEMENT ABSENT...";
-                    } else if (mode == 2) {
-                      // Armement Nuit
-                      id(ha_arm_night_svc).execute(code);
-                      id(keypad_message) = "ARMEMENT NUIT...";
-                    } else {
-                      // Désarmement (mode == 0)
-                      id(ha_disarm_svc).execute(code);
-                      id(keypad_message) = "DESARMEMENT...";
-                    }
-
-                    id(msg_display_counter) = 0;
-                    id(pin_buffer) = "";
-                    id(pin_length) = 0;
-                    id(pending_arm_mode) = 0;
-                    id(pin_idle_counter) = 0;
-                  } else {
-                    id(keypad_message) = "CODE TROP COURT";
-                    id(msg_display_counter) = 0;
-                  }
+                if (id(pin_length) >= 4) {
+                  std::string code = id(pin_buffer);
+                  id(ha_disarm_svc).execute(code);
+                  id(keypad_message) = "TRAITEMENT...";
+                  id(alarm_bypassed) = false;
+                  id(msg_display_counter) = 0;
+                  id(pin_buffer).clear();
+                  id(pin_length) = 0;
+                  id(pin_idle_counter) = 0;
+                  id(pin_modal_active) = false;
+                } else {
+                  id(keypad_message) = "CODE TROP COURT";
+                  id(msg_display_counter) = 0;
                 }
               }
-              id(my_display).update();
+            }
+            last_action_ms = now;
+            id(need_redraw) = true;
+            return;
+          }
+          return;
+        }
+
+        // -------------------------------------------------------------
+        // 3. BARRE DE NAVIGATION INFÉRIEURE (9 ONGLETS DE ~88PX)
+        // -------------------------------------------------------------
+        if (y >= 415) {
+          int next_page = id(display_page);
+          std::string tab_name = "Maison";
+          if (x < 88) { next_page = 0; tab_name = "Maison"; }
+          else if (x < 177) { next_page = 1; tab_name = "Tado"; }
+          else if (x < 266) { next_page = 2; tab_name = "Énergie"; }
+          else if (x < 355) { next_page = 3; tab_name = "Air"; }
+          else if (x < 444) { next_page = 4; tab_name = "Trains"; }
+          else if (x < 533) { next_page = 5; tab_name = "Arrosage"; }
+          else if (x < 622) { next_page = 6; tab_name = "Alarme"; }
+          else if (x < 711) { next_page = 7; tab_name = "Capteurs"; }
+          else { next_page = 8; tab_name = "Système"; }
+
+          if (next_page != id(display_page)) {
+            last_action_ms = now;
+            id(display_page) = next_page;
+            id(tado_modal_open) = false;
+            id(sos_confirm_active) = false;
+            id(sos_confirm_counter) = 0;
+            id(reboot_confirm_active) = false;
+            id(reboot_confirm_counter) = 0;
+
+            id(web_select_tab).publish_state(tab_name);
+            id(need_redraw) = true;
+          }
+          return;
+        }
+
+        // -------------------------------------------------------------
+        // 4. PAGE 0 : MAISON (PORTAIL, LUMIÈRES, HORLOGE)
+        // -------------------------------------------------------------
+        if (id(display_page) == 0) {
+          // Bouton Portail (x: 24-262, y: 60-185)
+          if (x >= 24 && x <= 262 && y >= 60 && y <= 185) {
+            last_action_ms = now;
+            if (api_is_connected()) {
+              id(ha_portail_svc).execute();
+              bool is_open = id(ha_portail_state).has_state() && id(ha_portail_state).state;
+              id(gate_action_state) = is_open ? 2 : 1;
+              id(gate_action_start_ms) = millis();
+            }
+            id(need_redraw) = true;
+            return;
+          }
+
+          // Bouton Lumières extérieures (x: 281-519, y: 60-185)
+          if (x >= 281 && x <= 519 && y >= 60 && y <= 185) {
+            last_action_ms = now;
+            if (api_is_connected()) {
+              if (id(ha_lumieres_ext).has_state() && id(ha_lumieres_ext).state) {
+                id(ha_lumieres_off_svc).execute();
+              } else {
+                id(ha_lumieres_on_svc).execute();
+              }
+            }
+            id(need_redraw) = true;
+            return;
+          }
+
+          // Tuile Heure (x: 538-776, y: 60-185) -> Raccourci vers Onglet Arrosage
+          if (x >= 538 && x <= 776 && y >= 60 && y <= 185) {
+            last_action_ms = now;
+            id(display_page) = 5;
+            id(web_select_tab).publish_state("Arrosage");
+            id(need_redraw) = true;
+            return;
+          }
+          return;
+        }
+
+        // -------------------------------------------------------------
+        // 5. PAGE 1 : TADO (CHAUFFAGE GLOBAL & MODAL PAR PIÈCE)
+        // -------------------------------------------------------------
+        if (id(display_page) == 1) {
+          // Si la popin modale de la pièce est ouverte
+          if (id(tado_modal_open)) {
+            // 1. Bouton FERMER (x: 610-745, y: 55-102)
+            if (x >= 610 && x <= 745 && y >= 55 && y <= 102) {
+              last_action_ms = now;
+              id(tado_modal_open) = false;
+              id(need_redraw) = true;
+              return;
+            }
+
+            int r_idx = id(tado_selected_room);
+            std::string t_entity = "climate.salon";
+            float cur_target = 20.0f;
+            if (r_idx == 0) { t_entity = "climate.salon"; cur_target = id(ha_tado_salon_tgt).state; }
+            else if (r_idx == 1) { t_entity = "climate.cuisine"; cur_target = id(ha_tado_cuisine_tgt).state; }
+            else if (r_idx == 2) { t_entity = "climate.salle_a_manger"; cur_target = id(ha_tado_sam_tgt).state; }
+            else if (r_idx == 3) { t_entity = "climate.chambre_stef_et_jf"; cur_target = id(ha_tado_ch_stef_tgt).state; }
+            else if (r_idx == 4) { t_entity = "climate.chambre_de_blaise"; cur_target = id(ha_tado_ch_blaise_tgt).state; }
+            else if (r_idx == 5) { t_entity = "climate.chambre_de_lia"; cur_target = id(ha_tado_ch_lia_tgt).state; }
+            else if (r_idx == 6) { t_entity = "climate.bureau_jf"; cur_target = id(ha_tado_bureau_tgt).state; }
+            else if (r_idx == 7) { t_entity = "climate.salle_de_bains"; cur_target = id(ha_tado_sdb_tgt).state; }
+            if (std::isnan(cur_target) || cur_target < 5.0f) cur_target = 19.0f;
+
+            // 2. Boutons ajustement consigne [- 0.5°] (x: 255-355) et [+ 0.5°] (x: 630-740)
+            if (y >= 114 && y <= 216) {
+              if (x >= 255 && x <= 355) {
+                last_action_ms = now;
+                cur_target -= 0.5f;
+                if (cur_target < 5.0f) cur_target = 5.0f;
+                if (api_is_connected()) id(ha_tado_set_temp_svc).execute(t_entity, cur_target);
+                id(need_redraw) = true;
+                return;
+              }
+              if (x >= 630 && x <= 740) {
+                last_action_ms = now;
+                cur_target += 0.5f;
+                if (cur_target > 30.0f) cur_target = 30.0f;
+                if (api_is_connected()) id(ha_tado_set_temp_svc).execute(t_entity, cur_target);
+                id(need_redraw) = true;
+                return;
+              }
+            }
+
+            // 3. Modes rapides (y: 226-298) : AUTO, BOOST 25°, ÉCO 17°, ÉTEINDRE
+            if (y >= 226 && y <= 298) {
+              last_action_ms = now;
+              if (x >= 54 && x <= 216) {
+                if (api_is_connected()) id(ha_tado_room_hvac_mode_svc).execute(t_entity, "auto");
+              } else if (x >= 226 && x <= 384) {
+                if (api_is_connected()) {
+                  id(ha_tado_set_temp_svc).execute(t_entity, 25.0f);
+                  id(ha_tado_room_hvac_mode_svc).execute(t_entity, "heat");
+                }
+              } else if (x >= 394 && x <= 552) {
+                if (api_is_connected()) {
+                  id(ha_tado_set_temp_svc).execute(t_entity, 17.0f);
+                  id(ha_tado_room_hvac_mode_svc).execute(t_entity, "heat");
+                }
+              } else if (x >= 562 && x <= 726) {
+                if (api_is_connected()) id(ha_tado_room_hvac_mode_svc).execute(t_entity, "off");
+              }
+              id(need_redraw) = true;
+              return;
+            }
+
+            // 4. Presets rapides directs (y: 308-368) : 17°, 18°, 19°, 20°, 21°, 22°, 23°
+            if (y >= 308 && y <= 368) {
+              last_action_ms = now;
+              for (int p_idx = 0; p_idx < 7; p_idx++) {
+                int px1 = 54 + p_idx * 99;
+                int px2 = px1 + 90;
+                if (x >= px1 && x <= px2) {
+                  float p_temp = 17.0f + (float)p_idx;
+                  if (api_is_connected()) id(ha_tado_set_temp_svc).execute(t_entity, p_temp);
+                  id(need_redraw) = true;
+                  return;
+                }
+              }
+            }
+
+            // Clic hors cadre modale : ferme la modale
+            if (x < 40 || x > 760 || y < 50 || y > 414) {
+              last_action_ms = now;
+              id(tado_modal_open) = false;
+              id(need_redraw) = true;
+              return;
             }
             return;
           }
 
-          // --- BOUTONS DE MODE (partie gauche, y: 350-400) ---
-          // Bouton "Absent" : x 20-155, y 350-395
-          if (x >= 20 && x <= 155 && y >= 350 && y <= 395) {
-            id(pending_arm_mode) = 1;
-            id(keypad_message) = "SAISIR CODE ABSENT";
-            id(msg_display_counter) = 0;
-            id(pin_idle_counter) = 0;
-            id(my_display).update();
+          // Si la popin n'est pas ouverte :
+          // Actions Globales (y: 52 à 106)
+          if (y >= 52 && y <= 106) {
+            last_action_ms = now;
+            if (api_is_connected()) {
+              if (x >= 24 && x <= 204) id(ha_tado_auto_svc).execute();
+              else if (x >= 214 && x <= 394) id(ha_tado_boost_svc).execute();
+              else if (x >= 404 && x <= 584) id(ha_tado_eco_svc).execute();
+              else if (x >= 594 && x <= 776) id(ha_tado_off_svc).execute();
+            }
+            id(need_redraw) = true;
             return;
           }
-          // Bouton "Nuit" : x 165-300, y 350-395
-          if (x >= 165 && x <= 300 && y >= 350 && y <= 395) {
-            id(pending_arm_mode) = 2;
-            id(keypad_message) = "SAISIR CODE NUIT";
-            id(msg_display_counter) = 0;
-            id(pin_idle_counter) = 0;
-            id(my_display).update();
+
+          // Grille des 8 pièces Tado (y: 110 à 356) -> Ouvre le menu modale de la pièce
+          // Ligne 1 : y: 110 à 228
+          if (y >= 110 && y <= 228) {
+            last_action_ms = now;
+            if (x >= 24 && x <= 204) id(tado_selected_room) = 0;       // Salon
+            else if (x >= 214 && x <= 394) id(tado_selected_room) = 1; // Cuisine
+            else if (x >= 404 && x <= 584) id(tado_selected_room) = 2; // Salle à Manger
+            else if (x >= 594 && x <= 776) id(tado_selected_room) = 3; // Ch. Stef & JF
+            id(tado_modal_open) = true;
+            id(need_redraw) = true;
             return;
           }
-          // Bouton "Désarmer" : x 310-460, y 350-395
-          if (x >= 310 && x <= 460 && y >= 350 && y <= 395) {
-            id(pending_arm_mode) = 0;
-            id(keypad_message) = "SAISIR CODE";
-            id(msg_display_counter) = 0;
-            id(pin_idle_counter) = 0;
-            id(my_display).update();
+          // Ligne 2 : y: 238 à 356
+          if (y >= 238 && y <= 356) {
+            last_action_ms = now;
+            if (x >= 24 && x <= 204) id(tado_selected_room) = 4;       // Ch. Blaise
+            else if (x >= 214 && x <= 394) id(tado_selected_room) = 5; // Ch. Lia
+            else if (x >= 404 && x <= 584) id(tado_selected_room) = 6; // Bureau JF
+            else if (x >= 594 && x <= 776) id(tado_selected_room) = 7; // SDB
+            id(tado_modal_open) = true;
+            id(need_redraw) = true;
             return;
           }
+          return;
         }
 
-        // =============================================================
-        // PAGE 2 : SYSTÈME / SOS
-        // =============================================================
+        // -------------------------------------------------------------
+        // 6. PAGE 2 : TRAINS (LECTURE SEULE)
+        // -------------------------------------------------------------
         if (id(display_page) == 2) {
+          return;
+        }
 
-          // --- Bouton SOS PANIQUE (x:100-700, y:60-140) ---
-          if (x >= 100 && x <= 700 && y >= 60 && y <= 140) {
+        // -------------------------------------------------------------
+        // 7. PAGE 3 : ARROSAGE AUTOMATIQUE (5 ZONES & CYCLES)
+        // -------------------------------------------------------------
+        if (id(display_page) == 3) {
+          // Les 5 Zones d'arrosage (y: 130 à 290)
+          if (y >= 130 && y <= 290) {
+            last_action_ms = now;
+            if (api_is_connected()) {
+              if (x >= 24 && x <= 166) id(ha_arr_z1_svc).execute();
+              else if (x >= 178 && x <= 320) id(ha_arr_z2_svc).execute();
+              else if (x >= 332 && x <= 474) id(ha_arr_z3_svc).execute();
+              else if (x >= 486 && x <= 628) id(ha_arr_z4_svc).execute();
+              else if (x >= 640 && x <= 776) id(ha_arr_z5_svc).execute();
+            }
+            id(need_redraw) = true;
+            return;
+          }
+
+          // Les 3 Boutons d'action rapide (y: 304 à 416)
+          if (y >= 304 && y <= 416) {
+            last_action_ms = now;
+            if (api_is_connected()) {
+              if (x >= 24 && x <= 264) id(ha_arr_5m_svc).execute();
+              else if (x >= 280 && x <= 520) id(ha_arr_10m_svc).execute();
+              else if (x >= 536 && x <= 776) id(ha_arr_stop_svc).execute();
+            }
+            id(need_redraw) = true;
+            return;
+          }
+          return;
+        }
+
+        // -------------------------------------------------------------
+        // 8. PAGE 4 : ALARME
+        // -------------------------------------------------------------
+        if (id(display_page) == 4) {
+          bool open_known = id(ha_openings).has_state();
+          bool has_issue  = (!open_known) || (open_known && id(ha_openings).state);
+
+          if (x >= 40 && x <= 270 && y >= 280 && y <= 335) {
+            last_action_ms = now;
+            if (!api_is_connected()) {
+              id(keypad_message) = "HA HORS LIGNE";
+              id(msg_display_counter) = 0;
+              id(need_redraw) = true;
+              return;
+            }
+            if (has_issue) {
+              id(bypass_warning_active) = true;
+              id(target_arm_mode) = 1;
+              id(bypass_timeout_counter) = 0;
+              id(need_redraw) = true;
+              return;
+            }
+            id(ha_arm_away_svc).execute();
+            id(alarm_bypassed) = false;
+            id(keypad_message) = "ARMEMENT TOTAL";
+            id(msg_display_counter) = 0;
+            id(need_redraw) = true;
+            return;
+          }
+
+          if (x >= 285 && x <= 515 && y >= 280 && y <= 335) {
+            last_action_ms = now;
+            if (!api_is_connected()) {
+              id(keypad_message) = "HA HORS LIGNE";
+              id(msg_display_counter) = 0;
+              id(need_redraw) = true;
+              return;
+            }
+            if (has_issue) {
+              id(bypass_warning_active) = true;
+              id(target_arm_mode) = 2;
+              id(bypass_timeout_counter) = 0;
+              id(need_redraw) = true;
+              return;
+            }
+            id(ha_arm_night_svc).execute();
+            id(alarm_bypassed) = false;
+            id(keypad_message) = "ARMEMENT NUIT";
+            id(msg_display_counter) = 0;
+            id(need_redraw) = true;
+            return;
+          }
+
+          if (x >= 530 && x <= 760 && y >= 280 && y <= 335) {
+            last_action_ms = now;
+            id(pin_modal_active) = true;
+            id(pin_idle_counter) = 0;
+            id(pin_buffer).clear();
+            id(pin_length) = 0;
+            id(need_redraw) = true;
+            return;
+          }
+
+          if (x >= 40 && x <= 760 && y >= 355 && y <= 405) {
+            last_action_ms = now;
             if (!id(sos_confirm_active)) {
-              // Premier appui : demander confirmation
               id(sos_confirm_active) = true;
               id(sos_confirm_counter) = 0;
             } else {
-              // Deuxième appui : confirmer et envoyer
-              id(ha_sos_svc).execute();
+              if (!api_is_connected()) {
+                id(keypad_message) = "HA HORS LIGNE";
+              } else {
+                id(ha_sos_svc).execute();
+                id(keypad_message) = "SOS TRANSMIS !";
+              }
               id(sos_confirm_active) = false;
               id(sos_confirm_counter) = 0;
-              id(keypad_message) = "SOS ENVOYE !";
               id(msg_display_counter) = 0;
             }
-            id(my_display).update();
+            id(need_redraw) = true;
             return;
           }
+          return;
+        }
 
-          // --- Boutons luminosité (y: 200-260) ---
-          // 25% : x 50-200
-          if (x >= 50 && x <= 200 && y >= 200 && y <= 260) {
-            id(brightness_level) = 0;
-            auto call = id(display_backlight).turn_on();
-            call.set_brightness(0.25);
-            call.perform();
-            id(my_display).update();
-            return;
-          }
-          // 50% : x 210-360
-          if (x >= 210 && x <= 360 && y >= 200 && y <= 260) {
-            id(brightness_level) = 1;
-            auto call = id(display_backlight).turn_on();
-            call.set_brightness(0.50);
-            call.perform();
-            id(my_display).update();
-            return;
-          }
-          // 75% : x 370-520
-          if (x >= 370 && x <= 520 && y >= 200 && y <= 260) {
-            id(brightness_level) = 2;
-            auto call = id(display_backlight).turn_on();
-            call.set_brightness(0.75);
-            call.perform();
-            id(my_display).update();
-            return;
-          }
-          // 100% : x 530-700
-          if (x >= 530 && x <= 700 && y >= 200 && y <= 260) {
-            id(brightness_level) = 3;
-            auto call = id(display_backlight).turn_on();
-            call.set_brightness(1.0);
-            call.perform();
-            id(my_display).update();
-            return;
-          }
+        // -------------------------------------------------------------
+        // 9. PAGE 5 : CAPTEURS (LECTURE SEULE)
+        // -------------------------------------------------------------
+        if (id(display_page) == 5) {
+          return;
+        }
 
-          // --- Bouton Redémarrer (x:250-550, y:320-380) ---
-          if (x >= 250 && x <= 550 && y >= 320 && y <= 380) {
-            // Redémarrage de l'ESP
-            App.safe_reboot();
+        // -------------------------------------------------------------
+        // 10. PAGE 6 : SYSTÈME
+        // -------------------------------------------------------------
+        if (id(display_page) == 6) {
+          if (y >= 190 && y <= 245) {
+            int lvl = -1;
+            if (x >= 50 && x <= 200) lvl = 0;
+            else if (x >= 210 && x <= 360) lvl = 1;
+            else if (x >= 370 && x <= 520) lvl = 2;
+            else if (x >= 530 && x <= 700) lvl = 3;
+            if (lvl >= 0) {
+              last_action_ms = now;
+              id(set_brightness).execute(lvl);
+              id(need_redraw) = true;
+            }
             return;
           }
+          if (x >= 250 && x <= 550 && y >= 320 && y <= 375) {
+            last_action_ms = now;
+            if (!id(reboot_confirm_active)) {
+              id(reboot_confirm_active) = true;
+              id(reboot_confirm_counter) = 0;
+              id(need_redraw) = true;
+            } else {
+              App.safe_reboot();
+            }
+            return;
+          }
+          return;
         }
 
 # =============================================================================
@@ -494,21 +1233,11 @@ font:
       type: gfonts
       family: "Rubik"
       weight: 700
-    id: font_40
-    size: 40
+    id: font_64
+    size: 64
     glyphsets: [GF_Latin_Kernel]
     ignore_missing_glyphs: true
-    glyphs: ' abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!"%()+,-_.:/[]?çéèàùâêîôûëïüÿœæÇÉÈÀÙÂÊÎÔÛËÏÜŸŒÆ°=;|'
-
-  - file:
-      type: gfonts
-      family: "Rubik"
-      weight: 700
-    id: font_48
-    size: 48
-    glyphsets: [GF_Latin_Kernel]
-    ignore_missing_glyphs: true
-    glyphs: ' abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!"%()+,-_.:/[]?çéèàùâêîôûëïüÿœæÇÉÈÀÙÂÊÎÔÛËÏÜŸŒÆ°=;|'
+    glyphs: ' 0123456789:'
 
 # =============================================================================
 #  ÉCRAN MIPI RGB 800x480
@@ -520,7 +1249,7 @@ display:
     color_order: rgb
     invert_colors: true
     update_interval: never
-    auto_clear_enabled: true
+    auto_clear_enabled: false
     dimensions:
       width: 800
       height: 480
@@ -541,358 +1270,1376 @@ display:
       green: [9, 46, 3, 8, 16, 1]
       blue: [15, 7, 6, 5, 4]
     lambda: |-
-      // =============================================================
-      //  PALETTE DE COULEURS DOMOLINK ALARM (thème sombre)
-      // =============================================================
-      const auto COLOR_BG           = Color(30, 30, 40);
-      const auto COLOR_WHITE        = Color(255, 255, 255);
-      const auto COLOR_LIGHT_GRAY   = Color(200, 200, 210);
-      const auto COLOR_DARK_GRAY    = Color(100, 100, 110);
-      const auto COLOR_MID_GRAY     = Color(60, 60, 75);
-      const auto COLOR_PANEL_BG     = Color(40, 42, 54);
-      const auto COLOR_GREEN        = Color(16, 185, 129);
-      const auto COLOR_RED          = Color(239, 68, 68);
-      const auto COLOR_ORANGE       = Color(245, 158, 11);
-      const auto COLOR_BLUE         = Color(59, 130, 246);
-      const auto COLOR_DARK_BLUE    = Color(30, 58, 138);
-      const auto COLOR_CYAN         = Color(6, 182, 212);
-      const auto COLOR_KEY_BG       = Color(55, 55, 70);
-      const auto COLOR_KEY_BORDER   = Color(80, 80, 100);
-      const auto COLOR_TAB_ACTIVE   = Color(59, 130, 246);
-      const auto COLOR_TAB_INACTIVE = Color(45, 45, 58);
-      const auto COLOR_SOS_RED      = Color(200, 30, 30);
+      const auto COLOR_BG            = Color(14, 17, 23);
+      const auto COLOR_PANEL_BG      = Color(24, 28, 38);
+      const auto COLOR_CARD_BORDER   = Color(42, 48, 64);
+      const auto COLOR_WHITE         = Color(255, 255, 255);
+      const auto COLOR_LIGHT_GRAY    = Color(195, 202, 216);
+      const auto COLOR_DARK_GRAY     = Color(90, 98, 115);
+      const auto COLOR_MID_GRAY      = Color(48, 54, 70);
+      const auto COLOR_GREEN         = Color(0, 230, 118);
+      const auto COLOR_GREEN_DIM     = Color(0, 55, 30);
+      const auto COLOR_RED           = Color(255, 23, 68);
+      const auto COLOR_RED_DIM       = Color(60, 10, 20);
+      const auto COLOR_ORANGE        = Color(255, 145, 0);
+      const auto COLOR_ORANGE_DIM    = Color(60, 35, 10);
+      const auto COLOR_CYAN          = Color(0, 229, 255);
+      const auto COLOR_BLUE          = Color(41, 121, 255);
 
-      // Fond global
+      auto draw_rrect = [&](int x, int y, int w, int h, int r, Color color) {
+        if (r > w/2) r = w/2;
+        if (r > h/2) r = h/2;
+        it.filled_rectangle(x + r, y, w - 2 * r, h, color);
+        it.filled_rectangle(x, y + r, r, h - 2 * r, color);
+        it.filled_rectangle(x + w - r, y + r, r, h - 2 * r, color);
+        it.filled_circle(x + r, y + r, r, color);
+        it.filled_circle(x + w - r - 1, y + r, r, color);
+        it.filled_circle(x + r, y + h - r - 1, r, color);
+        it.filled_circle(x + w - r - 1, y + h - r - 1, r, color);
+      };
+
       it.filled_rectangle(0, 0, 800, 480, COLOR_BG);
 
       // =============================================================
-      //  ÉCRAN DE BOOT
+      // ÉCRAN DE BOOT
       // =============================================================
       if (!id(boot_done)) {
-        bool api_ok  = api_is_connected();
-        bool time_ok = id(ha_time).now().is_valid();
+        bool c_wifi    = id(my_wifi).is_connected();
+        bool c_api     = api_is_connected();
+        bool c_time    = id(ha_time).now().is_valid();
+        bool c_alarm   = id(ha_alarm_state).has_state();
+        bool c_open    = id(ha_openings).has_state();
+        bool c_motion  = id(ha_motions).has_state();
 
-        it.printf(400, 80, id(font_40), COLOR_BLUE, TextAlign::TOP_CENTER, "DOMOLINK ALARM");
-        it.printf(400, 130, id(font_24), COLOR_DARK_GRAY, TextAlign::TOP_CENTER, "Initialisation du systeme...");
+        int score = (c_wifi ? 1 : 0) + (c_api ? 1 : 0) + (c_time ? 1 : 0) + (c_alarm ? 1 : 0) + (c_open ? 1 : 0) + (c_motion ? 1 : 0);
 
-        // Barre de progression visuelle
-        it.filled_rectangle(200, 200, 400, 4, COLOR_MID_GRAY);
-        int prog = (api_ok ? 200 : 0) + (time_ok ? 200 : 0);
-        if (prog > 0) it.filled_rectangle(200, 200, prog, 4, COLOR_BLUE);
+        it.printf(400, 45, id(font_32), COLOR_CYAN, TextAlign::CENTER, "DOMOLINK ALARM");
+        it.printf(400, 85, id(font_20), COLOR_LIGHT_GRAY, TextAlign::CENTER, "Initialisation et verification des liaisons...");
 
-        it.printf(400, 240, id(font_20), api_ok ? COLOR_GREEN : COLOR_DARK_GRAY, TextAlign::TOP_CENTER,
-                  api_ok ? "[OK] Home Assistant connecte" : "[..] Connexion Home Assistant...");
-        it.printf(400, 270, id(font_20), time_ok ? COLOR_GREEN : COLOR_DARK_GRAY, TextAlign::TOP_CENTER,
-                  time_ok ? "[OK] Horloge synchronisee" : "[..] Synchronisation horloge...");
+        draw_rrect(150, 125, 500, 6, 3, COLOR_MID_GRAY);
+        int bar_fill = (score * 500) / 6;
+        if (bar_fill > 0) draw_rrect(150, 125, bar_fill, 6, 3, (score == 6) ? COLOR_GREEN : COLOR_CYAN);
 
-        it.printf(400, 420, id(font_16), COLOR_DARK_GRAY, TextAlign::TOP_CENTER, "By SocrateMobile");
+        const int start_y = 150;
+        const int line_h  = 38;
+        it.printf(160, start_y, id(font_20), c_wifi ? COLOR_GREEN : COLOR_DARK_GRAY, TextAlign::CENTER_LEFT, c_wifi ? "[OK] Connexion reseau Wi-Fi" : "[..] Connexion reseau Wi-Fi en cours...");
+        it.printf(160, start_y + line_h, id(font_20), c_api ? COLOR_GREEN : COLOR_DARK_GRAY, TextAlign::CENTER_LEFT, c_api ? "[OK] Liaison API Home Assistant" : "[..] Attente liaison API...");
+        it.printf(160, start_y + line_h * 2, id(font_20), c_time ? COLOR_GREEN : COLOR_DARK_GRAY, TextAlign::CENTER_LEFT, c_time ? "[OK] Synchronisation horloge temps reel" : "[..] Synchronisation horloge NTP/HA...");
+        it.printf(160, start_y + line_h * 3, id(font_20), c_alarm ? COLOR_GREEN : COLOR_DARK_GRAY, TextAlign::CENTER_LEFT, c_alarm ? "[OK] Centrale d'alarme en ligne" : "[..] Attente statut centrale...");
+        it.printf(160, start_y + line_h * 4, id(font_20), c_open ? COLOR_GREEN : COLOR_DARK_GRAY, TextAlign::CENTER_LEFT, c_open ? "[OK] Capteurs d'ouvertures synchronises" : "[..] Attente remontee ouvertures...");
+        it.printf(160, start_y + line_h * 5, id(font_20), c_motion ? COLOR_GREEN : COLOR_DARK_GRAY, TextAlign::CENTER_LEFT, c_motion ? "[OK] Capteurs de mouvements synchronises" : "[..] Attente remontee mouvements...");
+
+        it.printf(400, 425, id(font_16), COLOR_DARK_GRAY, TextAlign::CENTER, "Veuillez patienter pendant la synchronisation du panneau");
         return;
       }
 
       // =============================================================
-      //  BARRE SUPÉRIEURE (y: 0-52)
+      // HEADER FIXE (y: 0-48)
       // =============================================================
-      it.filled_rectangle(0, 0, 800, 52, COLOR_PANEL_BG);
+      it.filled_rectangle(0, 0, 800, 48, COLOR_PANEL_BG);
+      it.line(0, 48, 800, 48, COLOR_CARD_BORDER);
 
-      // Titre Domolink Alarm
-      it.printf(15, 14, id(font_24), COLOR_BLUE, TextAlign::TOP_LEFT, "DOMOLINK ALARM");
+      it.printf(20, 24, id(font_24), COLOR_WHITE, TextAlign::CENTER_LEFT, "DOMOLINK ALARM");
 
-      // État compact au centre
+      bool ha_ok = api_is_connected();
       std::string alarm_st = id(ha_alarm_state).state;
-      Color status_color = COLOR_GREEN;
-      const char* status_text = "SECURISE";
-      if (alarm_st == "armed_away") { status_color = COLOR_RED; status_text = "ARME ABSENT"; }
-      else if (alarm_st == "armed_night") { status_color = COLOR_ORANGE; status_text = "ARME NUIT"; }
-      else if (alarm_st == "armed_home") { status_color = COLOR_ORANGE; status_text = "ARME MAISON"; }
-      else if (alarm_st == "triggered") { status_color = (id(alert_blink_counter) % 2 == 0) ? COLOR_RED : COLOR_BG; status_text = "ALERTE !"; }
-      else if (alarm_st == "pending") { status_color = COLOR_ORANGE; status_text = "COMPTE A REBOURS"; }
-      else if (alarm_st == "arming") { status_color = COLOR_ORANGE; status_text = "ARMEMENT..."; }
 
-      // Badge d'état central
-      int badge_w = 220;
-      int badge_x = 400 - badge_w / 2;
-      it.filled_rectangle(badge_x, 8, badge_w, 36, status_color);
-      it.printf(400, 26, id(font_20), COLOR_WHITE, TextAlign::CENTER, "%s", status_text);
-
-      // Horloge (droite)
       char time_str[16] = "--:--";
       auto now = id(ha_time).now();
-      if (now.is_valid()) {
-        now.strftime(time_str, sizeof(time_str), "%H:%M:%S");
-      }
-      it.printf(710, 16, id(font_20), COLOR_LIGHT_GRAY, TextAlign::TOP_LEFT, "%s", time_str);
+      if (now.is_valid()) now.strftime(time_str, sizeof(time_str), "%H:%M");
 
-      // Barres WiFi (extrême droite)
-      float rssi = id(wifi_rssi).state;
-      int bars = 0;
-      if (!std::isnan(rssi)) {
-        if (rssi > -60) bars = 4;
-        else if (rssi > -70) bars = 3;
-        else if (rssi > -80) bars = 2;
-        else if (rssi > -90) bars = 1;
+      int current_p = id(display_page);
+
+      // Détection de l'arrosage en cours pour le header
+      std::string active_irr_zone = "";
+      if (id(ha_arr_z1).has_state() && id(ha_arr_z1).state) active_irr_zone = "Jardin Droit";
+      else if (id(ha_arr_z2).has_state() && id(ha_arr_z2).state) active_irr_zone = "Jardin Gauche";
+      else if (id(ha_arr_z3).has_state() && id(ha_arr_z3).state) active_irr_zone = "Bordures";
+      else if (id(ha_arr_z4).has_state() && id(ha_arr_z4).state) active_irr_zone = "Potager";
+      else if (id(ha_arr_z5).has_state() && id(ha_arr_z5).state) active_irr_zone = "Bambous";
+      else if (id(ha_arrosage_active).has_state() && id(ha_arrosage_active).state) active_irr_zone = "Actif";
+
+      // Emplacement de l'heure dans le header (x: 685) :
+      // Sur la page maison (page 0) : Si arrosage en cours -> zone arrosée. Si pas en route -> rien !
+      if (current_p == 0) {
+        if (!active_irr_zone.empty()) {
+          draw_rrect(490, 10, 245, 28, 8, COLOR_CYAN);
+          it.printf(612, 24, id(font_16), COLOR_PANEL_BG, TextAlign::CENTER, "ARROSAGE : %s", active_irr_zone.c_str());
+        }
+      } else {
+        if (!active_irr_zone.empty()) {
+          draw_rrect(440, 10, 220, 28, 8, COLOR_CYAN);
+          it.printf(550, 24, id(font_16), COLOR_PANEL_BG, TextAlign::CENTER, "ARROSAGE : %s", active_irr_zone.c_str());
+        }
+        it.printf(685, 24, id(font_20), COLOR_LIGHT_GRAY, TextAlign::CENTER_RIGHT, "%s", time_str);
       }
+
+      float rssi = id(wifi_rssi).state;
+      int bars = (!std::isnan(rssi)) ? ((rssi > -60) ? 4 : ((rssi > -70) ? 3 : ((rssi > -80) ? 2 : 1))) : 0;
       for (int b = 0; b < 4; b++) {
         int bar_h = (b + 1) * 5;
         int bx = 770 + (b * 7);
-        int by = 38 - bar_h;
+        int by = 35 - bar_h;
         if (b < bars) it.filled_rectangle(bx, by, 4, bar_h, COLOR_GREEN);
         else it.filled_rectangle(bx, by, 4, bar_h, COLOR_MID_GRAY);
       }
 
-      // =============================================================
-      //  CONTENU DES PAGES (y: 53-419)
-      // =============================================================
-      int current_p = id(display_page);
+      // GESTION EXHAUSTIVE DES ÉTATS ALARME
+      Color banner_bg = COLOR_PANEL_BG, banner_text = COLOR_WHITE;
+      const char* state_title = "ETAT INCONNU";
+      const char* state_sub = alarm_st.c_str();
 
-      if (current_p == 0) {
-        // =========================================================
-        //  PAGE 0 : ALARME & CLAVIER
-        // =========================================================
+      if (!ha_ok) {
+        state_title = "HA DECONNECTE"; state_sub = "Liaison perdue";
+      }
+      else if (alarm_st == "disarmed") {
+        banner_bg = COLOR_GREEN_DIM; banner_text = COLOR_GREEN; state_title = "SECURISE"; state_sub = "Alarme desactivee";
+      }
+      else if (alarm_st == "armed_away") {
+        banner_bg = COLOR_RED_DIM; banner_text = COLOR_RED; state_title = "ARME TOTAL"; state_sub = "Surveillance active (Mode Absent)";
+      }
+      else if (alarm_st == "armed_night" || alarm_st == "armed_home") {
+        banner_bg = COLOR_ORANGE_DIM; banner_text = COLOR_ORANGE; state_title = "ARME PARTIEL"; state_sub = "Perimetre protege";
+      }
+      else if (alarm_st == "armed_vacation" || alarm_st == "armed_custom_bypass") {
+        banner_bg = COLOR_ORANGE_DIM; banner_text = COLOR_ORANGE; state_title = "ARME (SPECIAL)"; state_sub = "Capteurs isoles";
+      }
+      else if (alarm_st == "arming") {
+        banner_bg = COLOR_ORANGE_DIM; banner_text = COLOR_ORANGE; state_title = "ARMEMENT..."; state_sub = "Quittez les lieux";
+      }
+      else if (alarm_st == "disarming") {
+        banner_bg = COLOR_ORANGE_DIM; banner_text = COLOR_ORANGE; state_title = "DESARMEMENT..."; state_sub = "Traitement en cours";
+      }
+      else if (alarm_st == "pending") {
+        banner_bg = COLOR_ORANGE_DIM; banner_text = COLOR_ORANGE; state_title = "COMPTE A REBOURS"; state_sub = "Desarmez le systeme";
+      }
+      else if (alarm_st == "triggered") {
+        banner_bg = COLOR_RED_DIM; banner_text = COLOR_RED; state_title = "ALERTE INTRUSION !"; state_sub = "Declenchement en cours";
+      }
 
-        // --- PARTIE GAUCHE : Tableau de bord (x: 0-465) ---
+      // Mini badge état alarme dans le header quand on est sur Maison, Tado, Trains ou Arrosage
+      if (current_p != 6) {
+        draw_rrect(330, 10, 140, 28, 14, banner_bg);
+        it.printf(400, 24, id(font_16), banner_text, TextAlign::CENTER, "%s", state_title);
+      }
 
-        // Grand panneau d'état (x: 10-460, y: 60-175)
-        Color panel_bg = COLOR_GREEN;
-        const char* panel_title = "SECURISE";
-        const char* panel_sub   = "Systeme pret";
-        if (alarm_st == "armed_away") { panel_bg = COLOR_RED; panel_title = "ARMEMENT TOTAL"; panel_sub = "Surveillance maximale"; }
-        else if (alarm_st == "armed_night") { panel_bg = COLOR_ORANGE; panel_title = "ARMEMENT NUIT"; panel_sub = "Perimetre protege"; }
-        else if (alarm_st == "armed_home") { panel_bg = COLOR_ORANGE; panel_title = "ARME MAISON"; panel_sub = "Perimetre interieur"; }
-        else if (alarm_st == "triggered") {
-          panel_bg = (id(alert_blink_counter) % 2 == 0) ? COLOR_RED : COLOR_SOS_RED;
-          panel_title = "ALERTE INTRUSION";
-          panel_sub = "Declenchement en cours";
+      auto format_time_str = [](const std::string& raw) -> std::string {
+        if (raw.empty() || raw == "unavailable" || raw == "unknown") return "--:--";
+        auto pos_t = raw.find('T');
+        if (pos_t == std::string::npos) pos_t = raw.find(' ');
+        if (pos_t != std::string::npos && raw.length() >= pos_t + 6) {
+          return raw.substr(pos_t + 1, 5);
         }
-        else if (alarm_st == "pending") { panel_bg = COLOR_ORANGE; panel_title = "COMPTE A REBOURS"; panel_sub = "Entrez votre code..."; }
-        else if (alarm_st == "arming") { panel_bg = COLOR_ORANGE; panel_title = "ARMEMENT..."; panel_sub = "En cours"; }
+        if (raw.length() == 5 && raw[2] == ':') return raw;
+        if (raw.length() > 5) return raw.substr(0, 5);
+        return raw;
+      };
 
-        it.filled_rectangle(10, 60, 455, 115, panel_bg);
-        // Bordure arrondie simulée
-        it.filled_rectangle(10, 60, 455, 3, panel_bg);
-        it.printf(237, 95, id(font_32), COLOR_WHITE, TextAlign::CENTER, "%s", panel_title);
-        it.printf(237, 135, id(font_20), COLOR_WHITE, TextAlign::CENTER, "%s", panel_sub);
+      // Dessin vectoriel icône météo doublée en taille (soleil, éclaircies, nuages, pluie)
+      auto draw_weather_icon = [&](int icx, int icy, const std::string& cond, float cloud_pct, float rain_pct) {
+        std::string c_lower = cond;
+        std::transform(c_lower.begin(), c_lower.end(), c_lower.begin(), ::tolower);
+        bool is_rain = (!std::isnan(rain_pct) && rain_pct >= 40.0f) || c_lower.find("pluie") != std::string::npos || c_lower.find("rain") != std::string::npos;
+        bool is_cloud = (!std::isnan(cloud_pct) && cloud_pct >= 25.0f) || c_lower.find("nuag") != std::string::npos || c_lower.find("cloud") != std::string::npos || c_lower.find("eclair") != std::string::npos;
+        bool is_sun = (!is_cloud && !is_rain) || (cloud_pct <= 70.0f && c_lower.find("partly") != std::string::npos) || c_lower.find("eclair") != std::string::npos || c_lower.find("sun") != std::string::npos || c_lower.find("clair") != std::string::npos;
 
-        // --- 4 mini-tuiles d'état (2x2, y: 185-285) ---
-        // Tuile 1 : Ouvertures (x:10-230, y:185-235)
-        it.filled_rectangle(10, 185, 220, 50, COLOR_PANEL_BG);
-        it.printf(120, 195, id(font_16), COLOR_GREEN, TextAlign::TOP_CENTER, "OUVERTURES");
-        it.printf(120, 215, id(font_16), COLOR_LIGHT_GRAY, TextAlign::TOP_CENTER, "Fermees");
-
-        // Tuile 2 : Mouvements (x:240-460, y:185-235)
-        it.filled_rectangle(240, 185, 225, 50, COLOR_PANEL_BG);
-        it.printf(352, 195, id(font_16), COLOR_GREEN, TextAlign::TOP_CENTER, "MOUVEMENTS");
-        it.printf(352, 215, id(font_16), COLOR_LIGHT_GRAY, TextAlign::TOP_CENTER, "Aucun");
-
-        // Tuile 3 : Sécurité (x:10-230, y:240-290)
-        it.filled_rectangle(10, 240, 220, 50, COLOR_PANEL_BG);
-        it.printf(120, 250, id(font_16), COLOR_CYAN, TextAlign::TOP_CENTER, "SECURITE 24/7");
-        it.printf(120, 270, id(font_16), COLOR_LIGHT_GRAY, TextAlign::TOP_CENTER, "Active");
-
-        // Tuile 4 : Occupation (x:240-460, y:240-290)
-        it.filled_rectangle(240, 240, 225, 50, COLOR_PANEL_BG);
-        it.printf(352, 250, id(font_16), COLOR_CYAN, TextAlign::TOP_CENTER, "OCCUPATION");
-        it.printf(352, 270, id(font_16), COLOR_LIGHT_GRAY, TextAlign::TOP_CENTER, "Surveillance");
-
-        // --- Dernier événement (y: 300-340) ---
-        it.filled_rectangle(10, 300, 455, 38, COLOR_PANEL_BG);
-        std::string journal = id(ha_alarm_journal).state;
-        if (journal.length() > 50) journal = journal.substr(0, 47) + "...";
-        it.printf(237, 310, id(font_16), COLOR_LIGHT_GRAY, TextAlign::CENTER, "%s", journal.c_str());
-
-        // --- Boutons de mode (y: 350-400) ---
-        // Absent
-        Color btn_abs_bg = (id(pending_arm_mode) == 1) ? COLOR_RED : COLOR_PANEL_BG;
-        it.filled_rectangle(20, 350, 135, 45, btn_abs_bg);
-        it.rectangle(20, 350, 135, 45, COLOR_RED);
-        it.printf(87, 372, id(font_20), (id(pending_arm_mode) == 1) ? COLOR_WHITE : COLOR_RED, TextAlign::CENTER, "Absent");
-
-        // Nuit
-        Color btn_nuit_bg = (id(pending_arm_mode) == 2) ? COLOR_ORANGE : COLOR_PANEL_BG;
-        it.filled_rectangle(165, 350, 135, 45, btn_nuit_bg);
-        it.rectangle(165, 350, 135, 45, COLOR_ORANGE);
-        it.printf(232, 372, id(font_20), (id(pending_arm_mode) == 2) ? COLOR_WHITE : COLOR_ORANGE, TextAlign::CENTER, "Nuit");
-
-        // Désarmer
-        Color btn_des_bg = (id(pending_arm_mode) == 0 && !id(keypad_message).empty()) ? COLOR_GREEN : COLOR_PANEL_BG;
-        it.filled_rectangle(310, 350, 150, 45, btn_des_bg);
-        it.rectangle(310, 350, 150, 45, COLOR_GREEN);
-        it.printf(385, 372, id(font_20), (!id(keypad_message).empty() && id(pending_arm_mode) == 0) ? COLOR_WHITE : COLOR_GREEN, TextAlign::CENTER, "Desarmer");
-
-        // --- PARTIE DROITE : Clavier PIN (x: 475-795) ---
-
-        // Titre clavier
-        it.printf(635, 62, id(font_20), COLOR_LIGHT_GRAY, TextAlign::TOP_CENTER, "ENTRER LE CODE PIN");
-
-        // Pastilles de code (y: 85-105)
-        int dot_start_x = 635 - (4 * 18);
-        for (int d = 0; d < 8; d++) {
-          int dx = dot_start_x + d * 36;
-          if (d < id(pin_length)) {
-            it.filled_circle(dx, 95, 8, COLOR_BLUE);
-          } else {
-            it.circle(dx, 95, 8, COLOR_MID_GRAY);
+        if (is_sun && !is_cloud && !is_rain) {
+          // Soleil pur (doublé)
+          it.filled_circle(icx, icy, 26, Color(255, 204, 0));
+          for (int deg = 0; deg < 360; deg += 45) {
+            float rad = deg * 3.14159f / 180.0f;
+            int x1 = icx + (int)(cosf(rad) * 32);
+            int y1 = icy + (int)(sinf(rad) * 32);
+            int x2 = icx + (int)(cosf(rad) * 44);
+            int y2 = icy + (int)(sinf(rad) * 44);
+            it.line(x1, y1, x2, y2, Color(255, 204, 0));
+            it.line(x1 + 1, y1, x2 + 1, y2, Color(255, 204, 0));
+            it.line(x1, y1 + 1, x2, y2 + 1, Color(255, 204, 0));
           }
-        }
-
-        // Grille 3x4 du pavé numérique
-        // Colonnes : 480-580, 585-685, 690-790
-        // Lignes   : 115-180, 185-250, 255-320, 325-400
-        const int key_w = 100;
-        const int key_h = 63;
-        const int key_gap = 5;
-        const int key_start_x = 480;
-        const int key_start_y = 115;
-
-        const char* labels[4][3] = {
-          {"1", "2", "3"},
-          {"4", "5", "6"},
-          {"7", "8", "9"},
-          {"C", "0", "OK"}
-        };
-
-        for (int r = 0; r < 4; r++) {
-          for (int c = 0; c < 3; c++) {
-            int kx = key_start_x + c * (key_w + key_gap);
-            int ky = key_start_y + r * (key_h + key_gap);
-
-            Color key_bg_color = COLOR_KEY_BG;
-            Color key_txt_color = COLOR_WHITE;
-
-            if (r == 3 && c == 0) {
-              // C = rouge
-              key_bg_color = COLOR_RED;
-            } else if (r == 3 && c == 2) {
-              // OK = vert
-              key_bg_color = COLOR_GREEN;
-            }
-
-            it.filled_rectangle(kx, ky, key_w, key_h, key_bg_color);
-            it.rectangle(kx, ky, key_w, key_h, COLOR_KEY_BORDER);
-            it.printf(kx + key_w / 2, ky + key_h / 2, id(font_28), key_txt_color, TextAlign::CENTER, "%s", labels[r][c]);
-          }
-        }
-
-        // Message du clavier (sous les boutons si présent)
-        if (!id(keypad_message).empty()) {
-          Color msg_color = COLOR_ORANGE;
-          std::string msg = id(keypad_message);
-          if (msg.find("DESARM") != std::string::npos || msg.find("OK") != std::string::npos) msg_color = COLOR_GREEN;
-          else if (msg.find("INCORRECT") != std::string::npos || msg.find("COURT") != std::string::npos) msg_color = COLOR_RED;
-          it.printf(635, 408, id(font_16), msg_color, TextAlign::TOP_CENTER, "%s", msg.c_str());
-        }
-
-      } else if (current_p == 1) {
-        // =========================================================
-        //  PAGE 1 : CAPTEURS
-        // =========================================================
-        it.printf(400, 65, id(font_28), COLOR_BLUE, TextAlign::TOP_CENTER, "CAPTEURS ET EQUIPEMENTS");
-
-        // Cadre informatif
-        it.filled_rectangle(20, 100, 760, 300, COLOR_PANEL_BG);
-
-        it.printf(400, 120, id(font_24), COLOR_LIGHT_GRAY, TextAlign::TOP_CENTER, "Etat des capteurs");
-        it.filled_rectangle(100, 150, 600, 2, COLOR_MID_GRAY);
-
-        // Info : alimenté par les attributs de l'entité HA
-        std::string alarm_state_full = id(ha_alarm_state).state;
-        const char* mode_label = "Desarme";
-        if (alarm_state_full == "armed_away") mode_label = "Arme Total (Absent)";
-        else if (alarm_state_full == "armed_night") mode_label = "Arme Nuit";
-        else if (alarm_state_full == "armed_home") mode_label = "Arme Maison";
-        else if (alarm_state_full == "triggered") mode_label = "ALERTE DECLENCHEE";
-        else if (alarm_state_full == "pending") mode_label = "Compte a rebours...";
-
-        it.printf(60, 170, id(font_20), COLOR_LIGHT_GRAY, TextAlign::TOP_LEFT, "Mode actuel :");
-        it.printf(300, 170, id(font_20), COLOR_CYAN, TextAlign::TOP_LEFT, "%s", mode_label);
-
-        it.printf(60, 210, id(font_20), COLOR_LIGHT_GRAY, TextAlign::TOP_LEFT, "Dernier utilisateur :");
-        it.printf(300, 210, id(font_20), COLOR_CYAN, TextAlign::TOP_LEFT, "socrate");
-
-        it.printf(60, 250, id(font_20), COLOR_LIGHT_GRAY, TextAlign::TOP_LEFT, "Journal :");
-        std::string j2 = id(ha_alarm_journal).state;
-        if (j2.length() > 45) j2 = j2.substr(0, 42) + "...";
-        it.printf(300, 250, id(font_20), COLOR_LIGHT_GRAY, TextAlign::TOP_LEFT, "%s", j2.c_str());
-
-        it.printf(60, 290, id(font_20), COLOR_LIGHT_GRAY, TextAlign::TOP_LEFT, "Statut connecte :");
-        std::string watch_st = id(ha_alarm_watch).state;
-        Color watch_color = COLOR_GREEN;
-        if (watch_st.find("Rouge") != std::string::npos || watch_st.find("Arm") != std::string::npos) watch_color = COLOR_RED;
-        it.printf(300, 290, id(font_20), watch_color, TextAlign::TOP_LEFT, "%s", watch_st.c_str());
-
-        it.printf(60, 330, id(font_20), COLOR_LIGHT_GRAY, TextAlign::TOP_LEFT, "Version systeme :");
-        it.printf(300, 330, id(font_20), COLOR_DARK_GRAY, TextAlign::TOP_LEFT, "0.9.86");
-
-        // Signal WiFi
-        char rssi_str[32];
-        snprintf(rssi_str, sizeof(rssi_str), "%.0f dBm", id(wifi_rssi).state);
-        it.printf(60, 370, id(font_20), COLOR_LIGHT_GRAY, TextAlign::TOP_LEFT, "Signal WiFi :");
-        it.printf(300, 370, id(font_20), bars >= 3 ? COLOR_GREEN : (bars >= 2 ? COLOR_ORANGE : COLOR_RED), TextAlign::TOP_LEFT, "%s", rssi_str);
-
-      } else if (current_p == 2) {
-        // =========================================================
-        //  PAGE 2 : SYSTÈME & SOS
-        // =========================================================
-
-        // --- Grand bouton SOS ---
-        Color sos_bg = id(sos_confirm_active) ? COLOR_RED : COLOR_SOS_RED;
-        it.filled_rectangle(100, 60, 600, 80, sos_bg);
-        it.rectangle(100, 60, 600, 80, COLOR_RED);
-        if (id(sos_confirm_active)) {
-          it.printf(400, 100, id(font_28), COLOR_WHITE, TextAlign::CENTER, "CONFIRMER SOS PANIQUE ?");
+        } else if (is_sun && is_cloud) {
+          // Éclaircies (Soleil derrière nuage doublé)
+          it.filled_circle(icx + 22, icy - 14, 22, Color(255, 204, 0));
+          it.line(icx + 44, icy - 14, icx + 55, icy - 14, Color(255, 204, 0));
+          it.line(icx + 44, icy - 13, icx + 55, icy - 13, Color(255, 204, 0));
+          it.line(icx + 22, icy - 36, icx + 22, icy - 47, Color(255, 204, 0));
+          it.line(icx + 23, icy - 36, icx + 23, icy - 47, Color(255, 204, 0));
+          it.line(icx + 38, icy - 30, icx + 46, icy - 38, Color(255, 204, 0));
+          it.line(icx + 39, icy - 30, icx + 47, icy - 38, Color(255, 204, 0));
+          it.filled_circle(icx - 18, icy + 10, 20, Color(190, 205, 225));
+          it.filled_circle(icx + 6, icy + 2, 26, Color(215, 228, 242));
+          it.filled_circle(icx + 28, icy + 12, 18, Color(190, 205, 225));
+          it.filled_rectangle(icx - 18, icy + 10, 48, 20, Color(190, 205, 225));
+        } else if (is_cloud && !is_rain) {
+          // Nuageux (doublé)
+          it.filled_circle(icx + 16, icy - 4, 22, Color(120, 135, 155));
+          it.filled_circle(icx - 12, icy - 8, 20, Color(120, 135, 155));
+          it.filled_circle(icx - 22, icy + 10, 22, Color(180, 195, 210));
+          it.filled_circle(icx + 4, icy + 4, 28, Color(205, 218, 230));
+          it.filled_circle(icx + 30, icy + 12, 18, Color(180, 195, 210));
+          it.filled_rectangle(icx - 22, icy + 10, 52, 22, Color(180, 195, 210));
         } else {
-          it.printf(400, 100, id(font_28), COLOR_WHITE, TextAlign::CENTER, "SOS PANIQUE IMMEDIAT");
+          // Pluvieux (doublé avec gouttes)
+          it.filled_circle(icx - 18, icy - 2, 20, Color(140, 155, 175));
+          it.filled_circle(icx + 6, icy - 8, 26, Color(160, 175, 195));
+          it.filled_circle(icx + 28, icy + 2, 18, Color(140, 155, 175));
+          it.filled_rectangle(icx - 18, icy - 2, 48, 20, Color(140, 155, 175));
+          it.line(icx - 16, icy + 22, icx - 22, icy + 38, COLOR_CYAN);
+          it.line(icx - 15, icy + 22, icx - 21, icy + 38, COLOR_CYAN);
+          it.line(icx + 2, icy + 22, icx - 4, icy + 38, COLOR_CYAN);
+          it.line(icx + 3, icy + 22, icx - 3, icy + 38, COLOR_CYAN);
+          it.line(icx + 20, icy + 22, icx + 14, icy + 38, COLOR_CYAN);
+          it.line(icx + 21, icy + 22, icx + 15, icy + 38, COLOR_CYAN);
+        }
+      };
+
+      // =============================================================
+      // PAGE 0 : MAISON (COMMANDES RAPIDES, HEURE, MÉTÉO & TRAINS)
+      // =============================================================
+      if (current_p == 0) {
+        // --- 1. LIGNE SUPÉRIEURE : 3 COMMANDES RAPIDES (y: 56 à 184) ---
+        // A. CARTE PORTAIL (4 ÉTATS : FERMÉ, EN OUVERTURE, OUVERT, EN FERMETURE)
+        {
+          int cx = 24, cy = 56, cw = 240, ch = 126;
+          draw_rrect(cx, cy, cw, ch, 14, COLOR_PANEL_BG);
+
+          bool portail_known = id(ha_portail_state).has_state();
+          bool portail_open  = portail_known && id(ha_portail_state).state;
+          int g_act = id(gate_action_state);
+
+          Color col_p, col_p_dim;
+          const char* p_status_str = "FERMÉ";
+
+          if (g_act == 1) {
+            col_p = COLOR_ORANGE; col_p_dim = COLOR_ORANGE_DIM; p_status_str = "EN OUVERTURE";
+          } else if (g_act == 2) {
+            col_p = COLOR_ORANGE; col_p_dim = COLOR_ORANGE_DIM; p_status_str = "EN FERMETURE";
+          } else {
+            if (!portail_known) {
+              col_p = COLOR_DARK_GRAY; col_p_dim = COLOR_MID_GRAY; p_status_str = "INCONNU";
+            } else if (portail_open) {
+              col_p = COLOR_RED; col_p_dim = COLOR_RED_DIM; p_status_str = "OUVERT";
+            } else {
+              col_p = COLOR_GREEN; col_p_dim = COLOR_GREEN_DIM; p_status_str = "FERMÉ";
+            }
+          }
+
+          draw_rrect(cx + 14, cy + 12, 4, 20, 2, col_p);
+          it.printf(cx + 26, cy + 22, id(font_20), COLOR_WHITE, TextAlign::CENTER_LEFT, "PORTAIL");
+
+          // Badge statut centré verticalement (ligne d'action textuelle retirée)
+          draw_rrect(cx + 18, cy + 50, cw - 36, 52, 12, col_p_dim);
+          it.printf(cx + cw / 2, cy + 76, (g_act != 0) ? id(font_20) : id(font_24), col_p, TextAlign::CENTER, "%s", p_status_str);
         }
 
-        // --- Luminosité ---
-        it.printf(400, 165, id(font_24), COLOR_LIGHT_GRAY, TextAlign::TOP_CENTER, "LUMINOSITE DE L'ECRAN");
+        // B. CARTE LUMIÈRES EXTÉRIEURES (VERT = ÉTEINTES, ROUGE = ALLUMÉES)
+        {
+          int cx = 280, cy = 56, cw = 240, ch = 126;
+          draw_rrect(cx, cy, cw, ch, 14, COLOR_PANEL_BG);
 
-        const char* bright_labels[] = {"25%", "50%", "75%", "100%"};
-        int bright_xs[] = {50, 210, 370, 530};
-        int bright_w = 150;
+          bool lum_known = id(ha_lumieres_ext).has_state();
+          bool lum_on    = lum_known && id(ha_lumieres_ext).state;
 
-        for (int i = 0; i < 4; i++) {
-          Color bg = (id(brightness_level) == i) ? COLOR_BLUE : COLOR_PANEL_BG;
-          it.filled_rectangle(bright_xs[i], 200, bright_w, 60, bg);
-          it.rectangle(bright_xs[i], 200, bright_w, 60, COLOR_BLUE);
-          it.printf(bright_xs[i] + bright_w / 2, 230, id(font_24), (id(brightness_level) == i) ? COLOR_WHITE : COLOR_BLUE, TextAlign::CENTER, "%s", bright_labels[i]);
+          Color col_l, col_l_dim;
+          const char* lum_text = "INCONNU";
+          if (!lum_known) {
+            col_l = COLOR_DARK_GRAY; col_l_dim = COLOR_MID_GRAY; lum_text = "INCONNU";
+          } else if (lum_on) {
+            col_l = COLOR_RED; col_l_dim = COLOR_RED_DIM; lum_text = "ALLUMÉES";
+          } else {
+            col_l = COLOR_GREEN; col_l_dim = COLOR_GREEN_DIM; lum_text = "ÉTEINTES";
+          }
+
+          draw_rrect(cx + 14, cy + 12, 4, 20, 2, col_l);
+          it.printf(cx + 26, cy + 22, id(font_20), COLOR_WHITE, TextAlign::CENTER_LEFT, "LUMIÈRES EXT.");
+
+          // Badge statut centré verticalement (ligne d'action textuelle retirée)
+          draw_rrect(cx + 18, cy + 50, cw - 36, 52, 12, col_l_dim);
+          it.printf(cx + cw / 2, cy + 76, id(font_24), col_l, TextAlign::CENTER, "%s", lum_text);
         }
 
-        // --- Infos système ---
-        it.printf(400, 285, id(font_20), COLOR_DARK_GRAY, TextAlign::TOP_CENTER, "Domolink Alarm v1.0.0 - ESP32-S3 7.0\"");
+        // C. CARTE HEURE (REMPLACE LA TUILE ARROSAGE)
+        {
+          int cx = 536, cy = 56, cw = 240, ch = 126;
+          draw_rrect(cx, cy, cw, ch, 14, COLOR_PANEL_BG);
 
-        // --- Bouton redémarrer ---
-        it.filled_rectangle(250, 320, 300, 60, COLOR_PANEL_BG);
-        it.rectangle(250, 320, 300, 60, COLOR_ORANGE);
-        it.printf(400, 350, id(font_24), COLOR_ORANGE, TextAlign::CENTER, "REDEMARRER");
+          // Grand affichage de l'heure (taille doublée 64, ligne HEURE retirée)
+          it.printf(cx + cw / 2, cy + 48, id(font_64), COLOR_WHITE, TextAlign::CENTER, "%s", time_str);
 
-        // --- Message si SOS envoyé ---
-        if (!id(keypad_message).empty()) {
-          it.printf(400, 400, id(font_20), COLOR_GREEN, TextAlign::TOP_CENTER, "%s", id(keypad_message).c_str());
+          // Date formatée en français
+          const char* jours[] = {"", "Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"};
+          const char* mois[]  = {"", "Jan.", "Fév.", "Mars", "Avr.", "Mai", "Juin", "Juil.", "Août", "Sept.", "Oct.", "Nov.", "Déc."};
+          char date_str[64] = "";
+          if (now.is_valid()) {
+            int dow = now.day_of_week;
+            int m = now.month;
+            if (dow >= 1 && dow <= 7 && m >= 1 && m <= 12) {
+              snprintf(date_str, sizeof(date_str), "%s %d %s", jours[dow], now.day_of_month, mois[m]);
+            } else {
+              now.strftime(date_str, sizeof(date_str), "%d/%m/%Y");
+            }
+          }
+          it.printf(cx + cw / 2, cy + 102, id(font_16), COLOR_LIGHT_GRAY, TextAlign::CENTER, "%s", date_str);
+        }
+
+        // --- 2. LIGNE INFÉRIEURE : 2 CARTES INFO (y: 196 à 414) ---
+        // A. MÉTÉO ENGHIEN (AVEC ICÔNE COUVERTURE NUAGEUSE & POURCENTAGE)
+        {
+          int cx = 24, cy = 196, cw = 366, ch = 218;
+          draw_rrect(cx, cy, cw, ch, 14, COLOR_PANEL_BG);
+          draw_rrect(cx + 14, cy + 12, 4, 22, 2, COLOR_CYAN);
+          it.printf(cx + 26, cy + 23, id(font_20), COLOR_WHITE, TextAlign::CENTER_LEFT, "MÉTÉO ENGHIEN");
+          it.line(cx + 14, cy + 46, cx + cw - 14, cy + 46, COLOR_CARD_BORDER);
+
+          float t_val = id(ha_meteo_temp).state;
+          char t_buf[24] = "--.- °C";
+          Color t_col = COLOR_CYAN;
+          if (!std::isnan(t_val)) {
+            snprintf(t_buf, sizeof(t_buf), "%.1f °C", t_val);
+            if (t_val <= 19.0f) t_col = COLOR_CYAN;
+            else if (t_val <= 25.0f) t_col = COLOR_GREEN;
+            else if (t_val < 30.0f) t_col = COLOR_ORANGE;
+            else t_col = COLOR_RED;
+          }
+          it.printf(cx + 24, cy + 82, id(font_32), t_col, TextAlign::CENTER_LEFT, "%s", t_buf);
+
+          float cloud_val = id(ha_meteo_cloud).state;
+          float rain_val  = id(ha_meteo_rain).state;
+          std::string cond_str = id(ha_meteo_condition).state;
+          if (cond_str.empty() || cond_str == "unavailable" || cond_str == "unknown") {
+            if (!std::isnan(cloud_val)) {
+              if (cloud_val < 20.0f) cond_str = "Ensoleillé";
+              else if (cloud_val <= 65.0f) cond_str = "Éclaircies";
+              else cond_str = "Couvert";
+            } else cond_str = "Météo";
+          }
+          it.printf(cx + 24, cy + 122, id(font_20), COLOR_LIGHT_GRAY, TextAlign::CENTER_LEFT, "%s", cond_str.c_str());
+
+          // Dessin de l'icône météo vectorielle agrandie représentant la couverture nuageuse
+          draw_weather_icon(cx + 290, cy + 94, cond_str, cloud_val, rain_val);
+
+          // Badge couverture nuageuse en %
+          char cloud_buf[32] = "Nuages : -- %";
+          if (!std::isnan(cloud_val)) snprintf(cloud_buf, sizeof(cloud_buf), "Nuages : %.0f %%", cloud_val);
+          draw_rrect(cx + 235, cy + 146, 118, 26, 6, COLOR_MID_GRAY);
+          it.printf(cx + 294, cy + 159, id(font_16), COLOR_WHITE, TextAlign::CENTER, "%s", cloud_buf);
+
+          // Précipitations et Gel
+          char r_buf[32] = "Précipitations : -- %";
+          if (!std::isnan(rain_val)) snprintf(r_buf, sizeof(r_buf), "Précipitations : %.0f %%", rain_val);
+          it.printf(cx + 24, cy + 158, id(font_16), COLOR_LIGHT_GRAY, TextAlign::CENTER_LEFT, "%s", r_buf);
+
+          float frz_val = id(ha_meteo_freeze).state;
+          char f_buf[32] = "Risque Gel : 0 %";
+          if (!std::isnan(frz_val) && frz_val > 0.0f) snprintf(f_buf, sizeof(f_buf), "Risque Gel : %.0f %%", frz_val);
+          it.printf(cx + 24, cy + 188, id(font_16), (frz_val > 0.0f) ? COLOR_BLUE : COLOR_DARK_GRAY, TextAlign::CENTER_LEFT, "%s", f_buf);
+        }
+
+        // B. PROCHAINS DÉPARTS PARIS & EAUBONNE (2 COLONNES SYMÉTRIQUES)
+        {
+          int cx = 410, cy = 196, cw = 366, ch = 218;
+          draw_rrect(cx, cy, cw, ch, 14, COLOR_PANEL_BG);
+
+          // Séparateur vertical entre PARIS et EAUBONNE
+          it.line(cx + 183, cy + 12, cx + 183, cy + ch - 12, COLOR_CARD_BORDER);
+
+          // ----------------- COLONNE 1 : PARIS -----------------
+          draw_rrect(cx + 12, cy + 12, 4, 22, 2, COLOR_BLUE);
+          it.printf(cx + 22, cy + 23, id(font_20), COLOR_WHITE, TextAlign::CENTER_LEFT, "PARIS");
+          it.line(cx + 12, cy + 46, cx + 175, cy + 46, COLOR_CARD_BORDER);
+
+          // Paris Train 1
+          std::string p1_time = format_time_str(id(ha_train_p1_time).state);
+          it.printf(cx + 16, cy + 68, id(font_24), COLOR_WHITE, TextAlign::CENTER_LEFT, "%s", p1_time.c_str());
+
+          int mp1 = (int)id(ha_train_p1_min).state;
+          char cdp1_buf[20] = "-- min";
+          Color cdp1_bg = COLOR_MID_GRAY, cdp1_fg = COLOR_LIGHT_GRAY;
+          if (mp1 != -999 && p1_time != "--:--") {
+            if (mp1 < 0) { snprintf(cdp1_buf, sizeof(cdp1_buf), "Parti"); cdp1_bg = COLOR_MID_GRAY; cdp1_fg = COLOR_DARK_GRAY; }
+            else if (mp1 <= 1) { snprintf(cdp1_buf, sizeof(cdp1_buf), "A QUAI"); cdp1_bg = COLOR_RED_DIM; cdp1_fg = COLOR_RED; }
+            else if (mp1 <= 3) { snprintf(cdp1_buf, sizeof(cdp1_buf), "IMMIN."); cdp1_bg = COLOR_RED_DIM; cdp1_fg = COLOR_RED; }
+            else if (mp1 <= 7) { snprintf(cdp1_buf, sizeof(cdp1_buf), "%d min", mp1); cdp1_bg = COLOR_ORANGE_DIM; cdp1_fg = COLOR_ORANGE; }
+            else { snprintf(cdp1_buf, sizeof(cdp1_buf), "%d min", mp1); cdp1_bg = COLOR_GREEN_DIM; cdp1_fg = COLOR_GREEN; }
+          }
+          draw_rrect(cx + 96, cy + 56, 74, 22, 6, cdp1_bg);
+          it.printf(cx + 133, cy + 67, id(font_16), cdp1_fg, TextAlign::CENTER, "%s", cdp1_buf);
+
+          // Voie sous les minutes + Mission
+          std::string trk_p1 = id(ha_train_p1_track).state;
+          char trk_p1_buf[16] = "V.-";
+          if (!trk_p1.empty() && trk_p1 != "unavailable" && trk_p1 != "unknown") snprintf(trk_p1_buf, sizeof(trk_p1_buf), "V.%s", trk_p1.c_str());
+          it.printf(cx + 16, cy + 96, id(font_16), COLOR_CYAN, TextAlign::CENTER_LEFT, "%s", trk_p1_buf);
+
+          std::string msn_p1 = id(ha_train_p1_mission).state;
+          if (msn_p1.empty() || msn_p1 == "unavailable" || msn_p1 == "unknown" || msn_p1 == "-") msn_p1 = "Ligne H";
+          it.printf(cx + 60, cy + 96, id(font_16), COLOR_DARK_GRAY, TextAlign::CENTER_LEFT, "%s", msn_p1.c_str());
+
+          it.line(cx + 12, cy + 120, cx + 175, cy + 120, COLOR_CARD_BORDER);
+
+          // Paris Train 2
+          std::string p2_time = format_time_str(id(ha_train_p2_time).state);
+          it.printf(cx + 16, cy + 144, id(font_20), COLOR_LIGHT_GRAY, TextAlign::CENTER_LEFT, "%s", p2_time.c_str());
+
+          int mp2 = (int)id(ha_train_p2_min).state;
+          char cdp2_buf[20] = "-- min";
+          Color cdp2_bg = COLOR_MID_GRAY, cdp2_fg = COLOR_LIGHT_GRAY;
+          if (mp2 != -999 && p2_time != "--:--") {
+            if (mp2 < 0) { snprintf(cdp2_buf, sizeof(cdp2_buf), "Parti"); cdp2_bg = COLOR_MID_GRAY; cdp2_fg = COLOR_DARK_GRAY; }
+            else if (mp2 <= 1) { snprintf(cdp2_buf, sizeof(cdp2_buf), "A QUAI"); cdp2_bg = COLOR_RED_DIM; cdp2_fg = COLOR_RED; }
+            else if (mp2 <= 3) { snprintf(cdp2_buf, sizeof(cdp2_buf), "IMMIN."); cdp2_bg = COLOR_RED_DIM; cdp2_fg = COLOR_RED; }
+            else { snprintf(cdp2_buf, sizeof(cdp2_buf), "%d min", mp2); cdp2_bg = COLOR_GREEN_DIM; cdp2_fg = COLOR_GREEN; }
+          }
+          draw_rrect(cx + 96, cy + 133, 74, 22, 6, cdp2_bg);
+          it.printf(cx + 133, cy + 144, id(font_16), cdp2_fg, TextAlign::CENTER, "%s", cdp2_buf);
+
+          std::string trk_p2 = id(ha_train_p2_track).state;
+          char trk_p2_buf[16] = "V.-";
+          if (!trk_p2.empty() && trk_p2 != "unavailable" && trk_p2 != "unknown") snprintf(trk_p2_buf, sizeof(trk_p2_buf), "V.%s", trk_p2.c_str());
+          it.printf(cx + 16, cy + 172, id(font_16), COLOR_CYAN, TextAlign::CENTER_LEFT, "%s", trk_p2_buf);
+
+          std::string msn_p2 = id(ha_train_p2_mission).state;
+          if (msn_p2.empty() || msn_p2 == "unavailable" || msn_p2 == "unknown" || msn_p2 == "-") msn_p2 = "Ligne H";
+          it.printf(cx + 60, cy + 172, id(font_16), COLOR_DARK_GRAY, TextAlign::CENTER_LEFT, "%s", msn_p2.c_str());
+
+          // ----------------- COLONNE 2 : EAUBONNE -----------------
+          draw_rrect(cx + 195, cy + 12, 4, 22, 2, COLOR_CYAN);
+          it.printf(cx + 205, cy + 23, id(font_20), COLOR_WHITE, TextAlign::CENTER_LEFT, "EAUBONNE");
+          it.line(cx + 195, cy + 46, cx + cw - 12, cy + 46, COLOR_CARD_BORDER);
+
+          // Eaubonne Train 1
+          std::string ea1_time = format_time_str(id(ha_train_ea_time).state);
+          it.printf(cx + 198, cy + 68, id(font_24), COLOR_WHITE, TextAlign::CENTER_LEFT, "%s", ea1_time.c_str());
+
+          int mea1 = (int)id(ha_train_ea_min).state;
+          char cdea1_buf[20] = "-- min";
+          Color cdea1_bg = COLOR_MID_GRAY, cdea1_fg = COLOR_LIGHT_GRAY;
+          if (mea1 != -999 && ea1_time != "--:--") {
+            if (mea1 < 0) { snprintf(cdea1_buf, sizeof(cdea1_buf), "Parti"); cdea1_bg = COLOR_MID_GRAY; cdea1_fg = COLOR_DARK_GRAY; }
+            else if (mea1 <= 1) { snprintf(cdea1_buf, sizeof(cdea1_buf), "A QUAI"); cdea1_bg = COLOR_RED_DIM; cdea1_fg = COLOR_RED; }
+            else if (mea1 <= 3) { snprintf(cdea1_buf, sizeof(cdea1_buf), "IMMIN."); cdea1_bg = COLOR_RED_DIM; cdea1_fg = COLOR_RED; }
+            else if (mea1 <= 7) { snprintf(cdea1_buf, sizeof(cdea1_buf), "%d min", mea1); cdea1_bg = COLOR_ORANGE_DIM; cdea1_fg = COLOR_ORANGE; }
+            else { snprintf(cdea1_buf, sizeof(cdea1_buf), "%d min", mea1); cdea1_bg = COLOR_GREEN_DIM; cdea1_fg = COLOR_GREEN; }
+          }
+          draw_rrect(cx + 278, cy + 56, 74, 22, 6, cdea1_bg);
+          it.printf(cx + 315, cy + 67, id(font_16), cdea1_fg, TextAlign::CENTER, "%s", cdea1_buf);
+
+          std::string trk_ea1 = id(ha_train_ea_track).state;
+          char trk_ea1_buf[16] = "V.-";
+          if (!trk_ea1.empty() && trk_ea1 != "unavailable" && trk_ea1 != "unknown") snprintf(trk_ea1_buf, sizeof(trk_ea1_buf), "V.%s", trk_ea1.c_str());
+          it.printf(cx + 198, cy + 96, id(font_16), COLOR_CYAN, TextAlign::CENTER_LEFT, "%s", trk_ea1_buf);
+
+          std::string msn_ea1 = id(ha_train_ea_mission).state;
+          if (msn_ea1.empty() || msn_ea1 == "unavailable" || msn_ea1 == "unknown" || msn_ea1 == "-") msn_ea1 = "Ligne H";
+          it.printf(cx + 242, cy + 96, id(font_16), COLOR_DARK_GRAY, TextAlign::CENTER_LEFT, "%s", msn_ea1.c_str());
+
+          it.line(cx + 195, cy + 120, cx + cw - 12, cy + 120, COLOR_CARD_BORDER);
+
+          // Eaubonne Train 2
+          std::string ea2_time = format_time_str(id(ha_train_ea2_time).state);
+          it.printf(cx + 198, cy + 144, id(font_20), COLOR_LIGHT_GRAY, TextAlign::CENTER_LEFT, "%s", ea2_time.c_str());
+
+          int mea2 = (int)id(ha_train_ea2_min).state;
+          char cdea2_buf[20] = "-- min";
+          Color cdea2_bg = COLOR_MID_GRAY, cdea2_fg = COLOR_LIGHT_GRAY;
+          if (mea2 != -999 && ea2_time != "--:--") {
+            if (mea2 < 0) { snprintf(cdea2_buf, sizeof(cdea2_buf), "Parti"); cdea2_bg = COLOR_MID_GRAY; cdea2_fg = COLOR_DARK_GRAY; }
+            else if (mea2 <= 1) { snprintf(cdea2_buf, sizeof(cdea2_buf), "A QUAI"); cdea2_bg = COLOR_RED_DIM; cdea2_fg = COLOR_RED; }
+            else if (mea2 <= 3) { snprintf(cdea2_buf, sizeof(cdea2_buf), "IMMIN."); cdea2_bg = COLOR_RED_DIM; cdea2_fg = COLOR_RED; }
+            else { snprintf(cdea2_buf, sizeof(cdea2_buf), "%d min", mea2); cdea2_bg = COLOR_GREEN_DIM; cdea2_fg = COLOR_GREEN; }
+          }
+          draw_rrect(cx + 278, cy + 133, 74, 22, 6, cdea2_bg);
+          it.printf(cx + 315, cy + 144, id(font_16), cdea2_fg, TextAlign::CENTER, "%s", cdea2_buf);
+
+          std::string trk_ea2 = id(ha_train_ea2_track).state;
+          char trk_ea2_buf[16] = "V.-";
+          if (!trk_ea2.empty() && trk_ea2 != "unavailable" && trk_ea2 != "unknown") snprintf(trk_ea2_buf, sizeof(trk_ea2_buf), "V.%s", trk_ea2.c_str());
+          it.printf(cx + 198, cy + 172, id(font_16), COLOR_CYAN, TextAlign::CENTER_LEFT, "%s", trk_ea2_buf);
+
+          std::string msn_ea2 = id(ha_train_ea2_mission).state;
+          if (msn_ea2.empty() || msn_ea2 == "unavailable" || msn_ea2 == "unknown" || msn_ea2 == "-") msn_ea2 = "Ligne H";
+          it.printf(cx + 242, cy + 172, id(font_16), COLOR_DARK_GRAY, TextAlign::CENTER_LEFT, "%s", msn_ea2.c_str());
         }
       }
 
       // =============================================================
-      //  BARRE DE NAVIGATION INFÉRIEURE (y: 420-480)
+      // PAGE 1 : CHAUFFAGE DOMOLINK-TADO (GRILLE + MODAL PIÈCE)
       // =============================================================
-      it.filled_rectangle(0, 420, 800, 60, COLOR_TAB_INACTIVE);
-      it.line(0, 420, 800, 420, COLOR_MID_GRAY);
-      it.line(267, 420, 267, 480, COLOR_MID_GRAY);
-      it.line(534, 420, 534, 480, COLOR_MID_GRAY);
+      if (current_p == 1) {
+        struct TadoRoomData {
+          const char* name;
+          float cur_temp;
+          float tgt_temp;
+          std::string action;
+        };
 
-      // Onglet 0 : Alarme
-      if (current_p == 0) it.filled_rectangle(0, 420, 267, 60, COLOR_TAB_ACTIVE);
-      it.printf(133, 450, id(font_20), current_p == 0 ? COLOR_WHITE : COLOR_DARK_GRAY, TextAlign::CENTER, "Alarme");
+        TadoRoomData rooms[8] = {
+          {"Salon",           id(ha_tado_salon_cur).state,     id(ha_tado_salon_tgt).state,     id(ha_tado_salon_act).state},
+          {"Cuisine",         id(ha_tado_cuisine_cur).state,   id(ha_tado_cuisine_tgt).state,   id(ha_tado_cuisine_act).state},
+          {"Salle à Manger",  id(ha_tado_sam_cur).state,       id(ha_tado_sam_tgt).state,       id(ha_tado_sam_act).state},
+          {"Ch. Stef & JF",   id(ha_tado_ch_stef_cur).state,   id(ha_tado_ch_stef_tgt).state,   id(ha_tado_ch_stef_act).state},
+          {"Ch. Blaise",      id(ha_tado_ch_blaise_cur).state, id(ha_tado_ch_blaise_tgt).state, id(ha_tado_ch_blaise_act).state},
+          {"Ch. Lia",         id(ha_tado_ch_lia_cur).state,    id(ha_tado_ch_lia_tgt).state,    id(ha_tado_ch_lia_act).state},
+          {"Bureau JF",       id(ha_tado_bureau_cur).state,    id(ha_tado_bureau_tgt).state,    id(ha_tado_bureau_act).state},
+          {"Salle de Bains",  id(ha_tado_sdb_cur).state,       id(ha_tado_sdb_tgt).state,       id(ha_tado_sdb_act).state}
+        };
 
-      // Onglet 1 : Capteurs
-      if (current_p == 1) it.filled_rectangle(267, 420, 267, 60, COLOR_TAB_ACTIVE);
-      it.printf(400, 450, id(font_20), current_p == 1 ? COLOR_WHITE : COLOR_DARK_GRAY, TextAlign::CENTER, "Capteurs");
+        // SI LA MODALE DE RÉGLAGE EST ACTIVE :
+        if (id(tado_modal_open)) {
+          it.filled_rectangle(0, 48, 800, 367, Color(10, 12, 18));
 
-      // Onglet 2 : Système
-      if (current_p == 2) it.filled_rectangle(534, 420, 266, 60, COLOR_TAB_ACTIVE);
-      it.printf(667, 450, id(font_20), current_p == 2 ? COLOR_WHITE : COLOR_DARK_GRAY, TextAlign::CENTER, "Systeme / SOS");
+          int mx = 40, my = 52, mw = 720, mh = 358;
+          draw_rrect(mx, my, mw, mh, 16, COLOR_PANEL_BG);
+          it.rectangle(mx, my, mw, mh, COLOR_CYAN);
+          it.rectangle(mx + 1, my + 1, mw - 2, mh - 2, COLOR_CYAN);
+
+          int r_idx = id(tado_selected_room);
+          if (r_idx < 0 || r_idx >= 8) r_idx = 0;
+          const char* r_name = rooms[r_idx].name;
+          float cur_t = rooms[r_idx].cur_temp;
+          float tgt_t = rooms[r_idx].tgt_temp;
+          bool is_heat = (rooms[r_idx].action == "heating");
+
+          // En-tête de la modale
+          draw_rrect(mx + 16, my + 12, 4, 26, 2, is_heat ? COLOR_ORANGE : COLOR_CYAN);
+          it.printf(mx + 28, my + 25, id(font_24), COLOR_WHITE, TextAlign::CENTER_LEFT, "%s", r_name);
+          it.printf(mx + 200, my + 25, id(font_16), COLOR_LIGHT_GRAY, TextAlign::CENTER_LEFT, "CONTRÔLE THERMIQUE TADO");
+
+          // Bouton FERMER
+          draw_rrect(mx + mw - 120, my + 10, 105, 30, 8, COLOR_MID_GRAY);
+          it.printf(mx + mw - 68, my + 25, id(font_16), COLOR_WHITE, TextAlign::CENTER, "FERMER X");
+
+          it.line(mx + 16, my + 46, mx + mw - 16, my + 46, COLOR_CARD_BORDER);
+
+          // Ligne 1 : Actuelle vs Consigne (y: 110 à 212)
+          draw_rrect(mx + 16, my + 56, 190, 94, 12, COLOR_MID_GRAY);
+          it.printf(mx + 28, my + 70, id(font_16), COLOR_LIGHT_GRAY, TextAlign::CENTER_LEFT, "ACTUELLE");
+          char cur_str[24] = "--.- °C";
+          if (!std::isnan(cur_t) && cur_t > 0.0f) snprintf(cur_str, sizeof(cur_str), "%.1f °C", cur_t);
+          it.printf(mx + 28, my + 104, id(font_32), is_heat ? COLOR_ORANGE : COLOR_WHITE, TextAlign::CENTER_LEFT, "%s", cur_str);
+          draw_rrect(mx + 28, my + 126, 140, 18, 4, is_heat ? COLOR_ORANGE_DIM : COLOR_PANEL_BG);
+          it.printf(mx + 98, my + 135, id(font_16), is_heat ? COLOR_ORANGE : COLOR_DARK_GRAY, TextAlign::CENTER, is_heat ? "CHAUFFE ACTIVE" : "REPOS");
+
+          draw_rrect(mx + 218, my + 56, 486, 94, 12, COLOR_MID_GRAY);
+
+          // Bouton [- 0.5°]
+          draw_rrect(mx + 230, my + 66, 84, 74, 10, COLOR_CARD_BORDER);
+          it.printf(mx + 272, my + 103, id(font_24), COLOR_CYAN, TextAlign::CENTER, "- 0.5");
+
+          // Consigne cible au centre
+          char tgt_str[24] = "--.- °C";
+          if (!std::isnan(tgt_t) && tgt_t >= 5.0f) snprintf(tgt_str, sizeof(tgt_str), "%.1f °C", tgt_t);
+          else snprintf(tgt_str, sizeof(tgt_str), "OFF");
+          it.printf(mx + 461, my + 82, id(font_16), COLOR_LIGHT_GRAY, TextAlign::CENTER, "CONSIGNE CIBLE");
+          it.printf(mx + 461, my + 115, id(font_32), COLOR_WHITE, TextAlign::CENTER, "%s", tgt_str);
+
+          // Bouton [+ 0.5°]
+          draw_rrect(mx + 608, my + 66, 84, 74, 10, COLOR_CARD_BORDER);
+          it.printf(mx + 650, my + 103, id(font_24), COLOR_CYAN, TextAlign::CENTER, "+ 0.5");
+
+          // Barre curseur de température (5°C à 30°C)
+          int bar_x = mx + 16, bar_y = my + 158, bar_w = 688;
+          draw_rrect(bar_x, bar_y, bar_w, 10, 5, COLOR_CARD_BORDER);
+          float pct = 0.0f;
+          if (!std::isnan(tgt_t) && tgt_t >= 5.0f) {
+            pct = (tgt_t - 5.0f) / 25.0f;
+            if (pct < 0.0f) pct = 0.0f;
+            if (pct > 1.0f) pct = 1.0f;
+          }
+          int fill_w = (int)(pct * bar_w);
+          if (fill_w > 0) draw_rrect(bar_x, bar_y, fill_w, 10, 5, is_heat ? COLOR_ORANGE : COLOR_CYAN);
+          it.filled_circle(bar_x + fill_w, bar_y + 5, 8, COLOR_WHITE);
+
+          // Ligne 2 : 4 Modes rapides (y: my + 178, h: 66)
+          // 1. AUTO
+          draw_rrect(mx + 16, my + 178, 160, 66, 12, COLOR_MID_GRAY);
+          draw_rrect(mx + 24, my + 188, 4, 46, 2, COLOR_CYAN);
+          it.printf(mx + 98, my + 201, id(font_20), COLOR_CYAN, TextAlign::CENTER, "AUTO");
+          it.printf(mx + 98, my + 226, id(font_16), COLOR_LIGHT_GRAY, TextAlign::CENTER, "Planning");
+
+          // 2. BOOST 25°
+          draw_rrect(mx + 192, my + 178, 160, 66, 12, COLOR_ORANGE_DIM);
+          draw_rrect(mx + 200, my + 188, 4, 46, 2, COLOR_ORANGE);
+          it.printf(mx + 274, my + 201, id(font_20), COLOR_ORANGE, TextAlign::CENTER, "BOOST");
+          it.printf(mx + 274, my + 226, id(font_16), COLOR_LIGHT_GRAY, TextAlign::CENTER, "25 °C (30m)");
+
+          // 3. ÉCO 17°
+          draw_rrect(mx + 368, my + 178, 160, 66, 12, COLOR_GREEN_DIM);
+          draw_rrect(mx + 376, my + 188, 4, 46, 2, COLOR_GREEN);
+          it.printf(mx + 450, my + 201, id(font_20), COLOR_GREEN, TextAlign::CENTER, "ÉCO");
+          it.printf(mx + 450, my + 226, id(font_16), COLOR_LIGHT_GRAY, TextAlign::CENTER, "17 °C");
+
+          // 4. ÉTEINDRE
+          draw_rrect(mx + 544, my + 178, 160, 66, 12, COLOR_RED_DIM);
+          draw_rrect(mx + 552, my + 188, 4, 46, 2, COLOR_RED);
+          it.printf(mx + 626, my + 201, id(font_20), COLOR_RED, TextAlign::CENTER, "OFF");
+          it.printf(mx + 626, my + 226, id(font_16), COLOR_LIGHT_GRAY, TextAlign::CENTER, "Éteindre");
+
+          // Ligne 3 : Presets de consigne directe (y: my + 258, h: 36)
+          for (int p_idx = 0; p_idx < 7; p_idx++) {
+            int px1 = mx + 16 + p_idx * 99;
+            int pw = 88;
+            float p_temp = 17.0f + (float)p_idx;
+            bool is_curr = (std::abs(tgt_t - p_temp) < 0.25f);
+            draw_rrect(px1, my + 258, pw, 36, 8, is_curr ? COLOR_CYAN : COLOR_MID_GRAY);
+            char p_buf[16];
+            snprintf(p_buf, sizeof(p_buf), "%.0f °C", p_temp);
+            it.printf(px1 + pw / 2, my + 276, id(font_16), is_curr ? COLOR_WHITE : COLOR_LIGHT_GRAY, TextAlign::CENTER, "%s", p_buf);
+          }
+        } else {
+          // --- 1. ACTIONS GLOBALES (y: 52 à 104) ---
+          const char* tado_actions[] = {"AUTO / PLANNING", "BOOST 25°C", "ÉCO GÉNÉRAL", "TOUT ÉTEINDRE"};
+          Color tado_colors[] = {COLOR_CYAN, COLOR_ORANGE, COLOR_GREEN, COLOR_LIGHT_GRAY};
+          Color tado_dims[]   = {COLOR_MID_GRAY, COLOR_ORANGE_DIM, COLOR_GREEN_DIM, COLOR_MID_GRAY};
+          int act_xs[] = {24, 214, 404, 594};
+
+          for (int i = 0; i < 4; i++) {
+            draw_rrect(act_xs[i], 52, 180, 52, 12, tado_dims[i]);
+            draw_rrect(act_xs[i] + 10, 52 + 10, 4, 32, 2, tado_colors[i]);
+            it.printf(act_xs[i] + 20, 52 + 26, id(font_16), tado_colors[i], TextAlign::CENTER_LEFT, "%s", tado_actions[i]);
+          }
+
+          // --- 2. GRILLE DES 8 PIÈCES (y: 110 à 356) ---
+          for (int i = 0; i < 8; i++) {
+            int row = i / 4;
+            int col = i % 4;
+            int rx = 24 + col * 190;
+            int ry = 112 + row * 122;
+            int rw = 180;
+            int rh = 114;
+
+            bool is_sel = (id(tado_selected_room) == i);
+            draw_rrect(rx, ry, rw, rh, 12, COLOR_PANEL_BG);
+            if (is_sel) {
+              draw_rrect(rx + 2, ry + 2, rw - 4, rh - 4, 10, COLOR_MID_GRAY);
+            }
+
+            // Nom pièce
+            it.printf(rx + 12, ry + 16, id(font_16), is_sel ? COLOR_CYAN : COLOR_WHITE, TextAlign::CENTER_LEFT, "%s", rooms[i].name);
+
+            // Badge Chauffage
+            bool is_heating = (rooms[i].action == "heating");
+            Color badge_c = is_heating ? COLOR_ORANGE : COLOR_DARK_GRAY;
+            Color badge_bg = is_heating ? COLOR_ORANGE_DIM : COLOR_PANEL_BG;
+            draw_rrect(rx + rw - 70, ry + 8, 62, 20, 6, badge_bg);
+            it.printf(rx + rw - 39, ry + 18, id(font_16), badge_c, TextAlign::CENTER, is_heating ? "CHAUFFE" : "REPOS");
+
+            // Température Actuelle
+            char t_cur_str[24] = "--.- °C";
+            if (!std::isnan(rooms[i].cur_temp) && rooms[i].cur_temp > 0.0f) {
+              snprintf(t_cur_str, sizeof(t_cur_str), "%.1f °C", rooms[i].cur_temp);
+            }
+            it.printf(rx + 12, ry + 56, id(font_24), is_heating ? COLOR_ORANGE : COLOR_WHITE, TextAlign::CENTER_LEFT, "%s", t_cur_str);
+
+            // Température Cible
+            char t_tgt_str[24] = "Cible: --°C";
+            if (!std::isnan(rooms[i].tgt_temp) && rooms[i].tgt_temp > 0.0f) {
+              snprintf(t_tgt_str, sizeof(t_tgt_str), "Cible: %.1f°C", rooms[i].tgt_temp);
+            } else {
+              snprintf(t_tgt_str, sizeof(t_tgt_str), "Cible: OFF");
+            }
+            it.printf(rx + 12, ry + 92, id(font_16), COLOR_LIGHT_GRAY, TextAlign::CENTER_LEFT, "%s", t_tgt_str);
+          }
+
+          // --- 3. BARRE DE RÉGLAGE RAPIDE (y: 364 à 416) ---
+          draw_rrect(24, 364, 752, 52, 12, COLOR_PANEL_BG);
+          int sel_i = id(tado_selected_room);
+          if (sel_i < 0 || sel_i >= 8) sel_i = 0;
+          char sel_info[64];
+          float sel_tgt = rooms[sel_i].tgt_temp;
+          if (!std::isnan(sel_tgt) && sel_tgt > 0.0f) {
+            snprintf(sel_info, sizeof(sel_info), "Pièce : %s (%.1f °C) - Toucher pour menu", rooms[sel_i].name, sel_tgt);
+          } else {
+            snprintf(sel_info, sizeof(sel_info), "Pièce : %s (OFF) - Toucher pour menu", rooms[sel_i].name);
+          }
+          it.printf(40, 390, id(font_20), COLOR_WHITE, TextAlign::CENTER_LEFT, "%s", sel_info);
+
+          draw_rrect(580, 368, 180, 44, 10, COLOR_MID_GRAY);
+          it.printf(670, 390, id(font_16), COLOR_CYAN, TextAlign::CENTER, "OUVRIR MENU >");
+        }
+      }
+
+      // =============================================================
+      // PAGE 2 : TRAINS (LIGNE H & RETOUR NOCTURNE)
+      // =============================================================
+      if (current_p == 4) {
+      // =============================================================
+      // PAGE 2 : ÉNERGIE (LINKY, JAUGE PUISSANCE, INDEX HP/HC & CONSO)
+      // =============================================================
+      if (current_p == 2) {
+        // --- 1. LIGNE SUPÉRIEURE (y: 52 à 222, h: 170) ---
+        // A. Jauge Puissance Linky (x: 24, w: 366)
+        {
+          int cx = 24, cy = 52, cw = 366, ch = 170;
+          draw_rrect(cx, cy, cw, ch, 14, COLOR_PANEL_BG);
+          draw_rrect(cx + 14, cy + 12, 4, 22, 2, COLOR_ORANGE);
+          it.printf(cx + 26, cy + 23, id(font_20), COLOR_WHITE, TextAlign::CENTER_LEFT, "COMPTEUR LINKY");
+          it.line(cx + 14, cy + 46, cx + cw - 14, cy + 46, COLOR_CARD_BORDER);
+
+          float papp = id(ha_linky_papp).state;
+          float courant = id(ha_linky_i).state;
+          char p_buf[32] = "-- VA";
+          Color p_col = COLOR_GREEN;
+          if (!std::isnan(papp)) {
+            snprintf(p_buf, sizeof(p_buf), "%.0f VA", papp);
+            if (papp < 3000.0f) p_col = COLOR_GREEN;
+            else if (papp < 6000.0f) p_col = COLOR_ORANGE;
+            else p_col = COLOR_RED;
+          }
+          it.printf(cx + 24, cy + 78, id(font_32), p_col, TextAlign::CENTER_LEFT, "%s", p_buf);
+
+          // Badge statut puissance
+          const char* p_status = (papp < 3000.0f) ? "NORMALE" : (papp < 6000.0f ? "ÉLEVÉE" : "PIC CONSO");
+          draw_rrect(cx + 225, cy + 66, 125, 26, 6, COLOR_MID_GRAY);
+          it.printf(cx + 287, cy + 79, id(font_16), p_col, TextAlign::CENTER, "%s", p_status);
+
+          // Jauge barre dynamique de charge (sur 9 kVA = 9000 VA)
+          float pct = (!std::isnan(papp) && papp > 0) ? (papp / 9000.0f) : 0.0f;
+          if (pct > 1.0f) pct = 1.0f;
+          int bar_w = 326;
+          draw_rrect(cx + 20, cy + 110, bar_w, 14, 7, COLOR_MID_GRAY);
+          int fill_w = (int)(bar_w * pct);
+          if (fill_w > 4) {
+            draw_rrect(cx + 20, cy + 110, fill_w, 14, 7, p_col);
+          }
+
+          char sub_buf[64];
+          snprintf(sub_buf, sizeof(sub_buf), "Intensité : %.1f A  •  Charge : %.0f %% / 9 kVA",
+                   std::isnan(courant) ? 0.0f : courant, pct * 100.0f);
+          it.printf(cx + 20, cy + 144, id(font_16), COLOR_LIGHT_GRAY, TextAlign::CENTER_LEFT, "%s", sub_buf);
+        }
+
+        // B. Index Compteur & HP / HC (x: 410, w: 366)
+        {
+          int cx = 410, cy = 52, cw = 366, ch = 170;
+          draw_rrect(cx, cy, cw, ch, 14, COLOR_PANEL_BG);
+          draw_rrect(cx + 14, cy + 12, 4, 22, 2, COLOR_BLUE);
+          it.printf(cx + 26, cy + 23, id(font_20), COLOR_WHITE, TextAlign::CENTER_LEFT, "INDEX DE CONSOMMATION");
+          it.line(cx + 14, cy + 46, cx + cw - 14, cy + 46, COLOR_CARD_BORDER);
+
+          float hc_kwh = id(ha_linky_hc_kwh).state;
+          float hp_kwh = id(ha_linky_hp_kwh).state;
+
+          // Ligne Heures Pleines (HP)
+          draw_rrect(cx + 20, cy + 62, 54, 24, 6, COLOR_BLUE);
+          it.printf(cx + 47, cy + 74, id(font_16), COLOR_WHITE, TextAlign::CENTER, "HP");
+          char hp_buf[32] = "-- kWh";
+          if (!std::isnan(hp_kwh)) snprintf(hp_buf, sizeof(hp_buf), "%.1f kWh", hp_kwh);
+          it.printf(cx + 90, cy + 74, id(font_20), COLOR_WHITE, TextAlign::CENTER_LEFT, "%s", hp_buf);
+
+          // Ligne Heures Creuses (HC)
+          draw_rrect(cx + 20, cy + 100, 54, 24, 6, COLOR_CYAN);
+          it.printf(cx + 47, cy + 112, id(font_16), COLOR_PANEL_BG, TextAlign::CENTER, "HC");
+          char hc_buf[32] = "-- kWh";
+          if (!std::isnan(hc_kwh)) snprintf(hc_buf, sizeof(hc_buf), "%.1f kWh", hc_kwh);
+          it.printf(cx + 90, cy + 112, id(font_20), COLOR_WHITE, TextAlign::CENTER_LEFT, "%s", hc_buf);
+
+          // Total
+          float total_kwh = (std::isnan(hp_kwh) ? 0.0f : hp_kwh) + (std::isnan(hc_kwh) ? 0.0f : hc_kwh);
+          char tot_buf[48];
+          snprintf(tot_buf, sizeof(tot_buf), "Cumul Linky Total : %.0f kWh", total_kwh);
+          it.printf(cx + 20, cy + 144, id(font_16), COLOR_LIGHT_GRAY, TextAlign::CENTER_LEFT, "%s", tot_buf);
+        }
+
+        // --- 2. LIGNE INFÉRIEURE (y: 234 à 410, h: 176) ---
+        // C. Chauffage Tado (x: 24, w: 366)
+        {
+          int cx = 24, cy = 234, cw = 366, ch = 176;
+          draw_rrect(cx, cy, cw, ch, 14, COLOR_PANEL_BG);
+          draw_rrect(cx + 14, cy + 12, 4, 22, 2, COLOR_RED);
+          it.printf(cx + 26, cy + 23, id(font_20), COLOR_WHITE, TextAlign::CENTER_LEFT, "CHAUFFAGE TADO");
+          it.line(cx + 14, cy + 46, cx + cw - 14, cy + 46, COLOR_CARD_BORDER);
+
+          float heat_pct = id(ha_tado_heat_pct).state;
+          char h_buf[32] = "Demande : -- %";
+          if (!std::isnan(heat_pct)) snprintf(h_buf, sizeof(h_buf), "Demande globale : %.0f %%", heat_pct);
+          it.printf(cx + 20, cy + 76, id(font_20), (heat_pct > 0.0f) ? COLOR_RED : COLOR_GREEN, TextAlign::CENTER_LEFT, "%s", h_buf);
+
+          const char* h_stat = (heat_pct > 0.0f) ? "Brûleur actif" : "Chauffage en veille";
+          it.printf(cx + 20, cy + 110, id(font_16), COLOR_LIGHT_GRAY, TextAlign::CENTER_LEFT, "Statut : %s", h_stat);
+
+          draw_rrect(cx + 20, cy + 132, 326, 32, 8, COLOR_MID_GRAY);
+          it.printf(cx + cw / 2, cy + 148, id(font_16), COLOR_CYAN, TextAlign::CENTER, "Toucher pour ouvrir Tado ->");
+        }
+
+        // D. Équipements Secondaires (x: 410, w: 366)
+        {
+          int cx = 410, cy = 234, cw = 366, ch = 176;
+          draw_rrect(cx, cy, cw, ch, 14, COLOR_PANEL_BG);
+          draw_rrect(cx + 14, cy + 12, 4, 22, 2, COLOR_CYAN);
+          it.printf(cx + 26, cy + 23, id(font_20), COLOR_WHITE, TextAlign::CENTER_LEFT, "ÉQUIPEMENTS CONNECTÉS");
+          it.line(cx + 14, cy + 46, cx + cw - 14, cy + 46, COLOR_CARD_BORDER);
+
+          float p_portail = id(ha_portail_watt).state;
+          char w_buf[48];
+          snprintf(w_buf, sizeof(w_buf), "Portail & Moteurs : %.1f W", std::isnan(p_portail) ? 0.0f : p_portail);
+          it.printf(cx + 20, cy + 76, id(font_16), COLOR_LIGHT_GRAY, TextAlign::CENTER_LEFT, "%s", w_buf);
+
+          it.printf(cx + 20, cy + 104, id(font_16), COLOR_LIGHT_GRAY, TextAlign::CENTER_LEFT, "Éclairages Ext. : Actifs / Mesurés");
+          it.printf(cx + 20, cy + 132, id(font_16), COLOR_LIGHT_GRAY, TextAlign::CENTER_LEFT, "Alimentation Générale : 230 V Stable");
+        }
+      }
+
+      // =============================================================
+      // PAGE 3 : QUALITÉ DE L'AIR (INTÉRIEUR, EXTÉRIEUR, PURIFICATEUR, POLLENS)
+      // =============================================================
+      if (current_p == 3) {
+        // --- 1. LIGNE SUPÉRIEURE (y: 52 à 222, h: 170) ---
+        // A. Air Intérieur Maison (x: 24, w: 366)
+        {
+          int cx = 24, cy = 52, cw = 366, ch = 170;
+          draw_rrect(cx, cy, cw, ch, 14, COLOR_PANEL_BG);
+          draw_rrect(cx + 14, cy + 12, 4, 22, 2, COLOR_GREEN);
+          it.printf(cx + 26, cy + 23, id(font_20), COLOR_WHITE, TextAlign::CENTER_LEFT, "AIR INTÉRIEUR (MAISON)");
+          it.line(cx + 14, cy + 46, cx + cw - 14, cy + 46, COLOR_CARD_BORDER);
+
+          float pm25 = id(ha_air_pm25_in).state;
+          float cov = id(ha_air_cov_in).state;
+          float co = id(ha_air_co).state;
+          float t_in = id(ha_air_temp_in).state;
+          float h_in = id(ha_air_hum_in).state;
+
+          // Statut badge
+          draw_rrect(cx + 225, cy + 12, 125, 24, 6, COLOR_GREEN);
+          it.printf(cx + 287, cy + 24, id(font_16), COLOR_PANEL_BG, TextAlign::CENTER, "EXCELLENT");
+
+          char pm_buf[32] = "PM2.5 : --";
+          if (!std::isnan(pm25)) snprintf(pm_buf, sizeof(pm_buf), "PM2.5 : %.1f ug/m3", pm25);
+          it.printf(cx + 20, cy + 74, id(font_16), COLOR_WHITE, TextAlign::CENTER_LEFT, "%s", pm_buf);
+
+          char cov_buf[32] = "COV : --";
+          if (!std::isnan(cov)) snprintf(cov_buf, sizeof(cov_buf), "Indice COV : %.0f", cov);
+          it.printf(cx + 195, cy + 74, id(font_16), COLOR_WHITE, TextAlign::CENTER_LEFT, "%s", cov_buf);
+
+          char co_buf[32] = "CO : --";
+          if (!std::isnan(co)) snprintf(co_buf, sizeof(co_buf), "Monoxyde CO : %.2f ppm", co);
+          it.printf(cx + 20, cy + 110, id(font_16), COLOR_WHITE, TextAlign::CENTER_LEFT, "%s", co_buf);
+
+          char clim_buf[48] = "Ambiance : --";
+          if (!std::isnan(t_in) && !std::isnan(h_in)) snprintf(clim_buf, sizeof(clim_buf), "Entree : %.1f oC  •  %.0f %%", t_in, h_in);
+          it.printf(cx + 20, cy + 144, id(font_16), COLOR_LIGHT_GRAY, TextAlign::CENTER_LEFT, "%s", clim_buf);
+        }
+
+        // B. Air Extérieur Atmo & Copernicus (x: 410, w: 366)
+        {
+          int cx = 410, cy = 52, cw = 366, ch = 170;
+          draw_rrect(cx, cy, cw, ch, 14, COLOR_PANEL_BG);
+          draw_rrect(cx + 14, cy + 12, 4, 22, 2, COLOR_CYAN);
+          it.printf(cx + 26, cy + 23, id(font_20), COLOR_WHITE, TextAlign::CENTER_LEFT, "AIR EXTÉRIEUR (ATMO)");
+          it.line(cx + 14, cy + 46, cx + cw - 14, cy + 46, COLOR_CARD_BORDER);
+
+          float aqi = id(ha_air_aqi_ext).state;
+          float pm25_ext = id(ha_air_pm25_ext).state;
+          float pollen = id(ha_air_pollen_ext).state;
+
+          draw_rrect(cx + 245, cy + 12, 105, 24, 6, COLOR_BLUE);
+          it.printf(cx + 297, cy + 24, id(font_16), COLOR_WHITE, TextAlign::CENTER, "BON / MOYEN");
+
+          char aqi_buf[32] = "AQI EU : --";
+          if (!std::isnan(aqi)) snprintf(aqi_buf, sizeof(aqi_buf), "Indice AQI Europe : %.0f", aqi);
+          it.printf(cx + 20, cy + 74, id(font_16), COLOR_WHITE, TextAlign::CENTER_LEFT, "%s", aqi_buf);
+
+          char pm_ext_buf[48] = "Particules PM2.5 : --";
+          if (!std::isnan(pm25_ext)) snprintf(pm_ext_buf, sizeof(pm_ext_buf), "PM2.5 Exterieur : %.1f ug/m3", pm25_ext);
+          it.printf(cx + 20, cy + 110, id(font_16), COLOR_LIGHT_GRAY, TextAlign::CENTER_LEFT, "%s", pm_ext_buf);
+
+          char pol_buf[48] = "Risque Pollens : Tres Faible (1/5)";
+          if (!std::isnan(pollen)) snprintf(pol_buf, sizeof(pol_buf), "Pollens globaux : Niveau %.0f/5", pollen);
+          it.printf(cx + 20, cy + 144, id(font_16), COLOR_GREEN, TextAlign::CENTER_LEFT, "%s", pol_buf);
+        }
+
+        // --- 2. LIGNE INFÉRIEURE (y: 234 à 410, h: 176) ---
+        // C. Purificateur d'Air (x: 24, w: 366)
+        {
+          int cx = 24, cy = 234, cw = 366, ch = 176;
+          draw_rrect(cx, cy, cw, ch, 14, COLOR_PANEL_BG);
+          draw_rrect(cx + 14, cy + 12, 4, 22, 2, Color(168, 85, 247));
+          it.printf(cx + 26, cy + 23, id(font_20), COLOR_WHITE, TextAlign::CENTER_LEFT, "PURIFICATEUR (ENTRÉE)");
+          it.line(cx + 14, cy + 46, cx + cw - 14, cy + 46, COLOR_CARD_BORDER);
+
+          bool is_on = id(ha_purifier_fan).has_state() && id(ha_purifier_fan).state;
+          bool filter_bad = id(ha_purifier_filter).has_state() && id(ha_purifier_filter).state;
+
+          it.printf(cx + 20, cy + 76, id(font_20), is_on ? COLOR_GREEN : COLOR_DARK_GRAY, TextAlign::CENTER_LEFT,
+                    "Statut : %s", is_on ? "EN MARCHE" : "ARRÊTÉ");
+
+          it.printf(cx + 20, cy + 108, id(font_16), filter_bad ? COLOR_ORANGE : COLOR_GREEN, TextAlign::CENTER_LEFT,
+                    "Filtre HEPA : %s", filter_bad ? "A remplacer" : "Etat optimal (OK)");
+
+          // Bouton interactif toggle purificateur
+          draw_rrect(cx + 20, cy + 130, 326, 34, 8, is_on ? COLOR_GREEN : COLOR_MID_GRAY);
+          it.printf(cx + cw / 2, cy + 147, id(font_16), is_on ? COLOR_PANEL_BG : COLOR_WHITE, TextAlign::CENTER,
+                    is_on ? "TOUCHER POUR ÉTEINDRE" : "TOUCHER POUR ALLUMER");
+        }
+
+        // D. Détails Pollens (x: 410, w: 366)
+        {
+          int cx = 410, cy = 234, cw = 366, ch = 176;
+          draw_rrect(cx, cy, cw, ch, 14, COLOR_PANEL_BG);
+          draw_rrect(cx + 14, cy + 12, 4, 22, 2, COLOR_GREEN);
+          it.printf(cx + 26, cy + 23, id(font_20), COLOR_WHITE, TextAlign::CENTER_LEFT, "ALLERGIES & POLLENS");
+          it.line(cx + 14, cy + 46, cx + cw - 14, cy + 46, COLOR_CARD_BORDER);
+
+          it.printf(cx + 20, cy + 74, id(font_16), COLOR_WHITE, TextAlign::CENTER_LEFT, "Graminées : Faible");
+          it.printf(cx + 195, cy + 74, id(font_16), COLOR_WHITE, TextAlign::CENTER_LEFT, "Bouleau : Nul");
+
+          it.printf(cx + 20, cy + 108, id(font_16), COLOR_WHITE, TextAlign::CENTER_LEFT, "Ambroisie : Nul");
+          it.printf(cx + 195, cy + 108, id(font_16), COLOR_WHITE, TextAlign::CENTER_LEFT, "Armoise : Faible");
+
+          it.printf(cx + 20, cy + 144, id(font_16), COLOR_LIGHT_GRAY, TextAlign::CENTER_LEFT, "Source : Réseau National de Surveillance");
+        }
+      }
+
+        auto draw_train_card = [&](int cx, int cy, int cw, int ch,
+                                   const char* title, const char* subtitle,
+                                   const std::string& raw_time, int minutes,
+                                   const std::string& track, const std::string& status,
+                                   const std::string& mission, bool is_night) {
+          // 1. Fond arrondi de la tuile
+          draw_rrect(cx, cy, cw, ch, 14, COLOR_PANEL_BG);
+
+          // 2. Trait d'accentuation couleur
+          Color accent_col = is_night ? COLOR_ORANGE : (cx < 400 ? COLOR_CYAN : COLOR_BLUE);
+          draw_rrect(cx + 14, cy + 12, 4, 22, 2, accent_col);
+
+          // 3. Titre de la destination
+          it.printf(cx + 26, cy + 23, id(font_20), COLOR_WHITE, TextAlign::CENTER_LEFT, "%s", title);
+
+          // 4. Badge Voie en haut à droite
+          std::string trk_txt = (track.empty() || track == "unavailable" || track == "unknown") ? "-" : track;
+          char track_buf[24];
+          if (trk_txt.find("Voie") != std::string::npos || trk_txt.find("VOIE") != std::string::npos) {
+            snprintf(track_buf, sizeof(track_buf), "%s", trk_txt.c_str());
+          } else {
+            snprintf(track_buf, sizeof(track_buf), "VOIE %s", trk_txt.c_str());
+          }
+          draw_rrect(cx + cw - 95, cy + 11, 80, 24, 6, COLOR_MID_GRAY);
+          it.printf(cx + cw - 55, cy + 23, id(font_16), accent_col, TextAlign::CENTER, "%s", track_buf);
+
+          // 5. Sous-titre / Ligne & Mission
+          char sub_buf[64];
+          std::string msn = (mission.empty() || mission == "unavailable" || mission == "unknown" || mission == "TRAIN" || mission == "-") ? "" : mission;
+          if (!msn.empty()) {
+            snprintf(sub_buf, sizeof(sub_buf), "%s • %s", subtitle, msn.c_str());
+          } else {
+            snprintf(sub_buf, sizeof(sub_buf), "%s", subtitle);
+          }
+          it.printf(cx + 26, cy + 47, id(font_16), COLOR_DARK_GRAY, TextAlign::CENTER_LEFT, "%s", sub_buf);
+
+          // 6. Ligne séparatrice fine
+          it.line(cx + 14, cy + 62, cx + cw - 14, cy + 62, COLOR_CARD_BORDER);
+
+          // 7. Grande heure de départ
+          std::string t_str = format_time_str(raw_time);
+          it.printf(cx + 22, cy + 98, id(font_32), is_night ? COLOR_ORANGE : COLOR_WHITE, TextAlign::CENTER_LEFT, "%s", t_str.c_str());
+
+          // 8. Badge Compte à rebours
+          char cd_str[32] = "-- min";
+          Color cd_bg = COLOR_MID_GRAY;
+          Color cd_fg = COLOR_LIGHT_GRAY;
+
+          if (minutes != -999 && t_str != "--:--") {
+            if (minutes < 0) {
+              snprintf(cd_str, sizeof(cd_str), "Parti");
+              cd_bg = COLOR_MID_GRAY;
+              cd_fg = COLOR_DARK_GRAY;
+            } else if (minutes <= 1) {
+              snprintf(cd_str, sizeof(cd_str), "A QUAI");
+              cd_bg = COLOR_RED_DIM;
+              cd_fg = COLOR_RED;
+            } else if (minutes <= 3) {
+              snprintf(cd_str, sizeof(cd_str), "IMMINENT");
+              cd_bg = COLOR_RED_DIM;
+              cd_fg = COLOR_RED;
+            } else if (minutes <= 7) {
+              snprintf(cd_str, sizeof(cd_str), "%d min", minutes);
+              cd_bg = COLOR_ORANGE_DIM;
+              cd_fg = COLOR_ORANGE;
+            } else if (minutes < 60) {
+              snprintf(cd_str, sizeof(cd_str), "%d min", minutes);
+              cd_bg = is_night ? COLOR_ORANGE_DIM : COLOR_GREEN_DIM;
+              cd_fg = is_night ? COLOR_ORANGE : COLOR_GREEN;
+            } else {
+              int h = minutes / 60;
+              int m = minutes % 60;
+              snprintf(cd_str, sizeof(cd_str), "%dh%02d", h, m);
+              cd_bg = is_night ? COLOR_ORANGE_DIM : COLOR_MID_GRAY;
+              cd_fg = is_night ? COLOR_ORANGE : COLOR_CYAN;
+            }
+          } else {
+            snprintf(cd_str, sizeof(cd_str), "Attente");
+          }
+
+          draw_rrect(cx + cw - 124, cy + 82, 110, 32, 16, cd_bg);
+          it.printf(cx + cw - 69, cy + 98, id(font_16), cd_fg, TextAlign::CENTER, "%s", cd_str);
+
+          // 9. Statut ponctualité & information
+          std::string st_txt = (status.empty() || status == "unavailable" || status == "unknown") ? "Trafic normal" : status;
+          Color st_col = COLOR_LIGHT_GRAY;
+          if (st_txt.find("Retard") != std::string::npos || st_txt.find("retard") != std::string::npos) {
+            st_col = COLOR_RED;
+          } else if (st_txt.find("heure") != std::string::npos || st_txt.find("Heure") != std::string::npos) {
+            st_col = COLOR_GREEN;
+          } else if (is_night) {
+            st_col = COLOR_ORANGE;
+          }
+
+          it.filled_circle(cx + 24, cy + 143, 4, st_col);
+          it.printf(cx + 34, cy + 143, id(font_16), st_col, TextAlign::CENTER_LEFT, "%s", st_txt.c_str());
+        };
+
+        // Données capteurs Train 1 Paris
+        bool has_p1 = id(ha_train_p1_min).has_state() && !std::isnan(id(ha_train_p1_min).state);
+        int min_p1 = has_p1 ? (int)id(ha_train_p1_min).state : -999;
+        draw_train_card(40, 58, 346, 168,
+                        "PARIS NORD (1er)", "Ligne H • Enghien -> Paris",
+                        id(ha_train_p1_time).state, min_p1,
+                        id(ha_train_p1_track).state, id(ha_train_p1_status).state,
+                        id(ha_train_p1_mission).state, false);
+
+        // Données capteurs Train 2 Paris
+        bool has_p2 = id(ha_train_p2_min).has_state() && !std::isnan(id(ha_train_p2_min).state);
+        int min_p2 = has_p2 ? (int)id(ha_train_p2_min).state : -999;
+        draw_train_card(414, 58, 346, 168,
+                        "PARIS NORD (2e)", "Ligne H • Enghien -> Paris",
+                        id(ha_train_p2_time).state, min_p2,
+                        id(ha_train_p2_track).state, id(ha_train_p2_status).state,
+                        id(ha_train_p2_mission).state, false);
+
+        // Données capteurs Train Ermont - Eaubonne
+        bool has_ea = id(ha_train_ea_min).has_state() && !std::isnan(id(ha_train_ea_min).state);
+        int min_ea = has_ea ? (int)id(ha_train_ea_min).state : -999;
+        draw_train_card(40, 242, 346, 168,
+                        "ERMONT - EAUBONNE", "Ligne H • Enghien -> Ermont",
+                        id(ha_train_ea_time).state, min_ea,
+                        id(ha_train_ea_track).state, id(ha_train_ea_status).state,
+                        id(ha_train_ea_mission).state, false);
+
+        // Données capteurs Dernier Retour Paris (Nocturne 00h-02h)
+        bool has_ret = id(ha_train_ret_min).has_state() && !std::isnan(id(ha_train_ret_min).state);
+        int min_ret = has_ret ? (int)id(ha_train_ret_min).state : -999;
+        std::string ret_stat = id(ha_train_ret_status).state;
+        if (ret_stat.empty() || ret_stat == "unavailable" || ret_stat == "unknown" || ret_stat == "Trafic normal") {
+          ret_stat = "Nocturne (00h - 02h)";
+        }
+        draw_train_card(414, 242, 346, 168,
+                        "DERNIER RETOUR PARIS", "Paris Nord -> Enghien (Nuit)",
+                        id(ha_train_ret_time).state, min_ret,
+                        id(ha_train_ret_track).state, ret_stat,
+                        id(ha_train_ret_mission).state, true);
+      }
+
+      // =============================================================
+      // PAGE 3 : ARROSAGE AUTOMATIQUE (5 ZONES & CYCLES)
+      // =============================================================
+      if (current_p == 5) {
+        // --- 1. LIGNE SUPÉRIEURE : 4 CARTES SYNTHÈSE CAPTEURS (y: 52 à 120) ---
+        // A. Pluie
+        bool is_rain = id(ha_arr_pluie).has_state() && id(ha_arr_pluie).state;
+        draw_rrect(24, 52, 180, 68, 12, COLOR_PANEL_BG);
+        draw_rrect(36, 62, 4, 20, 2, is_rain ? COLOR_BLUE : COLOR_GREEN);
+        it.printf(46, 72, id(font_16), COLOR_WHITE, TextAlign::CENTER_LEFT, "PLUIE");
+        it.printf(114, 98, id(font_20), is_rain ? COLOR_BLUE : COLOR_GREEN, TextAlign::CENTER, is_rain ? "PLUIE" : "SEC");
+
+        // B. Sol Avant
+        draw_rrect(214, 52, 180, 68, 12, COLOR_PANEL_BG);
+        draw_rrect(226, 62, 4, 20, 2, COLOR_CYAN);
+        it.printf(236, 72, id(font_16), COLOR_WHITE, TextAlign::CENTER_LEFT, "SOL AVANT");
+        float sol_av = id(ha_arr_sol_av).state;
+        char sol_av_buf[24] = "-- %";
+        if (!std::isnan(sol_av)) snprintf(sol_av_buf, sizeof(sol_av_buf), "%.0f %%", sol_av);
+        it.printf(304, 98, id(font_20), COLOR_CYAN, TextAlign::CENTER, "%s", sol_av_buf);
+
+        // C. Sol Arrière
+        draw_rrect(404, 52, 180, 68, 12, COLOR_PANEL_BG);
+        draw_rrect(416, 62, 4, 20, 2, COLOR_CYAN);
+        it.printf(426, 72, id(font_16), COLOR_WHITE, TextAlign::CENTER_LEFT, "SOL ARRIERE");
+        float sol_ar = id(ha_arr_sol_ar).state;
+        char sol_ar_buf[24] = "-- %";
+        if (!std::isnan(sol_ar)) snprintf(sol_ar_buf, sizeof(sol_ar_buf), "%.0f %%", sol_ar);
+        it.printf(494, 98, id(font_20), COLOR_CYAN, TextAlign::CENTER, "%s", sol_ar_buf);
+
+        // D. Statut Système
+        bool is_arr_act = id(ha_arrosage_active).has_state() && id(ha_arrosage_active).state;
+        draw_rrect(594, 52, 182, 68, 12, COLOR_PANEL_BG);
+        draw_rrect(606, 62, 4, 20, 2, is_arr_act ? COLOR_GREEN : COLOR_LIGHT_GRAY);
+        it.printf(616, 72, id(font_16), COLOR_WHITE, TextAlign::CENTER_LEFT, "SYSTEME");
+        it.printf(685, 98, id(font_20), is_arr_act ? COLOR_GREEN : COLOR_LIGHT_GRAY, TextAlign::CENTER, is_arr_act ? "ACTIF" : "VEILLE");
+
+        // --- 2. LIGNE CENTRALE : LES 5 ZONES D'ARROSAGE (y: 130 à 290) ---
+        struct ZoneData {
+          const char* num;
+          const char* title;
+          bool state;
+        };
+
+        ZoneData zones[5] = {
+          {"1", "Jardin Droit",  id(ha_arr_z1).has_state() && id(ha_arr_z1).state},
+          {"2", "Jardin Gauche", id(ha_arr_z2).has_state() && id(ha_arr_z2).state},
+          {"3", "Bordures",      id(ha_arr_z3).has_state() && id(ha_arr_z3).state},
+          {"4", "Potager",       id(ha_arr_z4).has_state() && id(ha_arr_z4).state},
+          {"5", "Bambous",       id(ha_arr_z5).has_state() && id(ha_arr_z5).state}
+        };
+
+        for (int i = 0; i < 5; i++) {
+          int zx = 24 + i * 154;
+          int zy = 130;
+          int zw = 142;
+          int zh = 160;
+
+          bool z_on = zones[i].state;
+          Color z_col = z_on ? COLOR_GREEN : COLOR_LIGHT_GRAY;
+          Color z_dim = z_on ? COLOR_GREEN_DIM : COLOR_PANEL_BG;
+
+          draw_rrect(zx, zy, zw, zh, 12, z_dim);
+          draw_rrect(zx + 10, zy + 12, 4, 20, 2, z_on ? COLOR_GREEN : COLOR_DARK_GRAY);
+          it.printf(zx + 20, zy + 22, id(font_16), COLOR_WHITE, TextAlign::CENTER_LEFT, "Zone %s", zones[i].num);
+
+          it.printf(zx + zw / 2, zy + 58, id(font_16), is_arr_act && z_on ? COLOR_GREEN : COLOR_WHITE, TextAlign::CENTER, "%s", zones[i].title);
+
+          draw_rrect(zx + 14, zy + 86, zw - 28, 36, 8, z_on ? COLOR_GREEN_DIM : COLOR_MID_GRAY);
+          it.printf(zx + zw / 2, zy + 104, id(font_16), z_col, TextAlign::CENTER, z_on ? "EN COURS" : "REPOS");
+
+          it.printf(zx + zw / 2, zy + 140, id(font_16), COLOR_DARK_GRAY, TextAlign::CENTER, "Toucher ON/OFF");
+        }
+
+        // --- 3. LIGNE INFÉRIEURE : COMMANDES RAPIDES (y: 304 à 416) ---
+        // Bouton 1: Cycle 5 min
+        draw_rrect(24, 308, 240, 104, 14, COLOR_PANEL_BG);
+        draw_rrect(38, 320, 4, 22, 2, COLOR_CYAN);
+        it.printf(48, 331, id(font_20), COLOR_CYAN, TextAlign::CENTER_LEFT, "CYCLE 5 MIN");
+        it.printf(144, 368, id(font_16), COLOR_LIGHT_GRAY, TextAlign::CENTER, "Toutes les zones");
+        it.printf(144, 394, id(font_16), COLOR_DARK_GRAY, TextAlign::CENTER, "Lancer le cycle");
+
+        // Bouton 2: Cycle 10 min
+        draw_rrect(280, 308, 240, 104, 14, COLOR_PANEL_BG);
+        draw_rrect(294, 320, 4, 22, 2, COLOR_BLUE);
+        it.printf(304, 331, id(font_20), COLOR_BLUE, TextAlign::CENTER_LEFT, "CYCLE 10 MIN");
+        it.printf(400, 368, id(font_16), COLOR_LIGHT_GRAY, TextAlign::CENTER, "Toutes les zones");
+        it.printf(400, 394, id(font_16), COLOR_DARK_GRAY, TextAlign::CENTER, "Lancer le cycle");
+
+        // Bouton 3: Arrêt d'urgence
+        draw_rrect(536, 308, 240, 104, 14, COLOR_RED_DIM);
+        draw_rrect(550, 320, 4, 22, 2, COLOR_RED);
+        it.printf(560, 331, id(font_20), COLOR_RED, TextAlign::CENTER_LEFT, "ARRET D'URGENCE");
+        it.printf(656, 368, id(font_16), COLOR_WHITE, TextAlign::CENTER, "Couper l'arrosage");
+        it.printf(656, 394, id(font_16), COLOR_LIGHT_GRAY, TextAlign::CENTER, "Arret immediat");
+      }
+
+      // =============================================================
+      // PAGE 4 : ALARME (DÉTAILS & CONTRÔLE)
+      // =============================================================
+      if (current_p == 6) {
+        // 1. Badge Central Arrondi
+        draw_rrect(40, 60, 720, 80, 40, banner_bg);
+        it.printf(400, 92, id(font_32), banner_text, TextAlign::CENTER, "%s", state_title);
+        it.printf(400, 122, id(font_16), COLOR_LIGHT_GRAY, TextAlign::CENTER, "%s", state_sub);
+
+        // 2. Tuiles Arrondies (Centrage absolu texte)
+        bool open_known = id(ha_openings).has_state();
+        bool open_st    = open_known && id(ha_openings).state;
+        Color col_open  = !open_known ? COLOR_DARK_GRAY : (open_st ? COLOR_RED : COLOR_GREEN);
+        draw_rrect(40, 155, 172, 60, 10, COLOR_PANEL_BG);
+        it.printf(126, 175, id(font_16), col_open, TextAlign::CENTER, "OUVERTURES");
+        it.printf(126, 195, id(font_16), COLOR_LIGHT_GRAY, TextAlign::CENTER, !open_known ? "Inconnu" : (open_st ? "Ouvert" : "Fermees"));
+
+        bool mot_known = id(ha_motions).has_state();
+        bool mot_st    = mot_known && id(ha_motions).state;
+        Color col_mot  = !mot_known ? COLOR_DARK_GRAY : (mot_st ? COLOR_RED : COLOR_GREEN);
+        draw_rrect(222, 155, 172, 60, 10, COLOR_PANEL_BG);
+        it.printf(308, 175, id(font_16), col_mot, TextAlign::CENTER, "MOUVEMENTS");
+        it.printf(308, 195, id(font_16), COLOR_LIGHT_GRAY, TextAlign::CENTER, !mot_known ? "Inconnu" : (mot_st ? "Detecte" : "Aucun"));
+
+        draw_rrect(404, 155, 172, 60, 10, COLOR_PANEL_BG);
+        it.printf(490, 175, id(font_16), COLOR_CYAN, TextAlign::CENTER, "SECURITE 24/7");
+        it.printf(490, 195, id(font_16), COLOR_LIGHT_GRAY, TextAlign::CENTER, "Protege");
+
+        draw_rrect(586, 155, 174, 60, 10, COLOR_PANEL_BG);
+        it.printf(673, 175, id(font_16), COLOR_CYAN, TextAlign::CENTER, "OCCUPATION");
+        it.printf(673, 195, id(font_16), COLOR_LIGHT_GRAY, TextAlign::CENTER, "Surveillance");
+
+        // 3. Zone Alerte ou Infos
+        if (alarm_st == "triggered" || alarm_st == "pending" || id(screen_alert_active)) {
+          draw_rrect(40, 225, 720, 50, 10, COLOR_RED_DIM);
+          it.printf(400, 240, id(font_20), COLOR_RED, TextAlign::CENTER, "ALERTE DETECTEE");
+          std::string last_ev = id(ha_alarm_journal).state;
+          if (last_ev.empty() || last_ev == "unavailable") last_ev = "Intrusion";
+          it.printf(400, 260, id(font_16), COLOR_WHITE, TextAlign::CENTER, "%s", last_ev.c_str());
+        }
+
+        // 4. Boutons Pilules Arrondis (Commandes)
+        draw_rrect(40, 280, 230, 55, 27, COLOR_PANEL_BG);
+        it.printf(155, 307, id(font_20), COLOR_WHITE, TextAlign::CENTER, "Armement Total");
+
+        draw_rrect(285, 280, 230, 55, 27, COLOR_PANEL_BG);
+        it.printf(400, 307, id(font_20), COLOR_WHITE, TextAlign::CENTER, "Partiel (Nuit)");
+
+        draw_rrect(530, 280, 230, 55, 27, COLOR_WHITE);
+        it.printf(645, 307, id(font_20), Color(20, 25, 35), TextAlign::CENTER, "Desarmer");
+
+        // 5. Bouton SOS Panique
+        Color sos_col = id(sos_confirm_active) ? Color(255, 60, 60) : COLOR_RED;
+        draw_rrect(40, 355, 720, 50, 25, sos_col);
+        it.printf(400, 380, id(font_20), COLOR_WHITE, TextAlign::CENTER, id(sos_confirm_active) ? "CONFIRMER L'ENVOI DU SOS PANIQUE ?" : "SOS PANIQUE IMMEDIAT");
+
+        if (!id(keypad_message).empty()) {
+          it.printf(400, 415, id(font_16), COLOR_ORANGE, TextAlign::CENTER, "%s", id(keypad_message).c_str());
+        }
+      }
+
+      // =============================================================
+      // PAGE 5 : CAPTEURS
+      // =============================================================
+      if (current_p == 7) {
+        it.printf(400, 75, id(font_28), COLOR_CYAN, TextAlign::CENTER, "EQUIPEMENTS & CAPTEURS");
+        draw_rrect(40, 105, 720, 290, 15, COLOR_PANEL_BG);
+
+        it.printf(70, 135, id(font_20), COLOR_LIGHT_GRAY, TextAlign::CENTER_LEFT, "Mode actuel :");
+        it.printf(320, 135, id(font_20), COLOR_CYAN, TextAlign::CENTER_LEFT, "%s", state_title);
+
+        std::string last_u = id(ha_alarm_last_user).state;
+        it.printf(70, 175, id(font_20), COLOR_LIGHT_GRAY, TextAlign::CENTER_LEFT, "Dernier utilisateur :");
+        it.printf(320, 175, id(font_20), COLOR_WHITE, TextAlign::CENTER_LEFT, "%s", last_u.c_str());
+
+        std::string j2 = id(ha_alarm_journal).state;
+        if (j2.length() > 42) j2 = j2.substr(0, 39) + "...";
+        it.printf(70, 215, id(font_20), COLOR_LIGHT_GRAY, TextAlign::CENTER_LEFT, "Journal :");
+        it.printf(320, 215, id(font_20), COLOR_WHITE, TextAlign::CENTER_LEFT, "%s", j2.c_str());
+
+        it.printf(70, 255, id(font_20), COLOR_LIGHT_GRAY, TextAlign::CENTER_LEFT, "Version firmware :");
+        it.printf(320, 255, id(font_20), COLOR_DARK_GRAY, TextAlign::CENTER_LEFT, "${project_version}");
+
+        if (id(alarm_bypassed)) {
+          it.printf(70, 335, id(font_20), COLOR_ORANGE, TextAlign::CENTER_LEFT, "Statut armement :");
+          it.printf(320, 335, id(font_20), COLOR_ORANGE, TextAlign::CENTER_LEFT, "Partiel (capteurs isoles)");
+        } else {
+          char rssi_str[32] = "N/A";
+          if (!std::isnan(id(wifi_rssi).state)) snprintf(rssi_str, sizeof(rssi_str), "%.0f dBm", id(wifi_rssi).state);
+          it.printf(70, 335, id(font_20), COLOR_LIGHT_GRAY, TextAlign::CENTER_LEFT, "Signal Wi-Fi :");
+          it.printf(320, 335, id(font_20), COLOR_GREEN, TextAlign::CENTER_LEFT, "%s", rssi_str);
+        }
+      }
+
+      // =============================================================
+      // PAGE 6 : SYSTÈME & REGLAGES
+      // =============================================================
+      if (current_p == 8) {
+        it.printf(400, 75, id(font_28), COLOR_CYAN, TextAlign::CENTER, "SYSTEME & REGLAGES");
+        it.printf(400, 165, id(font_20), COLOR_LIGHT_GRAY, TextAlign::CENTER, "LUMINOSITE DE L'ECRAN");
+
+        const char* bright_labels[] = {"25%", "50%", "75%", "100%"};
+        int bright_xs[] = {50, 210, 370, 530};
+        for (int i = 0; i < 4; i++) {
+          Color bg = (id(brightness_level) == i) ? COLOR_BLUE : COLOR_PANEL_BG;
+          draw_rrect(bright_xs[i], 190, 150, 55, 27, bg);
+          it.printf(bright_xs[i] + 75, 217, id(font_20), (id(brightness_level) == i) ? COLOR_WHITE : COLOR_CYAN, TextAlign::CENTER, "%s", bright_labels[i]);
+        }
+
+        it.printf(400, 290, id(font_16), COLOR_DARK_GRAY, TextAlign::CENTER, "Domolink Alarm v${project_version}");
+
+        Color reboot_bg = id(reboot_confirm_active) ? COLOR_RED : COLOR_PANEL_BG;
+        draw_rrect(250, 320, 300, 55, 27, reboot_bg);
+        it.printf(400, 347, id(font_20), id(reboot_confirm_active) ? COLOR_WHITE : COLOR_ORANGE, TextAlign::CENTER, id(reboot_confirm_active) ? "CONFIRMER REBOOT ?" : "REDEMARRER");
+      }
+
+      // =============================================================
+      // BARRE DE NAVIGATION (y: 425-480, 7 ONGLETS DE 114PX)
+      // =============================================================
+      it.filled_rectangle(0, 425, 800, 55, COLOR_PANEL_BG);
+      it.line(0, 425, 800, 425, COLOR_CARD_BORDER);
+      it.line(114, 425, 114, 480, COLOR_CARD_BORDER);
+      it.line(228, 425, 228, 480, COLOR_CARD_BORDER);
+      it.line(342, 425, 342, 480, COLOR_CARD_BORDER);
+      it.line(456, 425, 456, 480, COLOR_CARD_BORDER);
+      it.line(570, 425, 570, 480, COLOR_CARD_BORDER);
+      it.line(684, 425, 684, 480, COLOR_CARD_BORDER);
+
+      // Onglet 0: Maison
+      if (current_p == 0) it.filled_rectangle(0, 425, 114, 55, COLOR_MID_GRAY);
+      it.printf(57, 452, id(font_16), current_p == 0 ? COLOR_CYAN : COLOR_DARK_GRAY, TextAlign::CENTER, "Maison");
+
+      // Onglet 1: Tado
+      if (current_p == 1) it.filled_rectangle(114, 425, 114, 55, COLOR_MID_GRAY);
+      it.printf(171, 452, id(font_16), current_p == 1 ? COLOR_CYAN : COLOR_DARK_GRAY, TextAlign::CENTER, "Tado");
+
+      // Onglet 2: Trains
+      if (current_p == 2) it.filled_rectangle(228, 425, 114, 55, COLOR_MID_GRAY);
+      it.printf(285, 452, id(font_16), current_p == 2 ? COLOR_CYAN : COLOR_DARK_GRAY, TextAlign::CENTER, "Trains");
+
+      // Onglet 3: Arrosage
+      if (current_p == 3) it.filled_rectangle(342, 425, 114, 55, COLOR_MID_GRAY);
+      it.printf(399, 452, id(font_16), current_p == 3 ? COLOR_CYAN : COLOR_DARK_GRAY, TextAlign::CENTER, "Arrosage");
+
+      // Onglet 4: Alarme
+      if (current_p == 4) it.filled_rectangle(456, 425, 114, 55, COLOR_MID_GRAY);
+      it.printf(513, 452, id(font_16), current_p == 4 ? COLOR_CYAN : COLOR_DARK_GRAY, TextAlign::CENTER, "Alarme");
+
+      // Onglet 5: Capteurs
+      if (current_p == 5) it.filled_rectangle(570, 425, 114, 55, COLOR_MID_GRAY);
+      it.printf(627, 452, id(font_16), current_p == 5 ? COLOR_CYAN : COLOR_DARK_GRAY, TextAlign::CENTER, "Capteurs");
+
+      // Onglet 6: Système
+      if (current_p == 6) it.filled_rectangle(684, 425, 116, 55, COLOR_MID_GRAY);
+      it.printf(742, 452, id(font_16), current_p == 6 ? COLOR_CYAN : COLOR_DARK_GRAY, TextAlign::CENTER, "Système");
+
+      // =============================================================
+      // POPIN : CLAVIER PIN ESCAMOTABLE (Z-Index MAX)
+      // =============================================================
+      if (id(pin_modal_active)) {
+        // Ombre portée sombre sans canal alpha blanc opaque
+        it.filled_rectangle(0, 0, 800, 480, Color(0, 0, 0, 180));
+        draw_rrect(220, 30, 360, 380, 15, COLOR_PANEL_BG);
+        it.printf(400, 55, id(font_20), COLOR_WHITE, TextAlign::CENTER, "ENTRER LE PIN");
+
+        draw_rrect(530, 40, 35, 35, 17, COLOR_MID_GRAY);
+        it.printf(547, 57, id(font_16), COLOR_WHITE, TextAlign::CENTER, "X");
+
+        int dot_start = 400 - (4 * 16);
+        for (int d = 0; d < 8; d++) {
+          int dx = dot_start + d * 32;
+          if (d < id(pin_length)) it.filled_circle(dx, 85, 7, COLOR_CYAN);
+          else it.circle(dx, 85, 7, COLOR_MID_GRAY);
+        }
+
+        const int kw = 90;
+        const int kh = 55;
+        const int kx0 = 245;
+        const int ky0 = 110;
+        const char* k_labels[4][3] = { {"1","2","3"}, {"4","5","6"}, {"7","8","9"}, {"C","0","OK"} };
+
+        for (int r = 0; r < 4; r++) {
+          for (int c = 0; c < 3; c++) {
+            int kx = kx0 + c * 105;
+            int ky = ky0 + r * 70;
+
+            Color bg_k = COLOR_MID_GRAY; Color tx_k = COLOR_WHITE;
+            if (r == 3 && c == 0) { bg_k = COLOR_RED_DIM; tx_k = COLOR_RED; }
+            else if (r == 3 && c == 2) { bg_k = COLOR_GREEN_DIM; tx_k = COLOR_GREEN; }
+
+            draw_rrect(kx, ky, kw, kh, 27, bg_k);
+            it.printf(kx + kw / 2, ky + kh / 2, id(font_24), tx_k, TextAlign::CENTER, "%s", k_labels[r][c]);
+          }
+        }
+      }
+
+      // =============================================================
+      // POPIN : AVERTISSEMENT OUVERTURES (Z-Index MAX 2)
+      // =============================================================
+      if (id(bypass_warning_active)) {
+        it.filled_rectangle(0, 0, 800, 480, Color(0, 0, 0, 180));
+        draw_rrect(70, 70, 660, 310, 15, COLOR_PANEL_BG);
+        it.printf(400, 110, id(font_28), COLOR_ORANGE, TextAlign::CENTER, "ATTENTION : CAPTEURS");
+        it.printf(400, 160, id(font_20), COLOR_WHITE, TextAlign::CENTER, "Souhaitez vous forcer l'activation de l'alarme,");
+        it.printf(400, 190, id(font_20), COLOR_WHITE, TextAlign::CENTER, "et isoler les capteurs ?");
+
+        draw_rrect(120, 280, 250, 65, 32, COLOR_MID_GRAY);
+        it.printf(245, 312, id(font_24), COLOR_WHITE, TextAlign::CENTER, "Annuler");
+
+        draw_rrect(430, 280, 250, 65, 32, COLOR_ORANGE);
+        it.printf(555, 312, id(font_24), COLOR_WHITE, TextAlign::CENTER, "OK");
+      }
 
 # =============================================================================
-#  RÉTROÉCLAIRAGE
+#  PÉRIPHÉRIQUES ET HOME ASSISTANT
 # =============================================================================
 output:
   - platform: ledc
@@ -908,87 +2655,757 @@ light:
     id: display_backlight
     restore_mode: ALWAYS_ON
 
-# =============================================================================
-#  HORLOGE HOME ASSISTANT
-# =============================================================================
 time:
   - platform: homeassistant
     id: ha_time
 
-# =============================================================================
-#  CAPTEURS & ENTITÉS HOME ASSISTANT
-# =============================================================================
 sensor:
   - platform: wifi_signal
+    name: "${friendly_name} Signal WiFi"
     id: wifi_rssi
-    internal: true
     update_interval: 15s
-
   - platform: uptime
     name: "${friendly_name} Uptime"
     id: uptime_sensor
     update_interval: 60s
+  - platform: debug
+    free:
+      name: "Heap libre"
+    loop_time:
+      name: "Loop time max"
+
+  # --- DOMOLINK TRANSPORT (MINUTES DECOMPTE) ---
+  - platform: homeassistant
+    name: "Train Paris 1 Minutes"
+    id: ha_train_p1_min
+    entity_id: ${ha_train_paris_1}
+    attribute: minutes_remaining
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Train Paris 2 Minutes"
+    id: ha_train_p2_min
+    entity_id: ${ha_train_paris_2}
+    attribute: minutes_remaining
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Train Ermont 1 Minutes"
+    id: ha_train_ea_min
+    entity_id: ${ha_train_eaubonne_1}
+    attribute: minutes_remaining
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Train Ermont 2 Minutes"
+    id: ha_train_ea2_min
+    entity_id: ${ha_train_eaubonne_2}
+    attribute: minutes_remaining
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Train Dernier Retour Minutes"
+    id: ha_train_ret_min
+    entity_id: ${ha_train_dernier_retour}
+    attribute: minutes_remaining
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  # --- MÉTÉO ENGHIEN ---
+  - platform: homeassistant
+    name: "Météo Température"
+    id: ha_meteo_temp
+    entity_id: ${ha_sensor_meteo_temp}
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Météo Pluie %"
+    id: ha_meteo_rain
+    entity_id: ${ha_sensor_meteo_rain}
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Météo Gel %"
+    id: ha_meteo_freeze
+    entity_id: ${ha_sensor_meteo_freeze}
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Météo Couverture Nuages"
+    id: ha_meteo_cloud
+    entity_id: ${ha_sensor_meteo_cloud}
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  # --- ONGLET ÉNERGIE ---
+  - platform: homeassistant
+    name: "Linky Puissance Apparente"
+    id: ha_linky_papp
+    entity_id: ${ha_sensor_linky_papp}
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Linky Courant"
+    id: ha_linky_i
+    entity_id: ${ha_sensor_linky_courant}
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Linky Heures Creuses kWh"
+    id: ha_linky_hc_kwh
+    entity_id: ${ha_sensor_linky_index_hc}
+    internal: true
+
+  - platform: homeassistant
+    name: "Linky Heures Pleines kWh"
+    id: ha_linky_hp_kwh
+    entity_id: ${ha_sensor_linky_index_hp}
+    internal: true
+
+  - platform: homeassistant
+    name: "Tado Chauffe Totale %"
+    id: ha_tado_heat_pct
+    entity_id: ${ha_sensor_tado_chauffe_totale}
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Portail Puissance Watt"
+    id: ha_portail_watt
+    entity_id: ${ha_sensor_portail_puissance}
+    internal: true
+
+  # --- ONGLET QUALITÉ DE L'AIR ---
+  - platform: homeassistant
+    name: "Air PM2.5 Intérieur"
+    id: ha_air_pm25_in
+    entity_id: ${ha_sensor_air_pm25_in}
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Air COV Intérieur"
+    id: ha_air_cov_in
+    entity_id: ${ha_sensor_air_cov_in}
+    internal: true
+
+  - platform: homeassistant
+    name: "Air Température Intérieure"
+    id: ha_air_temp_in
+    entity_id: ${ha_sensor_air_temp_in}
+    internal: true
+
+  - platform: homeassistant
+    name: "Air Humidité Intérieure"
+    id: ha_air_hum_in
+    entity_id: ${ha_sensor_air_hum_in}
+    internal: true
+
+  - platform: homeassistant
+    name: "Air Monoxyde Carbone"
+    id: ha_air_co
+    entity_id: ${ha_sensor_air_co}
+    internal: true
+
+  - platform: homeassistant
+    name: "Air AQI Extérieur"
+    id: ha_air_aqi_ext
+    entity_id: ${ha_sensor_air_aqi_ext}
+    internal: true
+
+  - platform: homeassistant
+    name: "Air PM2.5 Extérieur"
+    id: ha_air_pm25_ext
+    entity_id: ${ha_sensor_air_pm25_ext}
+    internal: true
+
+  - platform: homeassistant
+    name: "Air Atmo Extérieur"
+    id: ha_air_atmo_ext
+    entity_id: ${ha_sensor_air_atmo_ext}
+    internal: true
+
+  - platform: homeassistant
+    name: "Air Pollen Extérieur"
+    id: ha_air_pollen_ext
+    entity_id: ${ha_sensor_air_pollen_ext}
+    internal: true
+
+  # --- ONGLET ARROSAGE CAPTEURS ---
+  - platform: homeassistant
+    name: "Sol Avant Humidité"
+    id: ha_arr_sol_av
+    entity_id: sensor.humidite_du_sol_avant_humidite_du_sol
+    unit_of_measurement: "%"
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Sol Arrière Humidité"
+    id: ha_arr_sol_ar
+    entity_id: sensor.humidite_du_sol_arriere_humidite_du_sol
+    unit_of_measurement: "%"
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  # --- ONGLET TADO (TEMPÉRATURES ACTUELLES ET CIBLES) ---
+  - platform: homeassistant
+    name: "Tado Salon Temp"
+    id: ha_tado_salon_cur
+    entity_id: climate.salon
+    attribute: current_temperature
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Tado Salon Cible"
+    id: ha_tado_salon_tgt
+    entity_id: climate.salon
+    attribute: temperature
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Tado Cuisine Temp"
+    id: ha_tado_cuisine_cur
+    entity_id: climate.cuisine
+    attribute: current_temperature
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Tado Cuisine Cible"
+    id: ha_tado_cuisine_tgt
+    entity_id: climate.cuisine
+    attribute: temperature
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Tado SAM Temp"
+    id: ha_tado_sam_cur
+    entity_id: climate.salle_a_manger
+    attribute: current_temperature
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Tado SAM Cible"
+    id: ha_tado_sam_tgt
+    entity_id: climate.salle_a_manger
+    attribute: temperature
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Tado Ch Stef Temp"
+    id: ha_tado_ch_stef_cur
+    entity_id: climate.chambre_stef_et_jf
+    attribute: current_temperature
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Tado Ch Stef Cible"
+    id: ha_tado_ch_stef_tgt
+    entity_id: climate.chambre_stef_et_jf
+    attribute: temperature
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Tado Ch Blaise Temp"
+    id: ha_tado_ch_blaise_cur
+    entity_id: climate.chambre_de_blaise
+    attribute: current_temperature
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Tado Ch Blaise Cible"
+    id: ha_tado_ch_blaise_tgt
+    entity_id: climate.chambre_de_blaise
+    attribute: temperature
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Tado Ch Lia Temp"
+    id: ha_tado_ch_lia_cur
+    entity_id: climate.chambre_de_lia
+    attribute: current_temperature
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Tado Ch Lia Cible"
+    id: ha_tado_ch_lia_tgt
+    entity_id: climate.chambre_de_lia
+    attribute: temperature
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Tado Bureau Temp"
+    id: ha_tado_bureau_cur
+    entity_id: climate.bureau_jf
+    attribute: current_temperature
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Tado Bureau Cible"
+    id: ha_tado_bureau_tgt
+    entity_id: climate.bureau_jf
+    attribute: temperature
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Tado SDB Temp"
+    id: ha_tado_sdb_cur
+    entity_id: climate.salle_de_bains
+    attribute: current_temperature
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Tado SDB Cible"
+    id: ha_tado_sdb_tgt
+    entity_id: climate.salle_de_bains
+    attribute: temperature
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
 
 text_sensor:
-  # État de l'alarme Domolink
   - platform: homeassistant
+    name: "Air Couleur Intérieure"
+    id: ha_air_couleur
+    entity_id: ${ha_sensor_air_couleur}
+    internal: true
+  - platform: debug
+    reset_reason:
+      name: "Cause dernier reboot"
+  - platform: homeassistant
+    name: "Alarme Statut"
     id: ha_alarm_state
-    entity_id: alarm_control_panel.enghien_les_bains_domolink_alarm
-    internal: true
-
-  # Journal des événements
+    entity_id: ${ha_alarm_entity}
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
   - platform: homeassistant
+    name: "Alarme Journal"
     id: ha_alarm_journal
-    entity_id: sensor.enghien_les_bains_domolink_alarm_journal_des_evenements
-    internal: true
-
-  # Statut montre connectée
+    entity_id: ${ha_alarm_journal}
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
   - platform: homeassistant
+    name: "Alarme Dernier Utilisateur"
+    id: ha_alarm_last_user
+    entity_id: ${ha_alarm_user}
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+  - platform: homeassistant
+    name: "Alarme Montre"
     id: ha_alarm_watch
-    entity_id: sensor.enghien_les_bains_domolink_alarm_statut_montre_connectee
+    entity_id: ${ha_alarm_watch}
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  # --- DOMOLINK TRANSPORT (HEURES, VOIES, STATUTS, MISSIONS) ---
+  - platform: homeassistant
+    name: "Train Paris 1 Heure"
+    id: ha_train_p1_time
+    entity_id: ${ha_train_paris_1}
+    attribute: departure_time_str
     internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
 
-# =============================================================================
-#  SCRIPTS — ACTIONS HOME ASSISTANT
-# =============================================================================
-script:
-  # Armement Total (Absent)
-  - id: ha_arm_away_svc
-    parameters:
-      code: string
-    then:
-      - homeassistant.service:
-          service: alarm_control_panel.alarm_arm_away
-          data:
-            entity_id: alarm_control_panel.enghien_les_bains_domolink_alarm
-            code: !lambda 'return code;'
+  - platform: homeassistant
+    name: "Train Paris 1 Voie"
+    id: ha_train_p1_track
+    entity_id: ${ha_train_paris_1}
+    attribute: platform
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
 
-  # Armement Nuit
-  - id: ha_arm_night_svc
-    parameters:
-      code: string
-    then:
-      - homeassistant.service:
-          service: alarm_control_panel.alarm_arm_night
-          data:
-            entity_id: alarm_control_panel.enghien_les_bains_domolink_alarm
-            code: !lambda 'return code;'
+  - platform: homeassistant
+    name: "Train Paris 1 Statut"
+    id: ha_train_p1_status
+    entity_id: ${ha_train_paris_1}
+    attribute: status_label
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
 
-  # Désarmement
-  - id: ha_disarm_svc
-    parameters:
-      code: string
-    then:
-      - homeassistant.service:
-          service: alarm_control_panel.alarm_disarm
-          data:
-            entity_id: alarm_control_panel.enghien_les_bains_domolink_alarm
-            code: !lambda 'return code;'
+  - platform: homeassistant
+    name: "Train Paris 1 Mission"
+    id: ha_train_p1_mission
+    entity_id: ${ha_train_paris_1}
+    attribute: headsign
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
 
-  # SOS Panique
-  - id: ha_sos_svc
-    then:
-      - homeassistant.service:
-          service: button.press
-          data:
-            entity_id: button.enghien_les_bains_domolink_alarm_sos_panic
+  - platform: homeassistant
+    name: "Train Paris 2 Heure"
+    id: ha_train_p2_time
+    entity_id: ${ha_train_paris_2}
+    attribute: departure_time_str
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Train Paris 2 Voie"
+    id: ha_train_p2_track
+    entity_id: ${ha_train_paris_2}
+    attribute: platform
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Train Paris 2 Statut"
+    id: ha_train_p2_status
+    entity_id: ${ha_train_paris_2}
+    attribute: status_label
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Train Paris 2 Mission"
+    id: ha_train_p2_mission
+    entity_id: ${ha_train_paris_2}
+    attribute: headsign
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Train Ermont 1 Heure"
+    id: ha_train_ea_time
+    entity_id: ${ha_train_eaubonne_1}
+    attribute: departure_time_str
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Train Ermont 1 Voie"
+    id: ha_train_ea_track
+    entity_id: ${ha_train_eaubonne_1}
+    attribute: platform
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Train Ermont 1 Statut"
+    id: ha_train_ea_status
+    entity_id: ${ha_train_eaubonne_1}
+    attribute: status_label
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Train Ermont 1 Mission"
+    id: ha_train_ea_mission
+    entity_id: ${ha_train_eaubonne_1}
+    attribute: headsign
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Train Ermont 2 Heure"
+    id: ha_train_ea2_time
+    entity_id: ${ha_train_eaubonne_2}
+    attribute: departure_time_str
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Train Ermont 2 Voie"
+    id: ha_train_ea2_track
+    entity_id: ${ha_train_eaubonne_2}
+    attribute: platform
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Train Ermont 2 Mission"
+    id: ha_train_ea2_mission
+    entity_id: ${ha_train_eaubonne_2}
+    attribute: headsign
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  # --- MÉTÉO CONDITION TEXTE ---
+  - platform: homeassistant
+    name: "Météo Condition Texte"
+    id: ha_meteo_condition
+    entity_id: ${ha_sensor_meteo_condition}
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Train Dernier Retour Heure"
+    id: ha_train_ret_time
+    entity_id: ${ha_train_dernier_retour}
+    attribute: departure_time_str
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Train Dernier Retour Voie"
+    id: ha_train_ret_track
+    entity_id: ${ha_train_dernier_retour}
+    attribute: platform
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Train Dernier Retour Statut"
+    id: ha_train_ret_status
+    entity_id: ${ha_train_dernier_retour}
+    attribute: status_label
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Train Dernier Retour Mission"
+    id: ha_train_ret_mission
+    entity_id: ${ha_train_dernier_retour}
+    attribute: headsign
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  # --- ONGLET TADO ACTIONS DE CHAUFFE ---
+  - platform: homeassistant
+    name: "Tado Salon Action"
+    id: ha_tado_salon_act
+    entity_id: climate.salon
+    attribute: hvac_action
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Tado Cuisine Action"
+    id: ha_tado_cuisine_act
+    entity_id: climate.cuisine
+    attribute: hvac_action
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Tado SAM Action"
+    id: ha_tado_sam_act
+    entity_id: climate.salle_a_manger
+    attribute: hvac_action
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Tado Ch Stef Action"
+    id: ha_tado_ch_stef_act
+    entity_id: climate.chambre_stef_et_jf
+    attribute: hvac_action
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Tado Ch Blaise Action"
+    id: ha_tado_ch_blaise_act
+    entity_id: climate.chambre_de_blaise
+    attribute: hvac_action
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Tado Ch Lia Action"
+    id: ha_tado_ch_lia_act
+    entity_id: climate.chambre_de_lia
+    attribute: hvac_action
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Tado Bureau Action"
+    id: ha_tado_bureau_act
+    entity_id: climate.bureau_jf
+    attribute: hvac_action
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Tado SDB Action"
+    id: ha_tado_sdb_act
+    entity_id: climate.salle_de_bains
+    attribute: hvac_action
+    internal: true
+    on_value:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: template
+    name: "Page actuelle"
+    icon: "mdi:book-open-page-variant"
+    update_interval: 2s
+    lambda: |-
+      if (id(display_page) == 0) return std::string("Maison (Page 0)");
+      if (id(display_page) == 1) return std::string("Tado (Page 1)");
+      if (id(display_page) == 2) return std::string("Trains (Page 2)");
+      if (id(display_page) == 3) return std::string("Arrosage (Page 3)");
+      if (id(display_page) == 4) return std::string("Alarme (Page 4)");
+      if (id(display_page) == 5) return std::string("Capteurs (Page 5)");
+      return std::string("Système - SOS (Page 6)");
+
+binary_sensor:
+  - platform: homeassistant
+    name: "Purificateur Fan État"
+    id: ha_purifier_fan
+    entity_id: ${ha_purifier_fan_entity}
+    internal: true
+    on_state:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Purificateur Filtre"
+    id: ha_purifier_filter
+    entity_id: ${ha_purifier_filter_entity}
+    internal: true
+  - platform: homeassistant
+    name: "Statut Ouvertures"
+    id: ha_openings
+    entity_id: binary_sensor.ouvertures_groupe
+    on_state:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Statut Mouvements"
+    id: ha_motions
+    entity_id: binary_sensor.mouvements_groupe
+    on_state:
+      - lambda: 'id(need_redraw) = true;'
+
+  # --- ONGLET MAISON ---
+  - platform: homeassistant
+    name: "État Portail"
+    id: ha_portail_state
+    entity_id: binary_sensor.etat_du_portail
+    on_state:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Lumières Extérieures"
+    id: ha_lumieres_ext
+    entity_id: input_boolean.etat_de_l_eclairage_exterieur
+    on_state:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Arrosage Actif"
+    id: ha_arrosage_active
+    entity_id: binary_sensor.gpio_arrosage_v6_systeme_actif_2
+    on_state:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Pluviomètre Pluie"
+    id: ha_arr_pluie
+    entity_id: binary_sensor.pluviometre
+    on_state:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Zone 1 Jardin Droit"
+    id: ha_arr_z1
+    entity_id: switch.gpioarrosagev6_1_le_jardin_c_t_droit
+    on_state:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Zone 2 Jardin Gauche"
+    id: ha_arr_z2
+    entity_id: switch.gpioarrosagev6_2_le_jardin_c_t_gauche
+    on_state:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Zone 3 Bordures"
+    id: ha_arr_z3
+    entity_id: switch.gpioarrosagev6_3_les_bordures
+    on_state:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Zone 4 Potager"
+    id: ha_arr_z4
+    entity_id: switch.gpioarrosagev6_4_le_potager
+    on_state:
+      - lambda: 'id(need_redraw) = true;'
+
+  - platform: homeassistant
+    name: "Zone 5 Bambous"
+    id: ha_arr_z5
+    entity_id: switch.gpioarrosagev6_5_les_bambous
+    on_state:
+      - lambda: 'id(need_redraw) = true;'

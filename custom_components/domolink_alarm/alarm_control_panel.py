@@ -1161,7 +1161,10 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 elif action_upper in ("ARM_NIGHT", "NIGHT"):
                     await self.async_alarm_arm_night(code)
                 elif action_upper in ("DISARM", "OFF"):
-                    await self.async_alarm_disarm(code or "MQTT")
+                    if self._mqtt_require_code and not code:
+                        _LOGGER.warning("Domolink MQTT: Désarmement refusé (code PIN requis mais absent)")
+                    else:
+                        await self.async_alarm_disarm(code)
                 elif action_upper in ("PANIC", "SOS"):
                     await self.async_panic(activate_sirens=True)
 
@@ -2564,6 +2567,11 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
     async def async_reveal_secret(self, call=None):
         """Service handler: reveal stored secret for authorized panel view."""
+        if call and getattr(call, "context", None) and call.context.user_id:
+            user = await self.hass.auth.async_get_user(call.context.user_id)
+            if user is None or not user.is_admin:
+                raise HomeAssistantError("Accès refusé : privilèges administrateur requis.")
+
         data = call.data if (call and hasattr(call, "data")) else {}
         field = str(data.get("field", "")).strip()
         nas_type = str(data.get("nas_type") or self._get_config_value(CONF_NAS_TYPE, DEFAULT_NAS_TYPE)).strip().lower()
