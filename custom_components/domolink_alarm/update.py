@@ -43,6 +43,9 @@ def parse_version(ver_str: str) -> tuple:
     return tuple(parts)
 
 
+parse_semver = parse_version
+
+
 def get_installed_version() -> str:
     """Read version directly from manifest.json to avoid hardcoding."""
     manifest_path = os.path.join(os.path.dirname(__file__), "manifest.json")
@@ -63,7 +66,7 @@ async def async_setup_entry(
     entry_data = hass.data.setdefault(DOMAIN, {}).setdefault(entry.entry_id, {})
     alarm_entity = entry_data.get("entity")
     name = entry.data.get(CONF_NAME, DEFAULT_NAME)
-    installed_ver = get_installed_version()
+    installed_ver = await hass.async_add_executor_job(get_installed_version)
 
     update_entity = DomolinkAlarmUpdateEntity(
         hass=hass,
@@ -173,7 +176,7 @@ class DomolinkAlarmUpdateEntity(UpdateEntity):
                     f"https://github.com/{GITHUB_REPO}/archive/refs/tags/{tag}.zip"
                 )
 
-                has_update = parse_semver(clean_tag) > parse_semver(self._attr_installed_version)
+                has_update = parse_version(clean_tag) > parse_version(self._attr_installed_version)
 
                 # Update left sidebar panel badge & icon
                 self._update_sidebar_panel(has_update)
@@ -237,6 +240,10 @@ class DomolinkAlarmUpdateEntity(UpdateEntity):
         self, version: str | None = None, backup: bool = True, **kwargs
     ) -> None:
         """Inform user to perform update safely via HACS to maintain system security."""
+        self.hass.bus.async_fire(
+            "domolink_alarm_update_progress",
+            {"status": "starting", "percent": 10},
+        )
         await self.async_update()
 
         target_version = version or self._attr_latest_version
@@ -264,3 +271,12 @@ class DomolinkAlarmUpdateEntity(UpdateEntity):
                     "notification_id": "domolink_alarm_update_notice",
                 },
             )
+
+        self.hass.bus.async_fire(
+            "domolink_alarm_update_progress",
+            {
+                "status": "error",
+                "percent": 100,
+                "error": f"Veuillez appliquer la mise à jour v{clean_tag} depuis HACS ({release_url}).",
+            },
+        )

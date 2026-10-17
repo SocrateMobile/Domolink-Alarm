@@ -74,8 +74,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Handle options update — automatically reload the integration."""
-    await hass.config_entries.async_reload(entry.entry_id)
+    """Handle options update in-place without destroying active alarm state/listeners."""
+    entry_data = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if isinstance(entry_data, dict) and entry_data.get("entity") is not None:
+        alarm_entity = entry_data["entity"]
+        alarm_entity._load_config()
+        alarm_entity.async_write_ha_state()
+    else:
+        await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
