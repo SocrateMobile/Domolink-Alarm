@@ -16,6 +16,8 @@
   "integration_type": "hub",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/SocrateMobile/Domolink-Alarm/issues",
-  "requirements": [],
-  "version": "0.9.88"
+  "requirements": [
+    "paramiko>=3.4.0"
+  ],
+  "version": "0.9.89"
 }

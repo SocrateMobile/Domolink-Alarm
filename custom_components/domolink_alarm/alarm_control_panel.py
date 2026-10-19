@@ -308,8 +308,8 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
     async def async_handle_generate_incident_report(call):
         return entity.get_incident_report_data()
 
-    hass.services.async_register(DOMAIN, "update_settings", async_handle_update_settings)
-    hass.services.async_register(DOMAIN, "media_action", async_handle_media_action)
+    hass.helpers.service.async_register_admin_service(hass, DOMAIN, "update_settings", async_handle_update_settings)
+    hass.helpers.service.async_register_admin_service(hass, DOMAIN, "media_action", async_handle_media_action)
     hass.services.async_register(DOMAIN, "test_cameras_recording", async_handle_test_cameras)
 
     try:
@@ -336,21 +336,21 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
             DOMAIN, "generate_incident_report", async_handle_generate_incident_report, supports_response=supports_opt
         )
     else:
-        hass.services.async_register(DOMAIN, "test_ftp", async_handle_test_ftp)
-        hass.services.async_register(DOMAIN, "test_webdav", async_handle_test_webdav)
-        hass.services.async_register(DOMAIN, "test_google_drive", async_handle_test_google_drive)
-        hass.services.async_register(DOMAIN, "reveal_secret", async_handle_reveal_secret)
-        hass.services.async_register(DOMAIN, "generate_incident_report", async_handle_generate_incident_report)
+        hass.helpers.service.async_register_admin_service(hass, DOMAIN, "test_ftp", async_handle_test_ftp)
+        hass.helpers.service.async_register_admin_service(hass, DOMAIN, "test_webdav", async_handle_test_webdav)
+        hass.helpers.service.async_register_admin_service(hass, DOMAIN, "test_google_drive", async_handle_test_google_drive)
+        hass.helpers.service.async_register_admin_service(hass, DOMAIN, "reveal_secret", async_handle_reveal_secret)
+        hass.helpers.service.async_register_admin_service(hass, DOMAIN, "generate_incident_report", async_handle_generate_incident_report)
 
-    hass.services.async_register(DOMAIN, "clean_media", async_handle_clean_media)
+    hass.helpers.service.async_register_admin_service(hass, DOMAIN, "clean_media", async_handle_clean_media)
     hass.services.async_register(DOMAIN, "bypass_sensor", async_handle_bypass_sensor)
     hass.services.async_register(DOMAIN, "unbypass_sensor", async_handle_unbypass_sensor)
     hass.services.async_register(DOMAIN, "panic", async_handle_panic)
     hass.services.async_register(DOMAIN, "start_presence_simulation", async_handle_start_sim)
     hass.services.async_register(DOMAIN, "stop_presence_simulation", async_handle_stop_sim)
     hass.services.async_register(DOMAIN, "toggle_presence_simulation", async_handle_toggle_sim)
-    hass.services.async_register(DOMAIN, "add_user_profile", async_handle_add_user_profile)
-    hass.services.async_register(DOMAIN, "delete_user_profile", async_handle_delete_user_profile)
+    hass.helpers.service.async_register_admin_service(hass, DOMAIN, "add_user_profile", async_handle_add_user_profile)
+    hass.helpers.service.async_register_admin_service(hass, DOMAIN, "delete_user_profile", async_handle_delete_user_profile)
     hass.services.async_register(DOMAIN, "snooze_reminder", async_handle_snooze_reminder)
     hass.services.async_register(DOMAIN, "sync_physical_keypad", async_handle_sync_physical_keypad)
 
@@ -1000,7 +1000,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             CONF_NF_A2P_STRICT_DISTINCT: bool(_val(CONF_NF_A2P_STRICT_DISTINCT, DEFAULT_NF_A2P_STRICT_DISTINCT)),
             CONF_NF_A2P_PRE_ALERT_CHIME: bool(_val(CONF_NF_A2P_PRE_ALERT_CHIME, DEFAULT_NF_A2P_PRE_ALERT_CHIME)),
             # User Profiles
-            CONF_USERS_PROFILES: _val(CONF_USERS_PROFILES, getattr(self, "_users_profiles", [])),
+            CONF_USERS_PROFILES: [{k: v for k, v in p.items() if k != "pin"} for p in getattr(self, "_users_profiles", [])],
             # Predictive Geofencing
             CONF_PROXIMITY_SENSOR: str(_val(CONF_PROXIMITY_SENSOR, "") or ""),
             CONF_GEOFENCE_APPROACH_REMINDER: bool(_val(CONF_GEOFENCE_APPROACH_REMINDER, DEFAULT_GEOFENCE_APPROACH_REMINDER)),
@@ -2003,13 +2003,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
                 return "Dashboard"
             return None
 
-        if code in ("MOBILE_APP", "AUTO_SCHEDULE", "GEOFENCE"):
-            special_names = {
-                "MOBILE_APP": "App Mobile",
-                "AUTO_SCHEDULE": "Planification horaire",
-                "GEOFENCE": "Géolocalisation",
-            }
-            return special_names.get(code, "Système")
+
 
         current_time = self.hass.loop.time()
 
@@ -2141,6 +2135,24 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             self._arm_history = self._arm_history[:50]
 
     # ─── Arm / Disarm Commands ────────────────────────────────────
+
+    async def async_internal_disarm(self, source_name: str = "Système"):
+        """Internal disarm method used by schedules and geofences without PIN bypass."""
+        self._record_arm_event("disarm", source_name)
+        self._cancel_all_tasks()
+        self._state = AlarmControlPanelState.DISARMED
+        self._last_user = source_name
+        self._faults.clear()
+        self._bypassed_sensors.clear()
+        self._triggered_by = None
+        self._log_event(f"Alarme Désarmée par {source_name}")
+        self.hass.async_create_task(self._async_sync_cameras(False))
+        self.async_write_ha_state()
+        await self._async_turn_off_siren()
+        self.hass.async_create_task(self._async_sync_keypads("disarmed"))
+        self.hass.async_create_task(
+            self.notification_manager.async_play_tts(f"Alarme désarmée. Bienvenue {source_name}.")
+        )
 
     async def async_alarm_disarm(self, code=None):
         """Send disarm command."""

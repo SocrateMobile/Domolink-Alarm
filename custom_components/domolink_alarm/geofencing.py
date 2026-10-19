@@ -199,7 +199,7 @@ class GeofenceManager:
                     user_name = f"{user_obj.name} (Mobile)"
             self._log_event(f"Alarme Désarmée par {user_name}")
             self.alarm_entity._record_arm_event("disarm", user_name)
-            await self.alarm_entity.async_alarm_disarm("MOBILE_APP")
+            await self.alarm_entity.async_internal_disarm("Géolocalisation")
             await self.alarm_entity.notification_manager.async_send_notification(
                 "✅ Alarme désarmée via Apple Watch / Mobile."
             )
