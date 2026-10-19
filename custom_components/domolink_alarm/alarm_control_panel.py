@@ -1,3 +1,4 @@
+from homeassistant.helpers.service import async_register_admin_service
 """Interfaces with Domolink Alarm."""
 import asyncio
 from datetime import timedelta
@@ -308,8 +309,8 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
     async def async_handle_generate_incident_report(call):
         return entity.get_incident_report_data()
 
-    hass.helpers.service.async_register_admin_service(hass, DOMAIN, "update_settings", async_handle_update_settings)
-    hass.helpers.service.async_register_admin_service(hass, DOMAIN, "media_action", async_handle_media_action)
+    async_register_admin_service(hass, DOMAIN, "update_settings", async_handle_update_settings)
+    async_register_admin_service(hass, DOMAIN, "media_action", async_handle_media_action)
     hass.services.async_register(DOMAIN, "test_cameras_recording", async_handle_test_cameras)
 
     try:
@@ -336,21 +337,21 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
             DOMAIN, "generate_incident_report", async_handle_generate_incident_report, supports_response=supports_opt
         )
     else:
-        hass.helpers.service.async_register_admin_service(hass, DOMAIN, "test_ftp", async_handle_test_ftp)
-        hass.helpers.service.async_register_admin_service(hass, DOMAIN, "test_webdav", async_handle_test_webdav)
-        hass.helpers.service.async_register_admin_service(hass, DOMAIN, "test_google_drive", async_handle_test_google_drive)
-        hass.helpers.service.async_register_admin_service(hass, DOMAIN, "reveal_secret", async_handle_reveal_secret)
-        hass.helpers.service.async_register_admin_service(hass, DOMAIN, "generate_incident_report", async_handle_generate_incident_report)
+        async_register_admin_service(hass, DOMAIN, "test_ftp", async_handle_test_ftp)
+        async_register_admin_service(hass, DOMAIN, "test_webdav", async_handle_test_webdav)
+        async_register_admin_service(hass, DOMAIN, "test_google_drive", async_handle_test_google_drive)
+        async_register_admin_service(hass, DOMAIN, "reveal_secret", async_handle_reveal_secret)
+        async_register_admin_service(hass, DOMAIN, "generate_incident_report", async_handle_generate_incident_report)
 
-    hass.helpers.service.async_register_admin_service(hass, DOMAIN, "clean_media", async_handle_clean_media)
+    async_register_admin_service(hass, DOMAIN, "clean_media", async_handle_clean_media)
     hass.services.async_register(DOMAIN, "bypass_sensor", async_handle_bypass_sensor)
     hass.services.async_register(DOMAIN, "unbypass_sensor", async_handle_unbypass_sensor)
     hass.services.async_register(DOMAIN, "panic", async_handle_panic)
     hass.services.async_register(DOMAIN, "start_presence_simulation", async_handle_start_sim)
     hass.services.async_register(DOMAIN, "stop_presence_simulation", async_handle_stop_sim)
     hass.services.async_register(DOMAIN, "toggle_presence_simulation", async_handle_toggle_sim)
-    hass.helpers.service.async_register_admin_service(hass, DOMAIN, "add_user_profile", async_handle_add_user_profile)
-    hass.helpers.service.async_register_admin_service(hass, DOMAIN, "delete_user_profile", async_handle_delete_user_profile)
+    async_register_admin_service(hass, DOMAIN, "add_user_profile", async_handle_add_user_profile)
+    async_register_admin_service(hass, DOMAIN, "delete_user_profile", async_handle_delete_user_profile)
     hass.services.async_register(DOMAIN, "snooze_reminder", async_handle_snooze_reminder)
     hass.services.async_register(DOMAIN, "sync_physical_keypad", async_handle_sync_physical_keypad)
 
