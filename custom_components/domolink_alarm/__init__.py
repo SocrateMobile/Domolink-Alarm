@@ -5,7 +5,7 @@ from homeassistant.components import frontend
 
 from .const import DOMAIN, VERSION
 
-PLATFORMS = ["alarm_control_panel", "button", "sensor", "update"]
+PLATFORMS = ["alarm_control_panel", "button", "sensor"]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
