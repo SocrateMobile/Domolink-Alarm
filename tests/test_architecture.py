@@ -419,6 +419,28 @@ class TestDomolinkAlarmCore(unittest.TestCase):
         finally:
             loop.close()
 
+    def test_geofence_auto_disarm_bypasses_pin(self):
+        """Ensure geofence auto-disarm when someone arrives home bypasses PIN check."""
+        self.config_entry.data[CONF_GEOFENCE_AUTO_ARM] = True
+        self.alarm._persons = ["person.alice"]
+        self.alarm._state = STATE_ALARM_ARMED_AWAY
+
+        class MockPersonState:
+            state = "home"
+
+        self.alarm.hass.states.set("person.alice", MockPersonState())
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            async def _run():
+                await self.alarm._async_handle_person_changed()
+                self.assertEqual(self.alarm.state, STATE_ALARM_DISARMED)
+                self.assertEqual(self.alarm._last_user, "Géolocalisation")
+
+            loop.run_until_complete(_run())
+        finally:
+            loop.close()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,5 +1,5 @@
 DOMAIN = "domolink_alarm"
-VERSION = "0.9.94"
+VERSION = "0.9.95"
 
 CONF_NAME = "name"
 DEFAULT_NAME = "Domolink Alarm"

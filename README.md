@@ -22,6 +22,13 @@
 
 ---
 
+## 🚀 Nouveautés de la Version 0.9.95
+
+[![Buy Me A Coffee](https://img.buymeacoffee.com/button-api/?text=Buy+me+a+coffee&emoji=☕&slug=Socrate&button_colour=FFDD00&font_colour=000000&font_family=Poppins&outline_colour=000000&coffee_colour=ffffff)](https://www.buymeacoffee.com/Socrate)
+
+- **Désarmement par Géolocalisation interne** :
+  - Correction de l'auto-désarmement par présence / géolocalisation (`_async_handle_person_changed`) via `async_internal_disarm("Géolocalisation")`, évitant l'erreur de validation PIN lorsque des codes utilisateurs sont configurés.
+
 ## 🚀 Nouveautés de la Version 0.9.94
 
 [![Buy Me A Coffee](https://img.buymeacoffee.com/button-api/?text=Buy+me+a+coffee&emoji=☕&slug=Socrate&button_colour=FFDD00&font_colour=000000&font_family=Poppins&outline_colour=000000&coffee_colour=ffffff)](https://www.buymeacoffee.com/Socrate)

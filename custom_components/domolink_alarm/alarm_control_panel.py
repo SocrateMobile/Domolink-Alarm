@@ -1450,7 +1450,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             await self.async_alarm_arm_away()
         elif any(s == "home" for s in states) and self._state in (AlarmControlPanelState.ARMED_AWAY, AlarmControlPanelState.ARMING):
             self._log_event("Auto-désarmement (Une personne est arrivée)")
-            await self.async_alarm_disarm(code=None)
+            await self.async_internal_disarm("Géolocalisation")
 
     async def _async_sensor_changed(self, event):
         """Handle sensor state changes."""
