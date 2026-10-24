@@ -38,8 +38,9 @@ def setup_ha_mock():
             self.services = ServicesMock()
             self.states = StatesMock()
             self.config = MagicMock()
-            self.config.path = lambda p: p
+            self.config.path = lambda *parts: "/".join(str(p) for p in parts)
             self.config_entries = MagicMock()
+            self.auth = MagicMock()
             self.data = {}
             
             def _mock_create_task(coro):
@@ -244,6 +245,11 @@ def setup_ha_mock():
     ha_selector.TextSelector = MagicMock()
     sys.modules["homeassistant.helpers.selector"] = ha_selector
 
+    # homeassistant.helpers.service
+    ha_service = types.ModuleType("homeassistant.helpers.service")
+    ha_service.async_register_admin_service = MagicMock()
+    sys.modules["homeassistant.helpers.service"] = ha_service
+
     # homeassistant.config_entries
     ha_config_entries = types.ModuleType("homeassistant.config_entries")
     class ConfigEntry:
@@ -275,13 +281,24 @@ def setup_ha_mock():
 
     # homeassistant.components.http
     ha_http = types.ModuleType("homeassistant.components.http")
+    ha_http.__path__ = []
     class StaticPathConfig:
         def __init__(self, url_path, path, cache_headers):
             self.url_path = url_path
             self.path = path
             self.cache_headers = cache_headers
+    class HomeAssistantView:
+        url = ""
+        name = ""
+        requires_auth = True
     ha_http.StaticPathConfig = StaticPathConfig
+    ha_http.HomeAssistantView = HomeAssistantView
     sys.modules["homeassistant.components.http"] = ha_http
+
+    # homeassistant.components.http.auth
+    ha_http_auth = types.ModuleType("homeassistant.components.http.auth")
+    ha_http_auth.async_sign_path = lambda hass, path, td=None: path
+    sys.modules["homeassistant.components.http.auth"] = ha_http_auth
 
     # homeassistant.components.mqtt
     ha_mqtt = types.ModuleType("homeassistant.components.mqtt")

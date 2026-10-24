@@ -183,9 +183,20 @@ class NotificationManager:
             }
             if cameras:
                 alert_data["entity_id"] = cameras[0]
-                alert_data["image"] = "/local/domolink_alarm_alert.jpg"
+                raw_alert_url = "/api/domolink_alarm/media/domolink_alarm_alert.jpg"
+                try:
+                    from datetime import timedelta
+                    from homeassistant.components.http.auth import async_sign_path
+
+                    signed_alert_url = async_sign_path(
+                        self.hass, raw_alert_url, timedelta(minutes=30)
+                    )
+                except Exception:
+                    signed_alert_url = raw_alert_url
+
+                alert_data["image"] = signed_alert_url
                 alert_data["attachment"] = {
-                    "url": "/local/domolink_alarm_alert.jpg",
+                    "url": signed_alert_url,
                     "content-type": "jpeg",
                     "hide-thumbnail": False,
                 }

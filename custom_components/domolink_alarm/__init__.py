@@ -1,20 +1,65 @@
+import mimetypes
 import os
+
+from aiohttp import web
+from homeassistant.components import frontend
+from homeassistant.components.http import HomeAssistantView
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.components import frontend
 
 from .const import DOMAIN, VERSION
 
 PLATFORMS = ["alarm_control_panel", "button", "sensor"]
 
 
+class DomolinkMediaView(HomeAssistantView):
+    """Authenticated HTTP view to serve Domolink Alarm media files outside www."""
+
+    url = "/api/domolink_alarm/media/{filename:.*}"
+    name = "api:domolink_alarm:media"
+    requires_auth = True
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        """Initialize the media view."""
+        self.hass = hass
+
+    async def get(self, request: web.Request, filename: str) -> web.StreamResponse:
+        """Serve the requested media file after path traversal checks."""
+        if not filename or ".." in filename or filename.startswith("/") or "\\" in filename:
+            return web.Response(status=403, text="Forbidden")
+
+        base_dir = os.path.realpath(self.hass.config.path("domolink_alarm_media"))
+        target_path = os.path.realpath(os.path.join(base_dir, filename))
+
+        if not (target_path == base_dir or target_path.startswith(base_dir + os.sep)):
+            return web.Response(status=403, text="Forbidden")
+
+        def _check_file() -> bool:
+            return os.path.isfile(target_path)
+
+        exists = await self.hass.async_add_executor_job(_check_file)
+        if not exists:
+            return web.Response(status=404, text="Not found")
+
+        content_type, _ = mimetypes.guess_type(target_path)
+        headers = {}
+        if content_type:
+            headers["Content-Type"] = content_type
+
+        return web.FileResponse(target_path, headers=headers)
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Domolink Alarm from a config entry."""
     hass.data.setdefault(DOMAIN, {}).setdefault(entry.entry_id, {})
 
+    if not hass.data[DOMAIN].get("_media_view_registered"):
+        hass.http.register_view(DomolinkMediaView(hass))
+        hass.data[DOMAIN]["_media_view_registered"] = True
+
     # Register frontend panel
     frontend_dir = hass.config.path("custom_components/domolink_alarm/frontend")
-    if os.path.exists(frontend_dir):
+    if await hass.async_add_executor_job(os.path.exists, frontend_dir):
         if hasattr(hass.http, "async_register_static_paths"):
             from homeassistant.components.http import StaticPathConfig
             await hass.http.async_register_static_paths([

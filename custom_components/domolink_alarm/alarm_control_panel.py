@@ -273,16 +273,27 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
     async def async_handle_test_cameras(call):
         await entity.async_test_cameras_recording(call)
 
+    async def _require_admin_user(call):
+        """Raise HomeAssistantError if the service caller is a non-admin user."""
+        if call and getattr(call, "context", None) and call.context.user_id:
+            user = await hass.auth.async_get_user(call.context.user_id)
+            if user is None or not user.is_admin:
+                raise HomeAssistantError("Accès refusé : privilèges administrateur requis.")
+
     async def async_handle_test_ftp(call):
+        await _require_admin_user(call)
         return await entity.async_test_ftp(call)
 
     async def async_handle_test_webdav(call):
+        await _require_admin_user(call)
         return await entity.async_test_webdav(call)
 
     async def async_handle_test_google_drive(call):
+        await _require_admin_user(call)
         return await entity.async_test_google_drive(call)
 
     async def async_handle_reveal_secret(call):
+        await _require_admin_user(call)
         return await entity.async_reveal_secret(call)
 
     async def async_handle_clean_media(call):
@@ -307,6 +318,7 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
         await entity.async_sync_keypads()
 
     async def async_handle_generate_incident_report(call):
+        await _require_admin_user(call)
         return entity.get_incident_report_data()
 
     async_register_admin_service(hass, DOMAIN, "update_settings", async_handle_update_settings)
@@ -320,28 +332,24 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
     except Exception:
         supports_opt = None
 
-    if supports_opt is not None:
-        hass.services.async_register(
-            DOMAIN, "test_ftp", async_handle_test_ftp, supports_response=supports_opt
-        )
-        hass.services.async_register(
-            DOMAIN, "test_webdav", async_handle_test_webdav, supports_response=supports_opt
-        )
-        hass.services.async_register(
-            DOMAIN, "test_google_drive", async_handle_test_google_drive, supports_response=supports_opt
-        )
-        hass.services.async_register(
-            DOMAIN, "reveal_secret", async_handle_reveal_secret, supports_response=supports_opt
-        )
-        hass.services.async_register(
-            DOMAIN, "generate_incident_report", async_handle_generate_incident_report, supports_response=supports_opt
-        )
-    else:
-        async_register_admin_service(hass, DOMAIN, "test_ftp", async_handle_test_ftp)
-        async_register_admin_service(hass, DOMAIN, "test_webdav", async_handle_test_webdav)
-        async_register_admin_service(hass, DOMAIN, "test_google_drive", async_handle_test_google_drive)
-        async_register_admin_service(hass, DOMAIN, "reveal_secret", async_handle_reveal_secret)
-        async_register_admin_service(hass, DOMAIN, "generate_incident_report", async_handle_generate_incident_report)
+    for svc_name, svc_handler in (
+        ("test_ftp", async_handle_test_ftp),
+        ("test_webdav", async_handle_test_webdav),
+        ("test_google_drive", async_handle_test_google_drive),
+        ("reveal_secret", async_handle_reveal_secret),
+        ("generate_incident_report", async_handle_generate_incident_report),
+    ):
+        if supports_opt is not None:
+            try:
+                async_register_admin_service(
+                    hass, DOMAIN, svc_name, svc_handler, supports_response=supports_opt
+                )
+            except TypeError:
+                hass.services.async_register(
+                    DOMAIN, svc_name, svc_handler, supports_response=supports_opt
+                )
+        else:
+            async_register_admin_service(hass, DOMAIN, svc_name, svc_handler)
 
     async_register_admin_service(hass, DOMAIN, "clean_media", async_handle_clean_media)
     hass.services.async_register(DOMAIN, "bypass_sensor", async_handle_bypass_sensor)
@@ -378,12 +386,6 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._unique_id = f"domolink_alarm_{entry.entry_id}"
 
         _sw_version = VERSION
-        try:
-            _manifest_path = os.path.join(os.path.dirname(__file__), "manifest.json")
-            with open(_manifest_path, encoding="utf-8") as _mf:
-                _sw_version = json.load(_mf).get("version", _sw_version)
-        except Exception:
-            pass
 
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, self._unique_id)},
@@ -732,7 +734,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
     def extra_state_attributes(self):
         """Expose extra attributes for Lovelace and automations."""
         now_ts = self.hass.loop.time()
-        media_files = self.media_manager.list_media_files()
+        media_files = list(self.media_manager.cached_media_files)
         cur_nas = self._get_config_value(CONF_NAS_TYPE, DEFAULT_NAS_TYPE)
 
         return {
@@ -1112,7 +1114,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
 
         # Create media directory and purge expired files
         try:
-            os.makedirs(self.media_manager.media_dir, exist_ok=True)
+            await self.hass.async_add_executor_job(self.media_manager._ensure_media_dir_sync)
             await self.hass.async_add_executor_job(self.media_manager.purge_old_files)
         except Exception as e:
             _LOGGER.error("Domolink: Impossible d'initialiser le stockage médias: %s", e)
@@ -2389,15 +2391,62 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         self._log_event("Test automatique des sirènes en cours...")
         self.hass.async_create_task(self.notification_manager.async_run_siren_test())
 
+    async def async_internal_arm_home(self, source_name: str = "Programmation horaire"):
+        """Internal arm home method used by schedules without PIN check."""
+        if not await self._check_bypass(target_mode="HOME", force=True):
+            return
+        self._pre_trigger_state = AlarmControlPanelState.ARMED_HOME
+        self._state = AlarmControlPanelState.ARMED_HOME
+        self._last_user = source_name
+        self._record_arm_event("arm", self._last_user, "HOME")
+        self._log_event(f"Alarme Armée (Mode: Présent) par {self._last_user}")
+        self.hass.async_create_task(self._async_sync_cameras(True))
+        self.hass.async_create_task(self._async_sync_keypads("armed_home"))
+        self.async_write_ha_state()
+
+    async def async_internal_arm_away(self, source_name: str = "Programmation horaire"):
+        """Internal arm away method used by schedules without PIN check."""
+        if not await self._check_bypass(target_mode="AWAY", force=True):
+            return
+        self._last_user = source_name
+        self._record_arm_event("arm", self._last_user, "AWAY")
+
+        if self._exit_delay > 0:
+            self._state = AlarmControlPanelState.ARMING
+            self.async_write_ha_state()
+            self.hass.async_create_task(self._async_sync_keypads("arming"))
+            self._arming_task = async_call_later(
+                self.hass,
+                self._exit_delay,
+                self._cb_arm_away_complete,
+            )
+        else:
+            self._cb_arm_away_complete()
+
+    async def async_internal_arm_night(self, source_name: str = "Programmation horaire"):
+        """Internal arm night method used by schedules without PIN check."""
+        if not await self._check_bypass(target_mode="NIGHT", force=True):
+            return
+        self._pre_trigger_state = AlarmControlPanelState.ARMED_NIGHT
+        self._state = AlarmControlPanelState.ARMED_NIGHT
+        self._last_user = source_name
+        self._record_arm_event("arm", self._last_user, "NIGHT")
+        self._log_event(f"Alarme Armée (Mode: Nuit) par {self._last_user}")
+        self.hass.async_create_task(self._async_sync_cameras(True))
+        self.hass.async_create_task(self._async_sync_keypads("armed_night"))
+        self.async_write_ha_state()
+
     @callback
     def _cb_schedule_arm(self, now):
         """Arm alarm on schedule."""
         if self._state == AlarmControlPanelState.DISARMED:
             self._log_event("Auto-armement horaire déclenché")
             if self._schedule_mode == "night":
-                self.hass.async_create_task(self.async_alarm_arm_night("AUTO_SCHEDULE"))
+                self.hass.async_create_task(self.async_internal_arm_night("Programmation horaire"))
+            elif self._schedule_mode == "away":
+                self.hass.async_create_task(self.async_internal_arm_away("Programmation horaire"))
             else:
-                self.hass.async_create_task(self.async_alarm_arm_home("AUTO_SCHEDULE"))
+                self.hass.async_create_task(self.async_internal_arm_home("Programmation horaire"))
 
             self.hass.async_create_task(
                 self.notification_manager.async_send_notification(
@@ -2408,9 +2457,13 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
     @callback
     def _cb_schedule_disarm(self, now):
         """Disarm alarm on schedule."""
-        if self._state in (AlarmControlPanelState.ARMED_HOME, AlarmControlPanelState.ARMED_NIGHT):
+        if self._state in (
+            AlarmControlPanelState.ARMED_HOME,
+            AlarmControlPanelState.ARMED_NIGHT,
+            AlarmControlPanelState.ARMED_AWAY,
+        ):
             self._log_event("Auto-désarmement horaire déclenché")
-            self.hass.async_create_task(self.async_alarm_disarm("AUTO_SCHEDULE"))
+            self.hass.async_create_task(self.async_internal_disarm("Programmation horaire"))
             self.hass.async_create_task(
                 self.notification_manager.async_send_notification("⏰ Désarmement automatique horaire effectué.")
             )
@@ -2574,6 +2627,12 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         if updated:
             self.hass.config_entries.async_update_entry(self._entry, options=new_options)
             self._load_config()
+            if CONF_MEDIA_PATH in call.data or CONF_MEDIA_MAX_SIZE_MB in call.data or CONF_MEDIA_RETENTION_DAYS in call.data:
+                try:
+                    await self.hass.async_add_executor_job(self.media_manager._ensure_media_dir_sync)
+                    await self.media_manager.async_refresh_media_cache()
+                except Exception:
+                    pass
             self.async_write_ha_state()
             _LOGGER.info("Domolink: Settings updated -> %s", list(call.data.keys()))
             self._log_event("Paramètres mis à jour")

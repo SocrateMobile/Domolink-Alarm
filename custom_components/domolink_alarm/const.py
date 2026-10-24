@@ -1,14 +1,5 @@
-import json
-import os
-
 DOMAIN = "domolink_alarm"
-
-_MANIFEST_PATH = os.path.join(os.path.dirname(__file__), "manifest.json")
-try:
-    with open(_MANIFEST_PATH, "r", encoding="utf-8") as _f:
-        VERSION = json.load(_f).get("version", "0.9.92")
-except Exception:
-    VERSION = "0.9.92"
+VERSION = "0.9.93"
 
 CONF_NAME = "name"
 DEFAULT_NAME = "Domolink Alarm"

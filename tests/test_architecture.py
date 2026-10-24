@@ -63,7 +63,7 @@ class TestMediaManager(unittest.TestCase):
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
         self.hass = ha_mock.sys.modules["homeassistant.core"].HomeAssistant()
-        self.hass.config.path = lambda p: self.test_dir
+        self.hass.config.path = lambda *parts: self.test_dir
         self.config = {
             CONF_CAMERAS: ["camera.front_door"],
             CONF_MEDIA_PATH: "domolink_media",
@@ -162,6 +162,49 @@ class TestCloudUploader(unittest.TestCase):
     def test_cloud_uploader_init(self):
         self.assertIsNotNone(self.uploader)
         self.assertEqual(self.uploader._get_config("ftp_host"), "192.168.1.50")
+
+    def test_ftp_stored_password_not_sent_to_custom_host(self):
+        """Ensure stored FTP password is not leaked when testing a custom host."""
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            mock_ftp_instance = MagicMock()
+            mock_ftp_instance.login.side_effect = Exception("530 Login incorrect")
+            with patch("ftplib.FTP", return_value=mock_ftp_instance):
+                loop.run_until_complete(
+                    self.uploader._async_run_ftp_test({"ftp_host": "evil.attacker.com"})
+                )
+                self.assertTrue(mock_ftp_instance.connect.called)
+                self.assertEqual(mock_ftp_instance.connect.call_args[0][0], "evil.attacker.com")
+                self.assertTrue(mock_ftp_instance.login.called)
+                self.assertEqual(mock_ftp_instance.login.call_args[0], ("", ""))
+        finally:
+            loop.close()
+
+    def test_webdav_stored_password_not_sent_to_custom_url(self):
+        """Ensure stored WebDAV password is not leaked when testing a custom URL."""
+        self.config["webdav_url"] = "https://nas.local/webdav"
+        self.config["webdav_user"] = "nas_user"
+        self.config["webdav_pass"] = "secret_webdav_pass"
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            mock_session = MagicMock()
+            mock_session.request.side_effect = Exception("Connection refused")
+            with patch(
+                "homeassistant.helpers.aiohttp_client.async_get_clientsession",
+                return_value=mock_session,
+            ):
+                loop.run_until_complete(
+                    self.uploader._async_run_webdav_test(
+                        {"webdav_url": "https://evil.attacker.com/webdav"}
+                    )
+                )
+                self.assertTrue(mock_session.request.called)
+                called_kwargs = mock_session.request.call_args[1]
+                self.assertIsNone(called_kwargs.get("auth"))
+        finally:
+            loop.close()
 
 
 class TestNotificationManager(unittest.TestCase):
@@ -351,6 +394,30 @@ class TestDomolinkAlarmCore(unittest.TestCase):
         self.assertIn("bypassed_sensors", attrs)
         self.assertIn("presence_simulation_active", attrs)
         self.assertIn("installed_config", attrs)
+
+    def test_scheduled_arm_and_disarm_bypass_pin(self):
+        """Ensure scheduled arm and disarm succeed without PIN even when code_arm_required is True."""
+        self.alarm._code_arm_required = True
+        self.alarm._schedule_enabled = True
+        self.alarm._schedule_mode = "night"
+        self.alarm._night_sensors = ["binary_sensor.front_door"]
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            async def _run():
+                self.alarm._cb_schedule_arm(None)
+                await asyncio.sleep(0.05)
+                self.assertEqual(self.alarm.state, "armed_night")
+                self.assertEqual(self.alarm._failed_attempts, 0)
+
+                self.alarm._cb_schedule_disarm(None)
+                await asyncio.sleep(0.05)
+                self.assertEqual(self.alarm.state, STATE_ALARM_DISARMED)
+                self.assertEqual(self.alarm._failed_attempts, 0)
+
+            loop.run_until_complete(_run())
+        finally:
+            loop.close()
 
 
 if __name__ == "__main__":
