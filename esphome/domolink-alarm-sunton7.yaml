@@ -2653,7 +2653,7 @@ light:
     name: "${friendly_name} Rétroéclairage"
     icon: mdi:lightbulb-on
     id: display_backlight
-    restore_state: ALWAYS_ON
+    restore_mode: ALWAYS_ON
 
 time:
   - platform: homeassistant
