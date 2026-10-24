@@ -22,29 +22,15 @@
 
 ---
 
-## 🚀 Nouveautés de la Version 0.9.84
+## 🚀 Nouveautés de la Version 0.9.93
 
 [![Buy Me A Coffee](https://img.buymeacoffee.com/button-api/?text=Buy+me+a+coffee&emoji=☕&slug=Socrate&button_colour=FFDD00&font_colour=000000&font_family=Poppins&outline_colour=000000&coffee_colour=ffffff)](https://www.buymeacoffee.com/Socrate)
 
-- **Compatibilité Totale Apple iOS (Safari & Application Home Assistant)** :
-  - **Préservation du Geste Utilisateur (`User Gesture`)** : Suppression des fenêtres de dialogue bloquantes sous iOS pour garantir l'activation immédiate de **Face ID** / **Touch ID** sans restriction WebKit.
-  - **Isolation Multi-Appareils iCloud Keychain** : Identifiants matériels uniques par appareil pour éliminer les conflits de trousseau iCloud entre Mac et iPhone.
-  - **Repli Automatique Déverrouillage Rapide AES-GCM-256 (WKWebView)** : Prise en charge transparente et instantanée dans l'application native Home Assistant iOS avec coffre chiffré local.
-
-## 🚀 Nouveautés de la Version 0.9.83
-
-- **Optimisation Touch ID / Face ID & Retour d'État en Direct** :
-  - **Filtre de transport matériel direct (`transports: ["internal"]`)** : Élimine les blocages de sélection de clé sur Apple macOS/iOS et active immédiatement le capteur d'empreinte sans attente.
-  - **Gestion dynamique de l'état système** : Indication explicite si l'alarme est déjà désarmée lors de la vérification biométrique avec retour visuel immédiat sur le bouton.
-  - **Feedback interactif en temps réel** : Affichage dynamique des étapes de scan (`SCAN EN COURS...`, `DÉVERROUILLÉ !`, `DÉSARMEMENT...`) pour un confort d'usage optimal.
-
-## 🚀 Nouveautés de la Version 0.9.82
-
-- **Déverrouillage Biométrique Matériel Universel (WebAuthn / FIDO2 & WebCrypto AES-GCM-256)** :
-  - **Support multi-plateforme automatique** : Apple Face ID / Touch ID (iOS / iPadOS / macOS), Windows Hello (reconnaissance faciale et empreinte PC), et capteurs d'empreinte / biométrie Android.
-  - **Coffre-fort matériel sécurisé (Zero-Plaintext)** : Le code PIN n'est **jamais stocké en clair** dans le navigateur. Il est chiffré localement avec une clé **AES-GCM-256** dérivée par **PBKDF2-SHA256** (100 000 itérations) scellée dans l'enclave sécurisée de votre matériel (*Apple Secure Enclave*, *TPM 2.0*, *Android Keystore / StrongBox*).
-  - **Désarmement instantané en 1 clic** : Authentification biométrique directe depuis le pavé tactile ou l'onglet de configuration avec vibration haptique.
-  - **Carte de gestion locale & réinitialisation** : Visualisation du statut matériel et réinitialisation du coffre-fort dans l'onglet *Paramètres > Profils & Invités*.
+- **Conformité HACS & Sécurité Renforcée** :
+  - **Stockage Médias Authentifié** : Les captures photos et vidéos d'intrusion sont désormais stockées hors du dossier public `www` (`/config/domolink_alarm_media/`) et servies exclusivement via une vue HTTP authentifiée (`/api/domolink_alarm/media/...`) et des URLs signées (`async_sign_path`).
+  - **Zéro Stockage PIN Navigateur** : Suppression complète du stockage local de code PIN dans le navigateur (`localStorage`) pour garantir que les codes ne résident jamais côté client.
+  - **Contrôle d'Accès Administrateur Strict** : Vérification stricte des privilèges administrateur sur les services de diagnostic et de configuration (`test_ftp`, `test_webdav`, `test_google_drive`, `reveal_secret`, `generate_incident_report`), et isolation des identifiants stockés lors des tests d'hôtes personnalisés.
+  - **Programmation Horaire & I/O Asynchrone** : Utilisation des méthodes internes d'armement/désarmement pour la planification horaire et exécution de toutes les opérations de fichiers en tâche de fond (`async_add_executor_job`) avec mise en cache de la médiathèque.
 
 ## 🚀 Nouveautés de la Version 0.9.81
 

@@ -19,6 +19,12 @@ class DomolinkPanel extends HTMLElement {
       this._screensaverVisible = false;
       this._screensaverTimer = null;
       this._showWebdavTestConsole = false;
+        try {
+          localStorage.removeItem('domolink_bio_vault');
+          localStorage.removeItem('domolink_bio_cred_id');
+          localStorage.removeItem('domolink_bio_pin');
+          localStorage.removeItem('domolink_bio_local_mode');
+        } catch (e) {}
       this._buildShell();
       this._startClock();
       this._startCameraStream();
@@ -278,393 +284,6 @@ class DomolinkPanel extends HTMLElement {
       else if (state === 'arming') label = 'ARMEMENT EN COURS...';
       else if (state === 'disarming') label = 'DÉSARMEMENT EN COURS...';
       textEl.textContent = label;
-    }
-  }
-
-  _getBiometricInfo() {
-    const ua = (navigator.userAgent || '') + ' ' + (navigator.platform || '');
-    const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    const isMac = /Macintosh|Mac OS X/i.test(ua) && !isIOS;
-    const isAndroid = /Android/i.test(ua);
-    const isWindows = /Win/i.test(ua);
-
-    if (isIOS) {
-      return {
-        label: "FACE ID / TOUCH ID",
-        fullLabel: "Apple Face ID / Touch ID",
-        icon: "mdi:face-recognition",
-        type: "ios"
-      };
-    } else if (isMac) {
-      return {
-        label: "TOUCH ID",
-        fullLabel: "Apple Touch ID",
-        icon: "mdi:fingerprint",
-        type: "mac"
-      };
-    } else if (isWindows) {
-      return {
-        label: "WINDOWS HELLO",
-        fullLabel: "Windows Hello Biométrie",
-        icon: "mdi:microsoft-windows",
-        type: "windows"
-      };
-    } else if (isAndroid) {
-      return {
-        label: "EMPREINTE DIGITALE",
-        fullLabel: "Empreinte / Face Unlock Android",
-        icon: "mdi:fingerprint",
-        type: "android"
-      };
-    }
-    return {
-      label: "DÉVERROUILLAGE BIOMÉTRIQUE",
-      fullLabel: "Authentification Biométrique FIDO2",
-      icon: "mdi:fingerprint",
-      type: "generic"
-    };
-  }
-
-  _arrayBufferToBase64(buffer) {
-    const bytes = new Uint8Array(buffer);
-    let binary = '';
-    for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    return window.btoa(binary);
-  }
-
-  _base64ToArrayBuffer(base64) {
-    const binaryString = window.atob(base64);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-    return bytes.buffer;
-  }
-
-  async _deriveVaultKey(rawCredBytes, saltBytes) {
-    const keyMaterial = await window.crypto.subtle.importKey(
-      "raw",
-      rawCredBytes,
-      { name: "PBKDF2" },
-      false,
-      ["deriveKey"]
-    );
-    return await window.crypto.subtle.deriveKey(
-      {
-        name: "PBKDF2",
-        salt: saltBytes,
-        iterations: 100000,
-        hash: "SHA-256"
-      },
-      keyMaterial,
-      { name: "AES-GCM", length: 256 },
-      false,
-      ["encrypt", "decrypt"]
-    );
-  }
-
-  async _encryptVaultPin(pin, rawCredBytes) {
-    const salt = window.crypto.getRandomValues(new Uint8Array(16));
-    const iv = window.crypto.getRandomValues(new Uint8Array(12));
-    const key = await this._deriveVaultKey(rawCredBytes, salt);
-    const ciphertext = await window.crypto.subtle.encrypt(
-      { name: "AES-GCM", iv: iv },
-      key,
-      new TextEncoder().encode(pin)
-    );
-    return {
-      salt: this._arrayBufferToBase64(salt.buffer),
-      iv: this._arrayBufferToBase64(iv.buffer),
-      ciphertext: this._arrayBufferToBase64(ciphertext)
-    };
-  }
-
-  async _decryptVaultPin(vault, rawCredBytes) {
-    const saltBytes = new Uint8Array(this._base64ToArrayBuffer(vault.salt));
-    const ivBytes = new Uint8Array(this._base64ToArrayBuffer(vault.iv));
-    const ciphertextBytes = this._base64ToArrayBuffer(vault.ciphertext);
-    const key = await this._deriveVaultKey(rawCredBytes, saltBytes);
-    const decrypted = await window.crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: ivBytes },
-      key,
-      ciphertextBytes
-    );
-    return new TextDecoder().decode(decrypted);
-  }
-
-  _isBiometricEnrolled() {
-    return !!(localStorage.getItem('domolink_bio_vault') && localStorage.getItem('domolink_bio_cred_id'));
-  }
-
-  _clearBiometricVault() {
-    localStorage.removeItem('domolink_bio_vault');
-    localStorage.removeItem('domolink_bio_cred_id');
-    localStorage.removeItem('domolink_bio_pin'); // Purge legacy plaintext PIN
-    localStorage.removeItem('domolink_bio_local_mode');
-  }
-
-  async _handleBiometricAuth() {
-    if (!window.PublicKeyCredential || !window.crypto || !window.crypto.subtle) {
-      alert("L'authentification biométrique matérielle (WebAuthn / WebCrypto) nécessite une connexion sécurisée (HTTPS ou domaine local).");
-      return;
-    }
-
-    const isEnrolled = this._isBiometricEnrolled();
-    const bioInfo = this._getBiometricInfo();
-    const bioBtn = this.querySelector('#btn-biometric-unlock');
-
-    const hostname = window.location.hostname;
-    const rpConfig = { name: "Domolink Alarm" };
-    if (hostname && !/^\d+\.\d+\.\d+\.\d+$/.test(hostname) && hostname !== 'localhost') {
-      rpConfig.id = hostname;
-    }
-
-    // ENROLLMENT FLOW
-    if (!isEnrolled) {
-      let pinToEnroll = this._codeValue;
-      if (!pinToEnroll || pinToEnroll.length < 4) {
-        alert(
-          `Configuration ${bioInfo.fullLabel} :\n\n1. Saisissez votre code PIN sur le pavé numérique (4 à 6 chiffres).\n2. Cliquez ensuite sur ce bouton pour associer votre ${bioInfo.label}.`
-        );
-        return;
-      }
-      pinToEnroll = pinToEnroll.trim();
-
-      try {
-        if (bioBtn) {
-          bioBtn.innerHTML = `<ha-icon icon="mdi:loading" style="--mdc-icon-size:18px; animation:spin 1s linear infinite;"></ha-icon> ASSOCIATION EN COURS...`;
-        }
-
-        const challenge = window.crypto.getRandomValues(new Uint8Array(32));
-        const userId = window.crypto.getRandomValues(new Uint8Array(16));
-        const deviceSuffix = Math.random().toString(36).substring(2, 8);
-
-        const credential = await navigator.credentials.create({
-          publicKey: {
-            challenge: challenge,
-            rp: rpConfig,
-            user: {
-              id: userId,
-              name: `domolink_${bioInfo.type}_${deviceSuffix}`,
-              displayName: `Domolink (${bioInfo.label})`
-            },
-            pubKeyCredParams: [
-              { alg: -7, type: "public-key" },
-              { alg: -257, type: "public-key" }
-            ],
-            authenticatorSelection: {
-              authenticatorAttachment: "platform",
-              userVerification: "required",
-              residentKey: "preferred"
-            },
-            timeout: 60000
-          }
-        });
-
-        if (credential && credential.rawId) {
-          const rawCredBytes = new Uint8Array(credential.rawId);
-          const vault = await this._encryptVaultPin(pinToEnroll, rawCredBytes);
-          localStorage.setItem('domolink_bio_vault', JSON.stringify(vault));
-          localStorage.setItem('domolink_bio_cred_id', this._arrayBufferToBase64(credential.rawId));
-          localStorage.removeItem('domolink_bio_pin'); // Ensure no plaintext PIN remains
-          localStorage.removeItem('domolink_bio_local_mode');
-
-          this._codeValue = '';
-          this._updatePinDisplay();
-
-          if (window.navigator && window.navigator.vibrate) {
-            try { window.navigator.vibrate([40, 60, 40]); } catch(e) {}
-          }
-
-          alert(`✓ ${bioInfo.fullLabel} associé avec succès !\n\nVotre code PIN est désormais chiffré dans l'enclave sécurisée de cet appareil.\nVous pouvez désormais désarmer en 1 clic.`);
-          this.render();
-        }
-      } catch (err) {
-        console.error("Biometric enrollment error:", err);
-        this.render();
-
-        const ua = navigator.userAgent || '';
-        const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-        const isHAApp = /Home Assistant|HomeAssistant/i.test(ua);
-
-        // Graceful iOS / WKWebView fallback if Apple blocks WebAuthn in embedded apps
-        if (isIOS || isHAApp) {
-          if (confirm(`L'authentification WebAuthn directe n'est pas autorisée par Apple dans cette vue (${err.name || 'Sécurité iOS'}).\n\nSouhaitez-vous activer le Déverrouillage Rapide Sécurisé (Chiffrement AES-GCM-256 local) sur cet iPhone ?`)) {
-            try {
-              const localKeyBytes = window.crypto.getRandomValues(new Uint8Array(32));
-              const vault = await this._encryptVaultPin(pinToEnroll, localKeyBytes);
-              localStorage.setItem('domolink_bio_vault', JSON.stringify(vault));
-              localStorage.setItem('domolink_bio_cred_id', this._arrayBufferToBase64(localKeyBytes.buffer));
-              localStorage.setItem('domolink_bio_local_mode', 'true');
-              localStorage.removeItem('domolink_bio_pin');
-
-              this._codeValue = '';
-              this._updatePinDisplay();
-              alert(`✓ Déverrouillage rapide sécurisé activé sur cet iPhone !\nVous pouvez désormais désarmer en 1 clic.`);
-              this.render();
-              return;
-            } catch (fallbackErr) {
-              alert("Erreur lors de l'activation du coffre local : " + fallbackErr.message);
-              return;
-            }
-          }
-        }
-
-        if (err.name === 'NotAllowedError' || err.name === 'AbortError') return;
-        alert("Impossible de finaliser l'association biométrique : " + (err.message || String(err)));
-      }
-      return;
-    }
-
-    // VERIFICATION / DISARM FLOW
-    try {
-      const credIdB64 = localStorage.getItem('domolink_bio_cred_id');
-      const vaultStr = localStorage.getItem('domolink_bio_vault');
-      const isLocalMode = localStorage.getItem('domolink_bio_local_mode') === 'true';
-
-      if (!vaultStr || !credIdB64) {
-        this._clearBiometricVault();
-        alert("Configuration biométrique introuvable. Veuillez réassocier votre code.");
-        this.render();
-        return;
-      }
-
-      // Fast-path for local encrypted vault (e.g. Home Assistant iOS App)
-      if (isLocalMode) {
-        const rawCredBytes = new Uint8Array(this._base64ToArrayBuffer(credIdB64));
-        const vault = JSON.parse(vaultStr);
-        const decryptedPin = await this._decryptVaultPin(vault, rawCredBytes);
-
-        if (!decryptedPin || decryptedPin.length < 4) {
-          throw new Error("Code PIN déchiffré invalide.");
-        }
-
-        if (window.navigator && window.navigator.vibrate) {
-          try { window.navigator.vibrate(50); } catch(e) {}
-        }
-
-        const alarmEntity = this._getAlarmEntity();
-        const state = alarmEntity ? alarmEntity.state : 'disarmed';
-
-        if (state === 'disarmed') {
-          if (bioBtn) {
-            bioBtn.innerHTML = `<ha-icon icon="mdi:check-circle" style="--mdc-icon-size:18px; color:#10b981;"></ha-icon> SYSTÈME DÉJÀ DÉSARMÉ`;
-          }
-          setTimeout(() => {
-            alert("✓ Déverrouillage validé !\nLe système d'alarme est actuellement déjà DÉSARMÉ.");
-            this.render();
-          }, 100);
-          return;
-        }
-
-        if (bioBtn) {
-          bioBtn.innerHTML = `<ha-icon icon="mdi:lock-open-variant" style="--mdc-icon-size:18px; color:#10b981;"></ha-icon> DÉSARMEMENT EN COURS...`;
-        }
-
-        this._codeValue = '';
-        this._updatePinDisplay();
-        this.callAlarmService('alarm_disarm', decryptedPin);
-        return;
-      }
-
-      if (bioBtn) {
-        bioBtn.innerHTML = `<ha-icon icon="mdi:loading" style="--mdc-icon-size:18px; animation:spin 1s linear infinite;"></ha-icon> SCAN EN COURS...`;
-      }
-
-      const challenge = window.crypto.getRandomValues(new Uint8Array(32));
-      const credBuffer = this._base64ToArrayBuffer(credIdB64);
-      
-      const getOptions = {
-        publicKey: {
-          challenge: challenge,
-          timeout: 60000,
-          userVerification: "preferred",
-          allowCredentials: [
-            {
-              id: credBuffer,
-              type: "public-key",
-              transports: ["internal"]
-            }
-          ]
-        }
-      };
-      if (rpConfig.id) {
-        getOptions.publicKey.rpId = rpConfig.id;
-      }
-
-      let assertion = null;
-      try {
-        assertion = await navigator.credentials.get(getOptions);
-      } catch (getErr) {
-        if (getErr && getErr.name === 'NotAllowedError') {
-          console.warn("First get attempt failed, trying fallback without transports filter:", getErr);
-          const fallbackOptions = {
-            publicKey: {
-              challenge: challenge,
-              timeout: 60000,
-              userVerification: "preferred",
-              allowCredentials: [
-                {
-                  id: credBuffer,
-                  type: "public-key"
-                }
-              ]
-            }
-          };
-          if (rpConfig.id) fallbackOptions.publicKey.rpId = rpConfig.id;
-          assertion = await navigator.credentials.get(fallbackOptions);
-        } else {
-          throw getErr;
-        }
-      }
-
-      if (assertion) {
-        const rawCredBytes = new Uint8Array(credBuffer);
-        const vault = JSON.parse(vaultStr);
-        const decryptedPin = await this._decryptVaultPin(vault, rawCredBytes);
-
-        if (!decryptedPin || decryptedPin.length < 4) {
-          throw new Error("Code PIN déchiffré invalide ou corrompu.");
-        }
-
-        if (window.navigator && window.navigator.vibrate) {
-          try { window.navigator.vibrate(60); } catch(e) {}
-        }
-
-        const alarmEntity = this._getAlarmEntity();
-        const state = alarmEntity ? alarmEntity.state : 'disarmed';
-
-        if (state === 'disarmed') {
-          if (bioBtn) {
-            bioBtn.innerHTML = `<ha-icon icon="mdi:check-circle" style="--mdc-icon-size:18px; color:#10b981;"></ha-icon> SYSTÈME DÉJÀ DÉSARMÉ`;
-          }
-          setTimeout(() => {
-            alert(`✓ ${bioInfo.fullLabel} validé avec succès !\n\nLe système d'alarme est actuellement déjà DÉSARMÉ.`);
-            this.render();
-          }, 100);
-          return;
-        }
-
-        if (bioBtn) {
-          bioBtn.innerHTML = `<ha-icon icon="mdi:lock-open-variant" style="--mdc-icon-size:18px; color:#10b981;"></ha-icon> DÉSARMEMENT EN COURS...`;
-        }
-
-        this._codeValue = '';
-        this._updatePinDisplay();
-        this.callAlarmService('alarm_disarm', decryptedPin);
-      }
-    } catch (err) {
-      console.warn("Biometric verification error:", err);
-      this.render();
-      if (err.name === 'NotAllowedError' || err.name === 'AbortError') return;
-
-      if (confirm(`L'authentification ${bioInfo.fullLabel} a échoué (${err.message || String(err)}).\n\nSouhaitez-vous réinitialiser le coffre-fort biométrique de cet appareil ?`)) {
-        this._clearBiometricVault();
-        alert("Biométrie réinitialisée. Vous pouvez ressaisir votre code PIN pour reconfigurer.");
-        this.render();
-      }
     }
   }
 
@@ -2263,44 +1882,6 @@ class DomolinkPanel extends HTMLElement {
           box-shadow: 0 0 16px rgba(255, 255, 255, 0.3);
         }
 
-        .btn-biometric-unlock {
-          width: 100%;
-          margin-top: 6px;
-          padding: 11px 14px;
-          border-radius: 14px;
-          background: rgba(16, 185, 129, 0.12);
-          border: 1px solid rgba(16, 185, 129, 0.35);
-          color: #10b981;
-          font-size: 11px;
-          font-weight: 800;
-          letter-spacing: 0.5px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          cursor: pointer;
-          transition: all 0.2s ease;
-        }
-        .btn-biometric-unlock:hover {
-          background: rgba(16, 185, 129, 0.22);
-          border-color: rgba(16, 185, 129, 0.6);
-          box-shadow: 0 4px 14px rgba(16, 185, 129, 0.25);
-          transform: translateY(-1px);
-        }
-        .btn-biometric-unlock:active {
-          transform: scale(0.98);
-        }
-        .btn-biometric-unlock.not-enrolled {
-          background: rgba(245, 158, 11, 0.12);
-          border-color: rgba(245, 158, 11, 0.35);
-          color: #f59e0b;
-        }
-        .btn-biometric-unlock.not-enrolled:hover {
-          background: rgba(245, 158, 11, 0.22);
-          border-color: rgba(245, 158, 11, 0.6);
-          box-shadow: 0 4px 14px rgba(245, 158, 11, 0.25);
-        }
-
         .btn-sos-danger {
           width: 100%;
           margin-top: 8px;
@@ -3265,10 +2846,6 @@ class DomolinkPanel extends HTMLElement {
     const container = this.querySelector('#pane-arm');
     if (!container) return;
 
-    const bioInfo = this._getBiometricInfo();
-    const isBioEnrolled = this._isBiometricEnrolled();
-    const bioBtnLabel = isBioEnrolled ? bioInfo.label : `ASSOCIER ${bioInfo.label}`;
-
     const state = alarmEntity ? alarmEntity.state : 'disarmed';
     const attrs = alarmEntity ? alarmEntity.attributes : {};
 
@@ -4123,11 +3700,6 @@ class DomolinkPanel extends HTMLElement {
             </button>
           </div>
 
-          <button class="btn-biometric-unlock ${isBioEnrolled ? 'enrolled' : 'not-enrolled'}" id="btn-biometric-unlock" title="${bioInfo.fullLabel}">
-            <ha-icon icon="${bioInfo.icon}" style="--mdc-icon-size:18px;"></ha-icon>
-            ${bioBtnLabel}
-          </button>
-
           <button class="btn-sos-danger" id="btn-panic-sos">
             <ha-icon icon="mdi:alert-decagram" style="--mdc-icon-size:18px;"></ha-icon>
             SOS PANIQUE IMMÉDIAT
@@ -4136,7 +3708,7 @@ class DomolinkPanel extends HTMLElement {
       </div>
     `;
 
-    const armCacheKey = `${state}_${attrs.last_user}_${attrs.triggered_by}_${this._selectedCameraIndex}_${totalSensorsCount}_${activeTriggers.length}_${isArmed}_${telegramStatus}_${ftpStatus}_${webdavStatus}_${googleDriveStatus}_${camerasArmed}_${attrs.camera_test_running}_${JSON.stringify(attrs.camera_test_info || {})}_${attrs.ftp_test_running}_${this._showFtpTestConsole}_${(attrs.ftp_test_logs || []).length}_${JSON.stringify(attrs.ftp_test_result || {})}_${attrs.webdav_test_running}_${this._showWebdavTestConsole}_${(attrs.webdav_test_logs || []).length}_${JSON.stringify(attrs.webdav_test_result || {})}_${attrs.google_drive_test_running}_${this._showGoogleDriveTestConsole}_${(attrs.google_drive_test_logs || []).length}_${JSON.stringify(attrs.google_drive_test_result || {})}_${recentEvent1}_${recentEvent2}_${isBioEnrolled}`;
+    const armCacheKey = `${state}_${attrs.last_user}_${attrs.triggered_by}_${this._selectedCameraIndex}_${totalSensorsCount}_${activeTriggers.length}_${isArmed}_${telegramStatus}_${ftpStatus}_${webdavStatus}_${googleDriveStatus}_${camerasArmed}_${attrs.camera_test_running}_${JSON.stringify(attrs.camera_test_info || {})}_${attrs.ftp_test_running}_${this._showFtpTestConsole}_${(attrs.ftp_test_logs || []).length}_${JSON.stringify(attrs.ftp_test_result || {})}_${attrs.webdav_test_running}_${this._showWebdavTestConsole}_${(attrs.webdav_test_logs || []).length}_${JSON.stringify(attrs.webdav_test_result || {})}_${attrs.google_drive_test_running}_${this._showGoogleDriveTestConsole}_${(attrs.google_drive_test_logs || []).length}_${JSON.stringify(attrs.google_drive_test_result || {})}_${recentEvent1}_${recentEvent2}`;
     if (this._lastArmKey !== armCacheKey || !container.querySelector('.arm-layout-grid')) {
       this._lastArmKey = armCacheKey;
       this._lastCarKey = '';
@@ -4171,12 +3743,6 @@ class DomolinkPanel extends HTMLElement {
       container.querySelectorAll('[data-service]').forEach(btn => {
         btn.addEventListener('click', () => this.callAlarmService(btn.getAttribute('data-service')));
       });
-
-      // Biometric Unlock Button Listener
-      const bioBtn = container.querySelector('#btn-biometric-unlock');
-      if (bioBtn) {
-        bioBtn.addEventListener('click', () => this._handleBiometricAuth());
-      }
 
       // Pre-Alert Quick Disarm Button
       const preAlertDisarmBtn = container.querySelector('#btn-prealert-disarm');
@@ -4281,7 +3847,7 @@ class DomolinkPanel extends HTMLElement {
           return;
         }
         const mediaFolder = attrs.media_path || "domolink_media";
-        if (!confirm(`Lancer le test d'enregistrement sur toutes les caméras ?\n\nPour chaque caméra, l'une après l'autre :\n1. Une photo sera capturée et sauvegardée\n2. Une vidéo de 30 secondes sera enregistrée et finalisée\n\nTous les fichiers seront stockés dans /local/${mediaFolder}/.`)) return;
+        if (!confirm(`Lancer le test d'enregistrement sur toutes les caméras ?\n\nPour chaque caméra, l'une après l'autre :\n1. Une photo sera capturée et sauvegardée\n2. Une vidéo de 30 secondes sera enregistrée et finalisée\n\nTous les fichiers seront stockés de manière sécurisée dans /config/domolink_alarm_media/${mediaFolder}/.`)) return;
         try {
           await this._hass.callService('domolink_alarm', 'test_cameras_recording', {});
           alert("🎬 Test d'enregistrement lancé avec succès !\n\nChaque caméra est traitée l'une après l'autre (photo + vidéo de 30 secondes).\nSuivez l'avancement en direct dans l'onglet Journal.");
@@ -5870,9 +5436,6 @@ function doGet(e) {
         `)}
       `;
     } else if (this._configSubTab === 'profiles') {
-      const bioInfo = this._getBiometricInfo();
-      const isBioEnrolled = this._isBiometricEnrolled();
-
       let rawProfiles = attrs.user_profiles || [];
       if (typeof rawProfiles === 'string') {
         try { rawProfiles = JSON.parse(rawProfiles); } catch(e) { rawProfiles = []; }
@@ -5880,38 +5443,6 @@ function doGet(e) {
       if (!Array.isArray(rawProfiles)) rawProfiles = [];
 
       contentHtml = `
-        <div class="glass-card" style="padding:18px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px; border:1px solid ${isBioEnrolled ? 'rgba(16,185,129,0.35)' : 'rgba(245,158,11,0.35)'}; background:${isBioEnrolled ? 'rgba(16,185,129,0.06)' : 'rgba(245,158,11,0.06)'};">
-          <div style="display:flex; align-items:center; gap:14px;">
-            <div style="width:44px; height:44px; border-radius:12px; background:${isBioEnrolled ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)'}; color:${isBioEnrolled ? '#10b981' : '#f59e0b'}; display:flex; align-items:center; justify-content:center;">
-              <ha-icon icon="${bioInfo.icon}" style="--mdc-icon-size:24px;"></ha-icon>
-            </div>
-            <div>
-              <div style="display:flex; align-items:center; gap:8px;">
-                <span style="font-size:15px; font-weight:800; color:var(--d-text);">${bioInfo.fullLabel}</span>
-                ${isBioEnrolled 
-                  ? '<span style="background:#dcfce7; color:#166534; font-size:11px; font-weight:700; padding:3px 8px; border-radius:6px;">✓ Configuré (Coffre AES-GCM-256)</span>' 
-                  : '<span style="background:rgba(245,158,11,0.15); color:#f59e0b; font-size:11px; font-weight:700; padding:3px 8px; border-radius:6px;">Non configuré sur cet appareil</span>'}
-              </div>
-              <div style="font-size:12px; color:var(--d-subtext); margin-top:3px;">
-                ${isBioEnrolled 
-                  ? "Votre code PIN est chiffré dans la puce de sécurité matérielle (Secure Enclave / TPM / FIDO2) de cet appareil." 
-                  : "Associez votre code PIN principal à la biométrie de cet appareil pour désarmer en 1 clic sans retaper le code."}
-              </div>
-            </div>
-          </div>
-          <div style="display:flex; align-items:center; gap:10px;">
-            ${isBioEnrolled ? `
-              <button id="btn-reset-biometric" class="action-btn" style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); color:#ef4444; padding:8px 14px; border-radius:8px; font-weight:700; font-size:12px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:all 0.2s;">
-                <ha-icon icon="mdi:lock-reset" style="--mdc-icon-size:16px;"></ha-icon> Réinitialiser
-              </button>
-            ` : `
-              <button id="btn-enroll-biometric" class="action-btn" style="background:#10b981; border:none; color:white; padding:8px 14px; border-radius:8px; font-weight:700; font-size:12px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:all 0.2s; box-shadow:0 4px 12px rgba(16,185,129,0.3);">
-                <ha-icon icon="${bioInfo.icon}" style="--mdc-icon-size:16px;"></ha-icon> Associer ${bioInfo.label}
-              </button>
-            `}
-          </div>
-        </div>
-
         <div style="margin-bottom:16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
           <div>
             <div style="font-size:16px; font-weight:800; color:var(--d-text);">Codes PIN Temporaires & Invités</div>
@@ -6263,7 +5794,7 @@ function doGet(e) {
         ${this._renderAccordionCard("retention", "mdi:database-clock", "#06b6d4", "Politique de Rétention & Quota de Stockage Médias", `
           ${this._renderNumberField("Durée maximale de rétention", "Nombre de jours de conservation des photos et vidéos locales (0 = illimité)", "media_retention_days", "mdi:calendar-range", 0, 365, 1, "jours")}
           ${this._renderNumberField("Quota de stockage maximal", "Taille maximale allouée au dossier médias en Mo (0 = illimité, rotation FIFO)", "media_max_size_mb", "mdi:harddisk", 0, 10240, 64, "Mo")}
-          ${this._renderTextField("Sous-dossier de stockage local", "Dossier dans /config/www/ où sont stockées les photos et vidéos", "media_path", "mdi:folder", "text", "domolink_media")}
+          ${this._renderTextField("Sous-dossier de stockage local", "Dossier dans /config/domolink_alarm_media/ où sont stockées les photos et vidéos", "media_path", "mdi:folder", "text", "domolink_media")}
         `)}
       `;
     } else if (this._configSubTab === 'carplay') {
@@ -7447,24 +6978,6 @@ mode: single`;
       });
     }
 
-    const btnResetBio = container.querySelector('#btn-reset-biometric');
-    if (btnResetBio) {
-      btnResetBio.addEventListener('click', () => {
-        if (confirm("Voulez-vous réinitialiser et supprimer l'association biométrique enregistrée sur cet appareil ?")) {
-          this._clearBiometricVault();
-          alert("✓ Association biométrique supprimée de cet appareil.");
-          this.render();
-        }
-      });
-    }
-
-    const btnEnrollBio = container.querySelector('#btn-enroll-biometric');
-    if (btnEnrollBio) {
-      btnEnrollBio.addEventListener('click', () => {
-        this._handleBiometricAuth();
-      });
-    }
-
     const btnAddProfile = container.querySelector('#btn-add-profile-trigger');
     if (btnAddProfile) {
       btnAddProfile.addEventListener('click', () => {
@@ -7949,7 +7462,7 @@ mode: single`;
       </div>`;
     } else {
       pageFiles.forEach((file, idx) => {
-        const url = `/local/${mediaPath}/${encodeURIComponent(file.name)}`;
+        const url = file.url || `/api/domolink_alarm/media/${mediaPath}/${encodeURIComponent(file.name)}`;
         const isVideo = /\.(mp4|webm|ogg)$/i.test(file.name);
         const label = file.name.replace(/^domolink_/, '').replace(/_/g, ' ').replace(/\.(jpg|mp4|jpeg)$/i, '');
         const sizeStr = file.size ? (file.size > 1048576 ? (file.size/1048576).toFixed(1)+'MB' : (file.size/1024).toFixed(0)+'KB') : '';
@@ -8039,7 +7552,7 @@ mode: single`;
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
           <div style="font-size:17px;font-weight:800;color:var(--d-text);display:flex;align-items:center;gap:8px;">
             <ha-icon icon="mdi:image-multiple" style="color:#f59e0b;"></ha-icon>
-            Médiathèque — <span style="font-size:13px;color:var(--d-subtext);font-weight:600;">/local/${mediaPath}/</span>
+            Médiathèque — <span style="font-size:13px;color:var(--d-subtext);font-weight:600;">/api/domolink_alarm/media/${mediaPath}/</span>
           </div>
           <div style="display:flex;gap:8px;align-items:center;">
             <button class="media-type-pill ${this._mediaType === 'photos' ? 'active' : ''}" id="media-btn-photos">

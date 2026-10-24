@@ -616,13 +616,17 @@ class CloudUploader:
             _LOGGER.info("Domolink FTP test: %s", msg)
             self.hass.loop.call_soon_threadsafe(self._append_ftp_log, msg, level)
 
-        host = (
-            data.get("ftp_host")
-            or nas_cfg.get("ftp_host")
+        stored_host = str(
+            nas_cfg.get("ftp_host")
             or (self._cfg(CONF_FTP_HOST, "") if is_cur_active else "")
-        )
-        if not host and cur_nas == "freebox":
-            host = "mafreebox.freebox.fr"
+            or ""
+        ).strip()
+        if not stored_host and cur_nas == "freebox":
+            stored_host = "mafreebox.freebox.fr"
+
+        call_host = str(data.get("ftp_host") or "").strip()
+        host = call_host or stored_host
+        host_matches_stored = not call_host or (stored_host and call_host == stored_host)
 
         default_port = 445 if protocol == "samba" else (22 if protocol == "sftp" else 21)
         raw_port = data.get("ftp_port") or nas_cfg.get("ftp_port")
@@ -642,23 +646,30 @@ class CloudUploader:
             data.get("ftp_user")
             if "ftp_user" in data
             else (
-                nas_cfg.get("ftp_user")
-                if "ftp_user" in nas_cfg
-                else (self._cfg(CONF_FTP_USER, "") if is_cur_active else "")
+                (
+                    nas_cfg.get("ftp_user")
+                    if "ftp_user" in nas_cfg
+                    else (self._cfg(CONF_FTP_USER, "") if is_cur_active else "")
+                )
+                if host_matches_stored
+                else ""
             )
         )
-        if not user and cur_nas == "freebox":
+        if not user and cur_nas == "freebox" and host_matches_stored:
             user = "freebox"
         raw_ftp_pass = data.get("ftp_pass")
         if raw_ftp_pass in (None, "", "••••••••", "••••", "********"):
-            password = (
-                nas_cfg.get("ftp_pass")
-                if (
-                    "ftp_pass" in nas_cfg
-                    and nas_cfg.get("ftp_pass") not in (None, "", "••••••••", "••••", "********")
+            if host_matches_stored:
+                password = (
+                    nas_cfg.get("ftp_pass")
+                    if (
+                        "ftp_pass" in nas_cfg
+                        and nas_cfg.get("ftp_pass") not in (None, "", "••••••••", "••••", "********")
+                    )
+                    else (self._cfg(CONF_FTP_PASS, "") if is_cur_active else "")
                 )
-                else (self._cfg(CONF_FTP_PASS, "") if is_cur_active else "")
-            )
+            else:
+                password = ""
         else:
             password = raw_ftp_pass
         path = (
@@ -1194,31 +1205,43 @@ class CloudUploader:
         nas_cfg = self._cfg(CONF_NAS_CONFIGS, {}).get(cur_nas, {})
         is_cur_active = cur_nas == self._cfg(CONF_NAS_TYPE, "asustor")
 
-        url = str(
-            data.get("webdav_url")
-            or nas_cfg.get("webdav_url")
+        stored_url = str(
+            nas_cfg.get("webdav_url")
             or (self._cfg(CONF_WEBDAV_URL, "") if is_cur_active else "")
             or ""
         ).strip()
+        call_url = str(data.get("webdav_url") or "").strip()
+        url = call_url or stored_url
+        url_matches_stored = not call_url or (
+            stored_url and call_url.rstrip("/") == stored_url.rstrip("/")
+        )
+
         user = str(
             data.get("webdav_user")
             if "webdav_user" in data
             else (
-                nas_cfg.get("webdav_user")
-                if "webdav_user" in nas_cfg
-                else (self._cfg(CONF_WEBDAV_USER, "") if is_cur_active else "") or ""
+                (
+                    nas_cfg.get("webdav_user")
+                    if "webdav_user" in nas_cfg
+                    else (self._cfg(CONF_WEBDAV_USER, "") if is_cur_active else "") or ""
+                )
+                if url_matches_stored
+                else ""
             )
         ).strip()
         raw_webdav_pass = data.get("webdav_pass")
         if raw_webdav_pass in (None, "", "••••••••", "••••", "********"):
-            passwd = str(
-                nas_cfg.get("webdav_pass")
-                if (
-                    "webdav_pass" in nas_cfg
-                    and nas_cfg.get("webdav_pass") not in (None, "", "••••••••", "••••", "********")
+            if url_matches_stored:
+                passwd = str(
+                    nas_cfg.get("webdav_pass")
+                    if (
+                        "webdav_pass" in nas_cfg
+                        and nas_cfg.get("webdav_pass") not in (None, "", "••••••••", "••••", "********")
+                    )
+                    else (self._cfg(CONF_WEBDAV_PASS, "") if is_cur_active else "") or ""
                 )
-                else (self._cfg(CONF_WEBDAV_PASS, "") if is_cur_active else "") or ""
-            )
+            else:
+                passwd = ""
         else:
             passwd = str(raw_webdav_pass)
         path = str(

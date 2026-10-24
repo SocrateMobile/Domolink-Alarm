@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import time
+import urllib.parse
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
@@ -56,6 +57,7 @@ class MediaManager:
         self.is_testing_cameras = False
         self.camera_test_info = {}
         self.media_files_cache_ts = 0
+        self.cached_media_files = []
         self.cameras_armed = False
 
     def _cfg(self, key, default=None):
@@ -63,13 +65,22 @@ class MediaManager:
 
     @property
     def media_path(self) -> str:
-        """Return relative media folder path under www/."""
-        return str(self._cfg(CONF_MEDIA_PATH, DEFAULT_MEDIA_PATH) or DEFAULT_MEDIA_PATH).strip()
+        """Return relative media folder path under domolink_alarm_media/."""
+        raw = str(self._cfg(CONF_MEDIA_PATH, DEFAULT_MEDIA_PATH) or DEFAULT_MEDIA_PATH).strip()
+        raw = raw.replace("\\", "/").strip("/")
+        if not raw or ".." in raw:
+            return DEFAULT_MEDIA_PATH
+        return raw
 
     @property
     def media_dir(self) -> str:
-        """Return absolute path to local media directory."""
-        return self.hass.config.path(f"www/{self.media_path}")
+        """Return absolute path to local media directory (outside www)."""
+        return self.hass.config.path("domolink_alarm_media", self.media_path)
+
+    @property
+    def alert_snapshot_path(self) -> str:
+        """Return absolute path to latest alert snapshot (outside www)."""
+        return self.hass.config.path("domolink_alarm_media", "domolink_alarm_alert.jpg")
 
     @property
     def retention_days(self) -> int:
@@ -119,6 +130,7 @@ class MediaManager:
         """Purge media files exceeding retention days and max storage MB quota (FIFO)."""
         if not os.path.exists(self.media_dir):
             self.update_storage_stats()
+            self.cached_media_files = []
             return {"deleted": 0, "freed_bytes": 0}
 
         deleted_count = 0
@@ -192,7 +204,7 @@ class MediaManager:
                         _LOGGER.debug("Domolink: Erreur suppression FIFO %s: %s", item["path"], err)
 
         self.media_files_cache_ts = 0
-        self.update_storage_stats()
+        self.list_media_files()
 
         if deleted_count > 0:
             freed_mb = round(freed_bytes / (1024 * 1024), 1)
@@ -202,6 +214,10 @@ class MediaManager:
 
         return {"deleted": deleted_count, "freed_bytes": freed_bytes}
 
+    async def async_refresh_media_cache(self) -> list:
+        """Refresh the cached media files list in the executor."""
+        return await self.hass.async_add_executor_job(self.list_media_files)
+
     async def async_clean_media(self, call=None) -> dict:
         """Service handler to clean / purge old media files on demand."""
         result = await self.hass.async_add_executor_job(self.purge_old_files)
@@ -209,10 +225,11 @@ class MediaManager:
         return result
 
     def list_media_files(self) -> list:
-        """List all media files in the configured media directory (for the JS gallery)."""
+        """List all media files in the configured media directory (run in executor)."""
         try:
             if not os.path.exists(self.media_dir):
                 self.update_storage_stats()
+                self.cached_media_files = []
                 return []
             files = []
             for fname in sorted(os.listdir(self.media_dir), reverse=True):
@@ -221,18 +238,28 @@ class MediaManager:
                     if os.path.isfile(fpath) and fname.lower().endswith(
                         (".jpg", ".jpeg", ".png", ".mp4", ".webm", ".ogg")
                     ):
+                        rel_url = f"/api/domolink_alarm/media/{self.media_path}/{urllib.parse.quote(fname)}"
+                        try:
+                            from datetime import timedelta
+                            from homeassistant.components.http.auth import async_sign_path
+
+                            signed_url = async_sign_path(self.hass, rel_url, timedelta(hours=24))
+                        except Exception:
+                            signed_url = rel_url
                         files.append(
                             {
                                 "name": fname,
                                 "size": os.path.getsize(fpath),
                                 "modified": os.path.getmtime(fpath),
+                                "url": signed_url,
                             }
                         )
             self.update_storage_stats()
-            return files[:200]  # Cap at 200 to avoid huge HA state
+            self.cached_media_files = files[:200]  # Cap at 200 to avoid huge HA state
+            return self.cached_media_files
         except Exception as e:
             _LOGGER.debug("Domolink: Erreur lecture médias: %s", e)
-            return []
+            return self.cached_media_files
 
     def get_media_filenames(self, camera_entity: str) -> tuple[str, str]:
         """Construct media filenames: [nom de la caméra] - [Année] - [jour] - [heure du déclenchement]."""
@@ -251,6 +278,16 @@ class MediaManager:
         base_name = f"{safe_cam} - {date_str} - {time_str}"
         return f"{base_name}.jpg", f"{base_name}.mp4"
 
+    @staticmethod
+    def _file_size_if_exists(path: str) -> int:
+        """Return file size in bytes if path exists, else -1 (sync helper for executor)."""
+        try:
+            if os.path.exists(path):
+                return os.stat(path).st_size
+        except Exception:
+            pass
+        return -1
+
     async def async_watch_and_fix_video(
         self, expected_mp4_path: str, duration: int = 30, timeout: int = 90
     ):
@@ -262,21 +299,28 @@ class MediaManager:
 
         remaining = max(10, timeout - duration - 4)
         for _ in range(int(remaining * 2)):
-            if os.path.exists(expected_mp4_path) and os.path.getsize(expected_mp4_path) > 10240:
+            mp4_size = await self.hass.async_add_executor_job(
+                self._file_size_if_exists, expected_mp4_path
+            )
+            if mp4_size > 10240:
                 self.media_files_cache_ts = 0
+                await self.async_refresh_media_cache()
+                self._write_state()
                 _LOGGER.debug("Domolink: Video OK: %s", expected_mp4_path)
                 await self.cloud_uploader.async_upload_file(expected_mp4_path, upload_telegram=True)
                 return
 
             for tmp in (tmp_path, alt_tmp):
-                if os.path.exists(tmp):
+                size1 = await self.hass.async_add_executor_job(self._file_size_if_exists, tmp)
+                if size1 >= 0:
                     try:
-                        size1 = os.stat(tmp).st_size
                         await asyncio.sleep(2.5)
-                        size2 = os.stat(tmp).st_size
+                        size2 = await self.hass.async_add_executor_job(self._file_size_if_exists, tmp)
                         if size1 == size2 and size1 > 10240:
-                            os.rename(tmp, expected_mp4_path)
+                            await self.hass.async_add_executor_job(os.rename, tmp, expected_mp4_path)
                             self.media_files_cache_ts = 0
+                            await self.async_refresh_media_cache()
+                            self._write_state()
                             _LOGGER.info("Domolink: .mp4.tmp finalisé en .mp4: %s", expected_mp4_path)
                             self._log_event(f"Vidéo sauvegardée: {os.path.basename(expected_mp4_path)}")
                             await self.cloud_uploader.async_upload_file(
@@ -288,6 +332,27 @@ class MediaManager:
             await asyncio.sleep(0.5)
         _LOGGER.warning("Domolink: Timeout attente vidéo: %s", expected_mp4_path)
 
+    def _perform_media_action_sync(self, action: str, file_path: str, filename: str, new_name: str):
+        """Execute media delete or rename synchronously in executor."""
+        if not os.path.exists(file_path):
+            raise HomeAssistantError(f"Fichier introuvable: {filename}")
+
+        if action == "delete":
+            try:
+                os.remove(file_path)
+                self.media_files_cache_ts = 0
+                self.list_media_files()
+            except Exception as e:
+                raise HomeAssistantError(f"Impossible de supprimer: {e}") from e
+        elif action == "rename":
+            new_path = os.path.join(self.media_dir, new_name)
+            try:
+                os.rename(file_path, new_path)
+                self.media_files_cache_ts = 0
+                self.list_media_files()
+            except Exception as e:
+                raise HomeAssistantError(f"Impossible de renommer: {e}") from e
+
     async def async_media_action(self, call):
         """Handle rename or delete of media files."""
         action = str(call.data.get("action", "")).lower()
@@ -298,36 +363,44 @@ class MediaManager:
             _LOGGER.error("Domolink: Tentative d'accès hors-répertoire bloquée: %s", filename)
             raise HomeAssistantError("Accès refusé: nom de fichier invalide.")
 
+        if action not in ("delete", "rename"):
+            raise HomeAssistantError(f"Action inconnue: {action}")
+
+        if action == "rename" and (not new_name or ".." in new_name or "/" in new_name or "\\" in new_name):
+            raise HomeAssistantError("Nouveau nom invalide.")
+
         file_path = os.path.join(self.media_dir, filename)
-        if not os.path.exists(file_path):
-            raise HomeAssistantError(f"Fichier introuvable: {filename}")
+        await self.hass.async_add_executor_job(
+            self._perform_media_action_sync, action, file_path, filename, new_name
+        )
 
         if action == "delete":
-            try:
-                os.remove(file_path)
-                self.media_files_cache_ts = 0
-                self.update_storage_stats()
-                self._log_event(f"Média supprimé: {filename}")
-                _LOGGER.info("Domolink: Fichier supprimé: %s", file_path)
-                self._write_state()
-            except Exception as e:
-                raise HomeAssistantError(f"Impossible de supprimer: {e}")
-
+            self._log_event(f"Média supprimé: {filename}")
+            _LOGGER.info("Domolink: Fichier supprimé: %s", file_path)
         elif action == "rename":
-            if not new_name or ".." in new_name or "/" in new_name or "\\" in new_name:
-                raise HomeAssistantError("Nouveau nom invalide.")
-            new_path = os.path.join(self.media_dir, new_name)
+            self._log_event(f"Média renommé: {filename} → {new_name}")
+            _LOGGER.info("Domolink: Fichier renommé: %s → %s", file_path, os.path.join(self.media_dir, new_name))
+
+        self._write_state()
+
+    def _ensure_media_dir_sync(self):
+        """Ensure media directory and parent alert directory exist (sync helper for executor)."""
+        os.makedirs(self.media_dir, exist_ok=True)
+        os.makedirs(os.path.dirname(self.alert_snapshot_path), exist_ok=True)
+
+    def _copy_snapshot_and_refresh_sync(self, snapshot_path: str, copy_alert: bool = True) -> bool:
+        """Check if snapshot exists, optionally copy to alert_snapshot_path, and refresh cache."""
+        if not os.path.exists(snapshot_path):
+            return False
+        if copy_alert:
             try:
-                os.rename(file_path, new_path)
-                self.media_files_cache_ts = 0
-                self.update_storage_stats()
-                self._log_event(f"Média renommé: {filename} → {new_name}")
-                _LOGGER.info("Domolink: Fichier renommé: %s → %s", file_path, new_path)
-                self._write_state()
+                os.makedirs(os.path.dirname(self.alert_snapshot_path), exist_ok=True)
+                shutil.copy2(snapshot_path, self.alert_snapshot_path)
             except Exception as e:
-                raise HomeAssistantError(f"Impossible de renommer: {e}")
-        else:
-            raise HomeAssistantError(f"Action inconnue: {action}")
+                _LOGGER.debug("Domolink: Erreur copie alert_path: %s", e)
+        self.media_files_cache_ts = 0
+        self.list_media_files()
+        return True
 
     async def async_test_cameras_recording(self, call=None):
         """Trigger sequential test of all cameras: photo + 30s video one by one."""
@@ -349,7 +422,7 @@ class MediaManager:
         total_cams = len(cameras)
 
         try:
-            os.makedirs(self.media_dir, exist_ok=True)
+            await self.hass.async_add_executor_job(self._ensure_media_dir_sync)
         except Exception as e:
             _LOGGER.error("Domolink: Impossible de créer le répertoire média %s: %s", self.media_dir, e)
 
@@ -403,13 +476,10 @@ class MediaManager:
                             timeout=15.0,
                         )
 
-                    if os.path.exists(snapshot_path):
-                        self.media_files_cache_ts = 0
-                        alert_path = self.hass.config.path("www/domolink_alarm_alert.jpg")
-                        try:
-                            shutil.copy2(snapshot_path, alert_path)
-                        except Exception:
-                            pass
+                    snap_ok = await self.hass.async_add_executor_job(
+                        self._copy_snapshot_and_refresh_sync, snapshot_path, True
+                    )
+                    if snap_ok:
                         await self.cloud_uploader.async_upload_file(snapshot_path)
                     self._log_event(f"✅ Photo test enregistrée ({cam_name})")
                 except asyncio.TimeoutError:
@@ -495,7 +565,7 @@ class MediaManager:
             return
 
         try:
-            os.makedirs(self.media_dir, exist_ok=True)
+            await self.hass.async_add_executor_job(self._ensure_media_dir_sync)
         except Exception as e:
             _LOGGER.error("Domolink: Impossible de créer %s: %s", self.media_dir, e)
 
@@ -535,15 +605,11 @@ class MediaManager:
                         timeout=12.0,
                     )
 
-                if idx == 0 and os.path.exists(snapshot_path):
-                    alert_path = self.hass.config.path("www/domolink_alarm_alert.jpg")
-                    try:
-                        shutil.copy2(snapshot_path, alert_path)
-                    except Exception as e:
-                        _LOGGER.debug("Domolink: Erreur copie alert_path: %s", e)
-
-                if os.path.exists(snapshot_path):
-                    self.media_files_cache_ts = 0
+                snap_ok = await self.hass.async_add_executor_job(
+                    self._copy_snapshot_and_refresh_sync, snapshot_path, idx == 0
+                )
+                if snap_ok:
+                    self._write_state()
                     await self.cloud_uploader.async_upload_file(snapshot_path, upload_telegram=True)
             except asyncio.TimeoutError:
                 _LOGGER.warning("Domolink: Timeout photo (12s) sur %s", camera)
