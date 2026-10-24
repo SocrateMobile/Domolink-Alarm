@@ -396,10 +396,6 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         )
 
         self._system_version = _sw_version
-        self._update_available = False
-        self._latest_version = _sw_version
-        self._release_notes = ""
-        self._release_url = ""
 
         self._siren_task = None
         self._arming_task = None
@@ -823,10 +819,6 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             "last_incident_report": dict(self._last_incident_report),
             "installed_config": self._get_installed_config(),
             "system_version": self._system_version,
-            "update_available": self._update_available,
-            "latest_version": self._latest_version,
-            "release_notes": self._release_notes,
-            "release_url": self._release_url,
         }
 
     def _get_safe_user_profiles(self):

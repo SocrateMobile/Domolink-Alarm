@@ -28,17 +28,21 @@ class DomolinkMediaView(HomeAssistantView):
         if not filename or ".." in filename or filename.startswith("/") or "\\" in filename:
             return web.Response(status=403, text="Forbidden")
 
-        base_dir = os.path.realpath(self.hass.config.path("domolink_alarm_media"))
-        target_path = os.path.realpath(os.path.join(base_dir, filename))
+        raw_base_dir = self.hass.config.path("domolink_alarm_media")
 
-        if not (target_path == base_dir or target_path.startswith(base_dir + os.sep)):
+        def _check_file() -> tuple[int, str | None]:
+            base_dir = os.path.realpath(raw_base_dir)
+            target_path = os.path.realpath(os.path.join(base_dir, filename))
+            if not (target_path == base_dir or target_path.startswith(base_dir + os.sep)):
+                return 403, None
+            if not os.path.isfile(target_path):
+                return 404, None
+            return 200, target_path
+
+        status, target_path = await self.hass.async_add_executor_job(_check_file)
+        if status == 403:
             return web.Response(status=403, text="Forbidden")
-
-        def _check_file() -> bool:
-            return os.path.isfile(target_path)
-
-        exists = await self.hass.async_add_executor_job(_check_file)
-        if not exists:
+        if status == 404 or not target_path:
             return web.Response(status=404, text="Not found")
 
         content_type, _ = mimetypes.guess_type(target_path)
