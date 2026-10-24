@@ -5727,7 +5727,7 @@ mode: single`;
       `;
     }
 
-    const currentVer = attrs.system_version || '0.9.94';
+    const currentVer = attrs.system_version || '0.9.95';
 
     const html = `
       <div style="max-width:960px; margin:0 auto;">
@@ -6975,7 +6975,7 @@ mode: single`;
       const isGdrive = Boolean(attrs.google_drive_enabled);
       const countCloud = (isFtp ? 1 : 0) + (isDav ? 1 : 0) + (isGdrive ? 1 : 0);
       const cloudLabel = countCloud > 1 ? 'MULTI-CLOUD' : (isGdrive ? 'G-DRIVE' : (isDav ? 'WEBDAV' : (isFtp ? 'FTP' : 'LOCAL')));
-      const versionBadgeHtml = `<span class="nav-badge-pill badge-version">v${attrs.system_version || '0.9.94'}</span>`;
+      const versionBadgeHtml = `<span class="nav-badge-pill badge-version">v${attrs.system_version || '0.9.95'}</span>`;
 
       elParam.innerHTML = `
         <div class="nav-badge-stack">
