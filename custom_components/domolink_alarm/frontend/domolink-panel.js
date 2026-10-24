@@ -719,51 +719,6 @@ class DomolinkPanel extends HTMLElement {
           border: 1px solid rgba(245, 158, 11, 0.35);
         }
 
-        .nav-badge-pill.badge-update-avail {
-          background: linear-gradient(135deg, rgba(239, 68, 68, 0.25), rgba(245, 158, 11, 0.25));
-          color: #f59e0b;
-          border: 1px solid rgba(245, 158, 11, 0.55);
-          animation: pulse-update 1.6s infinite;
-          box-shadow: 0 0 8px rgba(245, 158, 11, 0.35);
-        }
-
-        @keyframes pulse-update {
-          0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5); }
-          70% { transform: scale(1.04); box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
-          100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
-        }
-
-        .btn-update-auto {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          background: linear-gradient(135deg, #f59e0b, #d97706);
-          color: #ffffff;
-          border: none;
-          padding: 6px 12px;
-          border-radius: 9999px;
-          font-size: 12px;
-          font-weight: 700;
-          cursor: pointer;
-          box-shadow: 0 2px 10px rgba(245, 158, 11, 0.4);
-          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-          animation: pulse-glow-btn 2.2s infinite;
-        }
-        .btn-update-auto:hover {
-          transform: translateY(-1px) scale(1.02);
-          box-shadow: 0 4px 14px rgba(245, 158, 11, 0.6);
-        }
-        .btn-update-auto:active {
-          transform: translateY(1px);
-        }
-        .btn-update-auto .update-version-tag {
-          background: rgba(255, 255, 255, 0.25);
-          padding: 1px 6px;
-          border-radius: 6px;
-          font-size: 10px;
-          font-weight: 800;
-        }
-
         @keyframes pulse-glow-btn {
           0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.6); }
           70% { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
@@ -2465,11 +2420,6 @@ class DomolinkPanel extends HTMLElement {
             </div>
 
             <div class="header-actions">
-              <button class="btn-update-auto" id="btn-update-auto" style="display:none;" title="Nouvelle mise à jour Domolink Alarm disponible">
-                <ha-icon icon="mdi:rocket-launch" style="--mdc-icon-size:16px;"></ha-icon>
-                <span>Mise à jour auto</span>
-                <span class="update-version-tag" id="update-version-tag"></span>
-              </button>
               <div class="clock-widget" id="live-clock">
                 <span class="clock-time">--:--</span>
                 <span class="clock-date">---</span>
@@ -2551,16 +2501,6 @@ class DomolinkPanel extends HTMLElement {
     const themeBtn = this.querySelector('#theme-toggle-btn');
     if (themeBtn) {
       themeBtn.addEventListener('click', () => this._toggleTheme());
-    }
-
-    // Bind Auto-Update Button
-    const btnUpdateAuto = this.querySelector('#btn-update-auto');
-    if (btnUpdateAuto) {
-      btnUpdateAuto.addEventListener('click', () => {
-        const alarmEntity = this._getAlarmEntity();
-        const attrs = alarmEntity ? alarmEntity.attributes : {};
-        this._showUpdateModal(attrs);
-      });
     }
 
     // Bind Kiosk Toggle
@@ -4328,296 +4268,6 @@ class DomolinkPanel extends HTMLElement {
 
   // ─── Auto-Update Dialog & Deployment ─────────────
 
-  _syncSidebarBadge(hasUpdate) {
-    try {
-      const isAlarmUpdate = Boolean(hasUpdate);
-      const ha = document.querySelector('home-assistant');
-      const main = ha && ha.shadowRoot && ha.shadowRoot.querySelector('home-assistant-main');
-      const sidebar = main && main.shadowRoot && main.shadowRoot.querySelector('ha-sidebar');
-      if (!sidebar || !sidebar.shadowRoot) return;
-
-      if (!this._sidebarObserverAttached) {
-        this._sidebarObserverAttached = true;
-        try {
-          const obs = new MutationObserver(() => this._syncSidebarBadge(hasUpdate));
-          obs.observe(sidebar.shadowRoot, { childList: true, subtree: true });
-        } catch (e) {}
-      }
-
-      const integrations = [
-        {
-          key: 'domolink_alarm',
-          patterns: ['domolink_alarm', 'domolink-alarm'],
-          entityIds: ['update.domolink_alarm', 'update.domolink_alarm_mise_a_jour'],
-          hasUpdate: isAlarmUpdate,
-        },
-        {
-          key: 'domolink_backup',
-          patterns: ['domolink_backup', 'domolink-backup'],
-          entityIds: ['update.domolink_backup', 'update.domolink_backup_mise_a_jour'],
-          hasUpdate: undefined,
-        },
-        {
-          key: 'domolink_mistral',
-          patterns: ['domolink_mistral', 'domolink-mistral'],
-          entityIds: ['update.domolink_mistralia', 'update.domolink_mistral', 'update.domolink_mistral_mise_a_jour'],
-          hasUpdate: undefined,
-        },
-        {
-          key: 'flipr_pool',
-          patterns: ['flipr_pool', 'flipr-pool', 'flipr-pool-control', 'flipr'],
-          entityIds: ['update.flipr_pool_control', 'update.flipr_pool', 'update.flipr_pool_mise_a_jour'],
-          hasUpdate: undefined,
-        },
-      ];
-
-      const container = sidebar.shadowRoot.querySelector('paper-listbox, ha-md-list, nav, div.menu, div.items');
-      const items = (container || sidebar.shadowRoot).querySelectorAll('paper-icon-item, ha-md-list-item, ha-sidebar-item, a');
-
-      integrations.forEach((integ) => {
-        let isUpdateAvail = integ.hasUpdate;
-        if (isUpdateAvail === undefined && this._hass && this._hass.states) {
-          isUpdateAvail = integ.entityIds.some((id) => {
-            const st = this._hass.states[id];
-            return st && (st.state === 'on' || (st.attributes && st.attributes.update_available === true));
-          });
-        }
-
-        for (const item of items) {
-          const href = item.getAttribute('href') || (item.dataset && (item.dataset.panel || item.dataset.href)) || '';
-          const id = item.id || '';
-          const ariaLabel = item.getAttribute('aria-label') || '';
-          const text = (item.textContent || '').toLowerCase();
-
-          const isMatch = integ.patterns.some((pat) => {
-            const p = pat.toLowerCase();
-            return href.toLowerCase().includes(p) ||
-                   id.toLowerCase().includes(p) ||
-                   ariaLabel.toLowerCase().includes(p.replace(/_/g, ' ')) ||
-                   (p === 'flipr' && text.includes('flipr'));
-          });
-
-          if (isMatch) {
-            let badge = item.querySelector('.domolink-sidebar-badge');
-            if (isUpdateAvail) {
-              if (!badge) {
-                badge = document.createElement('span');
-                badge.className = 'badge domolink-sidebar-badge';
-                badge.setAttribute('slot', 'end');
-                badge.style.cssText = 'background: linear-gradient(135deg, #ef4444, #f59e0b); color: white; border-radius: 9999px; padding: 2px 7px; font-size: 10px; font-weight: 800; box-shadow: 0 2px 6px rgba(239,68,68,0.4); margin-left: auto; letter-spacing: 0.5px; z-index: 10; display: inline-block;';
-                badge.textContent = 'MAJ';
-                badge.title = 'Mise à jour disponible !';
-                item.appendChild(badge);
-              }
-            } else if (badge) {
-              badge.remove();
-            }
-          }
-        }
-      });
-    } catch (e) {
-      // Ignore cross-shadow boundary issues gracefully
-    }
-  }
-
-  _showUpdateModal(attrs) {
-    const updateEntity = this._hass && this._hass.states && this._hass.states['update.domolink_alarm'];
-    const currentVer = attrs.system_version || '0.9.84';
-    const latestVer = attrs.latest_version || (updateEntity && updateEntity.attributes && updateEntity.attributes.latest_version) || currentVer;
-    const releaseNotes = attrs.release_notes || (updateEntity && updateEntity.attributes && updateEntity.attributes.release_summary) || 'Mise à jour officielle de Domolink Alarm.';
-    const releaseUrl = attrs.release_url || (updateEntity && updateEntity.attributes && updateEntity.attributes.release_url) || `https://github.com/SocrateMobile/Domolink-Alarm/releases/tag/v${latestVer}`;
-
-    const modal = document.createElement('div');
-    modal.id = 'domolink-update-modal';
-    modal.style = "position:fixed; inset:0; background:rgba(0,0,0,0.85); backdrop-filter:blur(8px); z-index:999999; display:flex; align-items:center; justify-content:center; padding:16px; overflow-y:auto; cursor:default;";
-
-    modal.innerHTML = `
-      <div style="background:var(--d-card-bg, #1e293b); border:1px solid rgba(245,158,11,0.4); border-radius:18px; width:92vw; max-width:580px; box-shadow:0 25px 60px rgba(0,0,0,0.8); overflow:hidden; display:flex; flex-direction:column;">
-        
-        <!-- Header -->
-        <div style="display:flex; align-items:center; justify-content:space-between; padding:18px 24px; background:linear-gradient(135deg, rgba(245,158,11,0.15), rgba(217,119,6,0.05)); border-bottom:1px solid rgba(245,158,11,0.2);">
-          <div style="display:flex; align-items:center; gap:12px;">
-            <div style="width:40px; height:40px; border-radius:12px; background:linear-gradient(135deg, #f59e0b, #d97706); display:flex; align-items:center; justify-content:center; color:#fff; box-shadow:0 4px 12px rgba(245,158,11,0.4);">
-              <ha-icon icon="mdi:rocket-launch" style="--mdc-icon-size:22px;"></ha-icon>
-            </div>
-            <div>
-              <div style="font-size:16px; font-weight:800; color:var(--d-text, #fff);">Mise à jour Domolink Alarm</div>
-              <div style="font-size:12px; color:var(--d-subtext, #94a3b8);">Nouvelle version GitHub disponible</div>
-            </div>
-          </div>
-          <button id="modal-close-update" style="background:none; border:none; color:var(--d-subtext, #94a3b8); font-size:22px; cursor:pointer; padding:4px;">✕</button>
-        </div>
-
-        <!-- Body -->
-        <div style="padding:22px 24px; display:flex; flex-direction:column; gap:18px;">
-          <!-- Version Compare Pill Box -->
-          <div style="display:flex; align-items:center; justify-content:space-around; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:14px;">
-            <div style="text-align:center;">
-              <div style="font-size:11px; color:var(--d-subtext, #94a3b8); font-weight:600; text-transform:uppercase; margin-bottom:4px;">Version installée</div>
-              <div style="font-size:16px; font-weight:800; color:var(--d-text, #fff); font-family:monospace;">v${currentVer}</div>
-            </div>
-            <div style="color:#f59e0b; font-size:20px; font-weight:800;">➔</div>
-            <div style="text-align:center;">
-              <div style="font-size:11px; color:#f59e0b; font-weight:600; text-transform:uppercase; margin-bottom:4px;">Nouvelle version</div>
-              <div style="font-size:16px; font-weight:800; color:#10b981; font-family:monospace;">v${latestVer}</div>
-            </div>
-          </div>
-
-          <!-- Changelog -->
-          <div>
-            <div style="font-size:13px; font-weight:700; color:var(--d-text, #fff); margin-bottom:8px; display:flex; align-items:center; gap:6px;">
-              <ha-icon icon="mdi:text-box-search-outline" style="--mdc-icon-size:16px; color:#f59e0b;"></ha-icon>
-              Notes de version & Nouveautés
-            </div>
-            <div style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.06); border-radius:10px; padding:14px; max-height:180px; overflow-y:auto; font-size:12px; color:var(--d-subtext, #cbd5e1); line-height:1.6; white-space:pre-wrap; font-family:-apple-system,BlinkMacSystemFont,sans-serif;">${releaseNotes}</div>
-          </div>
-
-          <!-- Alert Note -->
-          <div style="background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); border-radius:10px; padding:12px; display:flex; align-items:flex-start; gap:10px;">
-            <ha-icon icon="mdi:information" style="--mdc-icon-size:20px; color:#f59e0b; flex-shrink:0; margin-top:2px;"></ha-icon>
-            <div style="font-size:11.5px; color:var(--d-text, #fff); line-height:1.5;">
-              La mise à jour va télécharger l'archive officielle depuis GitHub, remplacer les fichiers de l'intégration, puis <strong>redémarrer automatiquement Home Assistant</strong> pour appliquer les changements.
-            </div>
-          </div>
-        </div>
-
-        <!-- Footer -->
-        <div style="display:flex; align-items:center; justify-content:space-between; padding:16px 24px; background:rgba(0,0,0,0.25); border-top:1px solid rgba(255,255,255,0.08);">
-          <a href="${releaseUrl}" target="_blank" rel="noopener" style="font-size:12px; color:#38bdf8; text-decoration:none; display:flex; align-items:center; gap:4px;">
-            <ha-icon icon="mdi:open-in-new" style="--mdc-icon-size:14px;"></ha-icon> Voir sur GitHub
-          </a>
-          <div style="display:flex; align-items:center; gap:10px;">
-            <button id="modal-cancel-update" style="background:var(--d-sec-bg, #334155); color:var(--d-text, #fff); border:none; padding:10px 18px; border-radius:10px; font-weight:700; font-size:12px; cursor:pointer;">Annuler</button>
-            <button id="modal-confirm-update" style="background:linear-gradient(135deg, #f59e0b, #d97706); color:white; border:none; padding:10px 20px; border-radius:10px; font-weight:800; font-size:12px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(245,158,11,0.4);">
-              <ha-icon icon="mdi:cloud-download" style="--mdc-icon-size:16px;"></ha-icon> Confirmer et Mettre à jour
-            </button>
-          </div>
-        </div>
-      </div>
-    `;
-
-    this.appendChild(modal);
-    const closeModal = () => modal.remove();
-    modal.querySelector('#modal-close-update')?.addEventListener('click', closeModal);
-    modal.querySelector('#modal-cancel-update')?.addEventListener('click', closeModal);
-    modal.addEventListener('click', (ev) => {
-      if (ev.target === modal) closeModal();
-    });
-
-    modal.querySelector('#modal-confirm-update')?.addEventListener('click', () => {
-      closeModal();
-      this._executeAutoUpdate();
-    });
-  }
-
-  _executeAutoUpdate() {
-    const overlay = document.createElement('div');
-    overlay.id = 'domolink-update-progress-overlay';
-    overlay.style = "position:fixed; inset:0; background:rgba(0,0,0,0.92); backdrop-filter:blur(12px); z-index:9999999; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; cursor:wait;";
-    overlay.innerHTML = `
-      <div style="background:var(--d-card-bg, #1e293b); border:1px solid rgba(245,158,11,0.4); border-radius:20px; padding:32px; width:90vw; max-width:480px; text-align:center; box-shadow:0 30px 70px rgba(0,0,0,0.9);">
-        <div id="update-spinner-icon" style="width:60px; height:60px; border-radius:50%; background:linear-gradient(135deg, #f59e0b, #d97706); margin:0 auto 20px; display:flex; align-items:center; justify-content:center; color:#fff; box-shadow:0 0 24px rgba(245,158,11,0.6); animation:spin-slow 4s linear infinite;">
-          <ha-icon icon="mdi:sync" style="--mdc-icon-size:32px;"></ha-icon>
-        </div>
-        <div style="font-size:18px; font-weight:800; color:#fff; margin-bottom:8px;" id="update-status-title">Mise à jour en cours...</div>
-        <div style="font-size:13px; color:var(--d-subtext, #94a3b8); line-height:1.6; margin-bottom:24px;" id="update-status-desc">
-          Téléchargement de l'archive GitHub et application des nouveaux fichiers...
-        </div>
-        <div style="width:100%; height:8px; background:rgba(255,255,255,0.1); border-radius:999px; overflow:hidden; margin-bottom:16px;">
-          <div id="update-progress-bar" style="width:25%; height:100%; background:linear-gradient(90deg, #f59e0b, #10b981); border-radius:999px; transition:width 0.4s ease;"></div>
-        </div>
-        <div style="font-size:11px; color:#64748b; font-family:monospace;" id="update-timer-msg">Veuillez patienter sans fermer la page</div>
-      </div>
-    `;
-    this.appendChild(overlay);
-
-    const progressBar = overlay.querySelector('#update-progress-bar');
-    const statusTitle = overlay.querySelector('#update-status-title');
-    const statusDesc = overlay.querySelector('#update-status-desc');
-    const timerMsg = overlay.querySelector('#update-timer-msg');
-    const spinnerIcon = overlay.querySelector('#update-spinner-icon');
-
-    const showError = (msg) => {
-      overlay.style.cursor = 'default';
-      if (spinnerIcon) {
-        spinnerIcon.style.background = '#ef4444';
-        spinnerIcon.style.animation = 'none';
-        spinnerIcon.innerHTML = '<ha-icon icon="mdi:alert-circle" style="--mdc-icon-size:32px;"></ha-icon>';
-      }
-      if (statusTitle) statusTitle.textContent = "Échec du déclenchement";
-      if (statusDesc) {
-        statusDesc.innerHTML = `<span style="color:#ef4444; font-weight:600;">${msg}</span><br><br><span style="color:#94a3b8; font-size:12px;">L'intégration n'a pas pu exécuter la mise à jour automatique. Veuillez mettre à jour via HACS ou recharger l'intégration.</span>`;
-      }
-      if (progressBar) progressBar.style.background = '#ef4444';
-      if (timerMsg) {
-        timerMsg.innerHTML = `<button style="margin-top:8px; padding:10px 20px; background:#334155; color:#fff; border:none; border-radius:10px; font-weight:700; cursor:pointer;" onclick="this.closest('#domolink-update-progress-overlay').remove()">Fermer</button>`;
-      }
-    };
-
-    let callPromise;
-    try {
-      callPromise = this._hass.callService('domolink_alarm', 'install_update', { backup: true });
-    } catch (err) {
-      try {
-        callPromise = this._hass.callService('update', 'install', { entity_id: 'update.domolink_alarm' });
-      } catch (e2) {
-        showError(e2.message || "Impossible d'appeler le service de mise à jour.");
-        return;
-      }
-    }
-
-    if (!callPromise || typeof callPromise.then !== 'function') {
-      callPromise = Promise.resolve();
-    }
-
-    callPromise.then(() => {
-      let percent = 25;
-      const progressInterval = setInterval(() => {
-        if (percent < 85) {
-          percent += 10;
-          if (progressBar) progressBar.style.width = percent + '%';
-        }
-      }, 1200);
-
-      let serverWentDown = false;
-      let count = 0;
-      const pollInterval = setInterval(async () => {
-        count++;
-        if (timerMsg) timerMsg.textContent = serverWentDown 
-          ? `En attente du redémarrage du serveur (${count * 2}s)...` 
-          : `Application des modifications (${count * 2}s)...`;
-
-        try {
-          const resp = await fetch('/manifest.json', { cache: 'no-store' });
-          if (serverWentDown && resp.ok) {
-            clearInterval(progressInterval);
-            clearInterval(pollInterval);
-            if (progressBar) progressBar.style.width = '100%';
-            if (statusTitle) statusTitle.textContent = 'Mise à jour terminée !';
-            if (statusDesc) statusDesc.textContent = 'Home Assistant a redémarré avec succès. Rechargement...';
-            setTimeout(() => window.location.reload(), 1200);
-          } else if (!serverWentDown && count > 15) {
-            clearInterval(progressInterval);
-            clearInterval(pollInterval);
-            if (progressBar) progressBar.style.width = '100%';
-            if (statusTitle) statusTitle.textContent = 'Mise à jour effectuée';
-            if (statusDesc) statusDesc.textContent = 'Fichiers mis à jour. Redémarrez Home Assistant pour appliquer.';
-            if (timerMsg) {
-              timerMsg.innerHTML = `<button style="margin-top:8px; padding:10px 20px; background:#10b981; color:#fff; border:none; border-radius:10px; font-weight:700; cursor:pointer;" onclick="window.location.reload()">Recharger la page</button>`;
-            }
-          }
-        } catch (e) {
-          serverWentDown = true;
-          if (progressBar) progressBar.style.width = '90%';
-          if (statusTitle) statusTitle.textContent = 'Redémarrage de Home Assistant...';
-          if (statusDesc) statusDesc.textContent = 'Fichiers installés ! En attente du redémarrage du serveur...';
-        }
-      }, 2000);
-    }).catch((err) => {
-      showError(err && err.message ? err.message : "Erreur lors de l'appel du service de mise à jour.");
-    });
-  }
-
   // ─── Tab 4: Santé ───────────────────────────────
 
   _renderHealthTab() {
@@ -6077,37 +5727,10 @@ mode: single`;
       `;
     }
 
-    const updateEntity = this._hass && this._hass.states && this._hass.states['update.domolink_alarm'];
-    const hasUpdate = Boolean(attrs.update_available || (updateEntity && updateEntity.state === 'on'));
-    const latestVersion = attrs.latest_version || (updateEntity && updateEntity.attributes && updateEntity.attributes.latest_version) || attrs.system_version || '0.9.84';
-    const currentVer = attrs.system_version || '0.9.84';
+    const currentVer = attrs.system_version || '0.9.94';
 
     const html = `
       <div style="max-width:960px; margin:0 auto;">
-        ${hasUpdate ? `
-          <!-- Auto-Update Alert Banner -->
-          <div class="glass-card" style="margin-bottom:18px; background:linear-gradient(135deg, rgba(245,158,11,0.12), rgba(217,119,6,0.06)); border:1px solid rgba(245,158,11,0.4); border-radius:14px; padding:16px 20px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px; box-shadow:0 4px 16px rgba(245,158,11,0.15);">
-            <div style="display:flex; align-items:center; gap:12px;">
-              <div style="width:42px; height:42px; border-radius:12px; background:linear-gradient(135deg,#f59e0b,#d97706); display:flex; align-items:center; justify-content:center; color:#fff; box-shadow:0 2px 10px rgba(245,158,11,0.4);">
-                <ha-icon icon="mdi:rocket-launch" style="--mdc-icon-size:22px;"></ha-icon>
-              </div>
-              <div>
-                <div style="font-size:15px; font-weight:800; color:var(--d-text); display:flex; align-items:center; gap:8px;">
-                  Nouvelle version disponible : v${latestVersion}
-                  <span class="nav-badge-pill badge-update-avail">Mise à jour prête</span>
-                </div>
-                <div style="font-size:12px; color:var(--d-subtext); margin-top:2px;">
-                  Version actuelle : <strong>v${currentVer}</strong> • Cliquez pour afficher les nouveautés et installer
-                </div>
-              </div>
-            </div>
-            <button class="btn-update-auto" id="btn-config-update-now">
-              <ha-icon icon="mdi:cloud-download" style="--mdc-icon-size:16px;"></ha-icon>
-              Mettre à jour maintenant
-            </button>
-          </div>
-        ` : ''}
-
         <!-- Header Info -->
         <div class="glass-card" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; margin-bottom:20px;">
           <div style="display:flex; align-items:center; gap:14px;">
@@ -6454,13 +6077,6 @@ mode: single`;
     const saveBottom = container.querySelector('#btn-config-save-bottom');
     if (saveTop) saveTop.addEventListener('click', () => handleSave(saveTop));
     if (saveBottom) saveBottom.addEventListener('click', () => handleSave(saveBottom));
-
-    const configUpdateBtn = container.querySelector('#btn-config-update-now');
-    if (configUpdateBtn) {
-      configUpdateBtn.addEventListener('click', () => {
-        this._showUpdateModal(attrs);
-      });
-    }
 
     // ─── Unified NAS Diagnostic Tests (Per-NAS FTP & WebDAV) ─────────
     const runNasTest = async (nasKey, proto = 'ftp', targetBtn = null) => {
@@ -7351,11 +6967,7 @@ mode: single`;
       `;
     }
 
-    // 7. Paramètres Badge & Auto-Update
-    const updateEntity = this._hass && this._hass.states && this._hass.states['update.domolink_alarm'];
-    const hasUpdate = Boolean(attrs.update_available || (updateEntity && updateEntity.state === 'on'));
-    const latestVersion = attrs.latest_version || (updateEntity && updateEntity.attributes && updateEntity.attributes.latest_version) || attrs.system_version || '0.9.84';
-
+    // 7. Paramètres Badge
     const elParam = this.querySelector('#nav-badge-param');
     if (elParam) {
       const isFtp = Boolean(attrs.ftp_enabled);
@@ -7363,10 +6975,7 @@ mode: single`;
       const isGdrive = Boolean(attrs.google_drive_enabled);
       const countCloud = (isFtp ? 1 : 0) + (isDav ? 1 : 0) + (isGdrive ? 1 : 0);
       const cloudLabel = countCloud > 1 ? 'MULTI-CLOUD' : (isGdrive ? 'G-DRIVE' : (isDav ? 'WEBDAV' : (isFtp ? 'FTP' : 'LOCAL')));
-      
-      const versionBadgeHtml = hasUpdate
-        ? `<span class="nav-badge-pill badge-update-avail" title="Nouvelle version v${latestVersion} disponible !">🚀 v${latestVersion}</span>`
-        : `<span class="nav-badge-pill badge-version">v${attrs.system_version || '0.9.84'}</span>`;
+      const versionBadgeHtml = `<span class="nav-badge-pill badge-version">v${attrs.system_version || '0.9.94'}</span>`;
 
       elParam.innerHTML = `
         <div class="nav-badge-stack">
@@ -7375,21 +6984,6 @@ mode: single`;
         </div>
       `;
     }
-
-    // 8. Header Auto-Update Action Button
-    const btnUpdateAuto = this.querySelector('#btn-update-auto');
-    if (btnUpdateAuto) {
-      if (hasUpdate) {
-        btnUpdateAuto.style.display = 'inline-flex';
-        const tag = btnUpdateAuto.querySelector('#update-version-tag');
-        if (tag) tag.textContent = `v${latestVersion}`;
-      } else {
-        btnUpdateAuto.style.display = 'none';
-      }
-    }
-
-    // 9. HA Sidebar Notification Badge Sync
-    this._syncSidebarBadge(hasUpdate);
   }
 
   // ─── Main Render ────────────────────────────────
@@ -7427,6 +7021,36 @@ mode: single`;
   // ─── Helpers ────────────────────────────────────
 
   // ─── Tab: Médias (Photos & Vidéos) ──────────────
+
+  async _signMediaPath(path, expires = 300) {
+    if (!path || !path.startsWith('/api/domolink_alarm/media/')) return path;
+    if (path.includes('authSig=')) return path;
+    if (!this._signedPathCache) this._signedPathCache = new Map();
+    const now = Date.now();
+    const cached = this._signedPathCache.get(path);
+    if (cached && cached.expiresAt > now) {
+      return cached.signedPath;
+    }
+    if (this._hass && typeof this._hass.callWS === 'function') {
+      try {
+        const res = await this._hass.callWS({
+          type: 'auth/sign_path',
+          path,
+          expires,
+        });
+        if (res && res.path) {
+          this._signedPathCache.set(path, {
+            signedPath: res.path,
+            expiresAt: now + (expires - 30) * 1000,
+          });
+          return res.path;
+        }
+      } catch (e) {
+        // Fallback to raw path if WS fails
+      }
+    }
+    return path;
+  }
 
   _renderMediaTab(attrs) {
     const container = this.querySelector('#pane-media');
@@ -7471,7 +7095,7 @@ mode: single`;
           gridHtml += `
           <div class="media-card" data-filename="${this.escapeHtml(file.name)}">
             <div class="media-thumb media-thumb-video" data-video-player="${url}" data-label="${this.escapeHtml(file.name)}" style="cursor:pointer;position:relative;">
-              <video src="${url}#t=0.5" preload="metadata" playsinline muted style="width:100%;height:100%;object-fit:cover;border-radius:12px 12px 0 0;pointer-events:none;"></video>
+              <video data-sign-src="${url}" data-sign-hash="#t=0.5" preload="metadata" playsinline muted style="width:100%;height:100%;object-fit:cover;border-radius:12px 12px 0 0;pointer-events:none;"></video>
               <div class="media-play-overlay">
                 <div class="media-play-disc">
                   <ha-icon icon="mdi:play" style="--mdc-icon-size:28px;color:#fff;margin-left:2px;"></ha-icon>
@@ -7486,7 +7110,7 @@ mode: single`;
               <div class="media-meta">${sizeStr}</div>
             </div>
             <div class="media-actions">
-              <a class="media-action-btn" href="${url}" download="${this.escapeHtml(file.name)}" title="Télécharger"><ha-icon icon="mdi:download"></ha-icon></a>
+              <a class="media-action-btn" data-sign-href="${url}" href="#" download="${this.escapeHtml(file.name)}" title="Télécharger"><ha-icon icon="mdi:download"></ha-icon></a>
               <button class="media-action-btn" data-action="rename" data-file="${this.escapeHtml(file.name)}" title="Renommer"><ha-icon icon="mdi:pencil"></ha-icon></button>
               <button class="media-action-btn media-action-delete" data-action="delete" data-file="${this.escapeHtml(file.name)}" title="Supprimer"><ha-icon icon="mdi:trash-can"></ha-icon></button>
             </div>
@@ -7495,14 +7119,14 @@ mode: single`;
           gridHtml += `
           <div class="media-card" data-filename="${this.escapeHtml(file.name)}">
             <div class="media-thumb" data-lightbox="${url}" data-label="${this.escapeHtml(file.name)}" style="cursor:zoom-in;">
-              <img src="${url}" loading="lazy" alt="${this.escapeHtml(file.name)}" style="width:100%;height:100%;object-fit:cover;border-radius:12px 12px 0 0;" onerror="this.src='';this.style.display='none';this.parentElement.innerHTML='<div style=\\'display:flex;align-items:center;justify-content:center;height:100%;color:var(--d-subtext);\\'>❌</div>';">
+              <img data-sign-src="${url}" loading="lazy" alt="${this.escapeHtml(file.name)}" style="width:100%;height:100%;object-fit:cover;border-radius:12px 12px 0 0;" onerror="this.src='';this.style.display='none';this.parentElement.innerHTML='<div style=\\'display:flex;align-items:center;justify-content:center;height:100%;color:var(--d-subtext);\\'>❌</div>';">
             </div>
             <div class="media-info">
               <div class="media-name" title="${this.escapeHtml(file.name)}">${this.escapeHtml(label)}</div>
               <div class="media-meta">${sizeStr}</div>
             </div>
             <div class="media-actions">
-              <a class="media-action-btn" href="${url}" download="${this.escapeHtml(file.name)}" title="Télécharger"><ha-icon icon="mdi:download"></ha-icon></a>
+              <a class="media-action-btn" data-sign-href="${url}" href="#" download="${this.escapeHtml(file.name)}" title="Télécharger"><ha-icon icon="mdi:download"></ha-icon></a>
               <button class="media-action-btn" data-action="rename" data-file="${this.escapeHtml(file.name)}" title="Renommer"><ha-icon icon="mdi:pencil"></ha-icon></button>
               <button class="media-action-btn media-action-delete" data-action="delete" data-file="${this.escapeHtml(file.name)}" title="Supprimer"><ha-icon icon="mdi:trash-can"></ha-icon></button>
             </div>
@@ -7618,6 +7242,19 @@ mode: single`;
 
     container.innerHTML = html;
 
+    // Sign media paths on demand right before showing thumbnails and download links
+    container.querySelectorAll('[data-sign-src]').forEach(async (el) => {
+      const rawPath = el.getAttribute('data-sign-src');
+      const hash = el.getAttribute('data-sign-hash') || '';
+      const signed = await this._signMediaPath(rawPath, 300);
+      if (el.isConnected) el.src = signed + hash;
+    });
+    container.querySelectorAll('[data-sign-href]').forEach(async (el) => {
+      const rawPath = el.getAttribute('data-sign-href');
+      const signed = await this._signMediaPath(rawPath, 300);
+      if (el.isConnected) el.href = signed;
+    });
+
     // Type toggle
     container.querySelector('#media-btn-photos')?.addEventListener('click', () => {
       this._mediaType = 'photos'; this._mediaPage = 0; this._mediaForceRender = true; this._lastMediaSignature = null; this.render();
@@ -7656,8 +7293,9 @@ mode: single`;
 
     // Lightbox for photos
     container.querySelectorAll('[data-lightbox]').forEach(el => {
-      el.addEventListener('click', () => {
-        const src = el.getAttribute('data-lightbox');
+      el.addEventListener('click', async () => {
+        const rawSrc = el.getAttribute('data-lightbox');
+        const src = await this._signMediaPath(rawSrc, 300);
         const label = el.getAttribute('data-label') || 'Photo';
         const lb = document.createElement('div');
         lb.className = 'media-lightbox';
@@ -7720,9 +7358,10 @@ mode: single`;
 
     // Dedicated Video Player Modal
     container.querySelectorAll('[data-video-player]').forEach(el => {
-      el.addEventListener('click', (e) => {
+      el.addEventListener('click', async (e) => {
         if (e.target.closest('.media-actions')) return;
-        const url = el.getAttribute('data-video-player');
+        const rawUrl = el.getAttribute('data-video-player');
+        const url = await this._signMediaPath(rawUrl, 300);
         const label = el.getAttribute('data-label') || 'Vidéo';
 
         const modal = document.createElement('div');

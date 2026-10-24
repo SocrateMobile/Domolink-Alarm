@@ -239,19 +239,12 @@ class MediaManager:
                         (".jpg", ".jpeg", ".png", ".mp4", ".webm", ".ogg")
                     ):
                         rel_url = f"/api/domolink_alarm/media/{self.media_path}/{urllib.parse.quote(fname)}"
-                        try:
-                            from datetime import timedelta
-                            from homeassistant.components.http.auth import async_sign_path
-
-                            signed_url = async_sign_path(self.hass, rel_url, timedelta(hours=24))
-                        except Exception:
-                            signed_url = rel_url
                         files.append(
                             {
                                 "name": fname,
                                 "size": os.path.getsize(fpath),
                                 "modified": os.path.getmtime(fpath),
-                                "url": signed_url,
+                                "url": rel_url,
                             }
                         )
             self.update_storage_stats()

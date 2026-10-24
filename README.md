@@ -2,7 +2,7 @@
 
 <p align="center">
   <strong>La centrale d'alarme intelligente la plus puissante, complète et modulaire jamais conçue pour Home Assistant.</strong><br>
-  <em>Sécurité certifiable NF A2P • Multi-Cloud & NAS • Apple CarPlay & Android Auto • Rapports PDF SHA-256 • Mise à Jour 1-Clic</em>
+  <em>Sécurité certifiable NF A2P • Multi-Cloud & NAS • Apple CarPlay & Android Auto • Rapports PDF SHA-256</em>
 </p>
 
 <p align="center">
@@ -22,15 +22,15 @@
 
 ---
 
-## 🚀 Nouveautés de la Version 0.9.93
+## 🚀 Nouveautés de la Version 0.9.94
 
 [![Buy Me A Coffee](https://img.buymeacoffee.com/button-api/?text=Buy+me+a+coffee&emoji=☕&slug=Socrate&button_colour=FFDD00&font_colour=000000&font_family=Poppins&outline_colour=000000&coffee_colour=ffffff)](https://www.buymeacoffee.com/Socrate)
 
 - **Conformité HACS & Sécurité Renforcée** :
-  - **Stockage Médias Authentifié** : Les captures photos et vidéos d'intrusion sont désormais stockées hors du dossier public `www` (`/config/domolink_alarm_media/`) et servies exclusivement via une vue HTTP authentifiée (`/api/domolink_alarm/media/...`) et des URLs signées (`async_sign_path`).
+  - **Stockage Médias Authentifié & Signature à la Demande** : Les captures photos et vidéos d'intrusion sont stockées hors du dossier public `www` (`/config/domolink_alarm_media/`), exposées sous forme de chemins neutres dans l'état et servies exclusivement via une vue HTTP authentifiée (`/api/domolink_alarm/media/...`) avec signature éphémère à la demande dans le panneau (`auth/sign_path`).
   - **Zéro Stockage PIN Navigateur** : Suppression complète du stockage local de code PIN dans le navigateur (`localStorage`) pour garantir que les codes ne résident jamais côté client.
   - **Contrôle d'Accès Administrateur Strict** : Vérification stricte des privilèges administrateur sur les services de diagnostic et de configuration (`test_ftp`, `test_webdav`, `test_google_drive`, `reveal_secret`, `generate_incident_report`), et isolation des identifiants stockés lors des tests d'hôtes personnalisés.
-  - **Programmation Horaire & I/O Asynchrone** : Utilisation des méthodes internes d'armement/désarmement pour la planification horaire et exécution de toutes les opérations de fichiers en tâche de fond (`async_add_executor_job`) avec mise en cache de la médiathèque.
+  - **Programmation Horaire & I/O Asynchrone** : Utilisation des méthodes internes d'armement/désarmement pour la planification horaire et exécution de toutes les opérations de fichiers (y compris la résolution de chemins `realpath`) en tâche de fond (`async_add_executor_job`) avec mise en cache de la médiathèque.
 
 ## 🚀 Nouveautés de la Version 0.9.81
 
@@ -51,7 +51,6 @@
 
 - **Synergie DomoLink-BackUp (Emergency Snapshot)** : Si une intrusion est détectée et que DomoLink-BackUp est installé, la centrale déclenche instantanément une sauvegarde d'urgence asynchrone des répertoires `www` (caméras/snapshots) et de la base de données. Vos preuves restent en sécurité sur un NAS ou le Cloud même si la box domotique est détruite.
 - **Synergie Mistral IA** : Les derniers évènements critiques de l'alarme sont désormais exposés de manière compacte dans l'attribut `ai_recent_events`. Mistral IA peut donc lire et résumer instantanément pourquoi l'alarme a sonné.
-- **Synergie Restart-HA** : Lors d'une mise à jour OTA de l'alarme depuis le panneau, le redémarrage utilise `restart_ha.start_process` (Safe Boot / Quick Restart) pour un redémarrage fluide sans perte de contrôle.
 
 ## 💎 Pourquoi Domolink Alarm surpasse les solutions existantes ?
 
@@ -77,7 +76,6 @@ La plupart des alarmes domotiques se limitent à déclencher une sirène sur un 
 | :--- | :---: | :---: | :---: |
 | **Interface de Gestion Dédiée (Sidebar Panel)** | **✅ Oui (Panneau complet Glassmorphism)** | ⚠️ Panneau basique | ❌ Application fermée |
 | **Double Détection / Confirmation NF A2P** | **✅ Oui (Fenêtre 30s-180s configurable)** | ❌ Non | ✅ Oui (sur modèles haut de gamme) |
-| **Mise à Jour Automatique 1-Clic avec Badge** | **✅ Oui (Directement dans la barre latérale)** | ❌ Manuel | ⚠️ Partiel (Cloud captif) |
 | **Rapport d'Incident Certifié PDF (Assurance & Police)** | **✅ Oui (A4 officiel + signature SHA-256)** | ❌ Non | ❌ Non |
 | **Sauvegarde Multi-Cloud Externe Instantanée** | **✅ FTP (512K), FTPS, SFTP, SMB, WebDAV, G-Drive**| ❌ Local uniquement | ⚠️ Cloud propriétaire payant |
 | **Profils Invités, Nounou, Ménage & Usage Unique** | **✅ Oui (Avec créneaux et validité calendaire)**| ⚠️ Codes basiques sans plages | ⚠️ Limité |
@@ -129,7 +127,7 @@ graph TD
 
 ---
 
-## 🌟 Les 8 Piliers d'Excellence de Domolink Alarm
+## 🌟 Les 7 Piliers d'Excellence de Domolink Alarm
 
 ### 🛡️ 1. Double Détection & Confirmation d'Intrusion (Norme NF A2P)
 * **Zéro Faux Positifs** : L'alarme ne s'emballe jamais pour une simple mouche ou un voilage qui bouge. L'alarme générale exige **soit 2 capteurs distincts**, soit **deux sollicitations du même capteur** dans un intervalle réglable (30s à 180s).
@@ -165,17 +163,7 @@ graph TD
 
 ---
 
-### 🔄 5. Mise à Jour Automatique 1-Clic & Pastille Barre Latérale
-* **Détection Proactive en Arrière-Plan** : Interroge régulièrement l'API GitHub sans ralentissement et sans aucune dépendance.
-* **Pastille dans la Barre Latérale Home Assistant** :
-  - L'icône du menu de gauche s'illumine : `Domolink Alarm 🔴` avec bouclier d'alerte `mdi:shield-alert`.
-  - Un badge visuel contrasté `MAJ` est affiché directement sur l'élément de menu.
-* **Entité Native `update.domolink_alarm`** : Intégrée au système officiel de mises à jour de Home Assistant (*Paramètres > Système > Mises à jour*).
-* **Bouton 1-Clic dans le Panneau** : Cliquez sur `[🚀 Mise à jour auto]`, découvrez le changelog officiel, confirmez et admirez : téléchargement du ZIP, sauvegarde préalable de sécurité, remplacement des fichiers et redémarrage propre de Home Assistant avec reconnexion automatique !
-
----
-
-### 🚗 6. Mobilité & Véhicules (Apple CarPlay, Android Auto & Smartwatches)
+### 🚗 5. Mobilité & Véhicules (Apple CarPlay, Android Auto & Smartwatches)
 * **Mode Voiture Haute Visibilité** : Conçu pour les systèmes embarqués (Apple CarPlay, Android Auto, Tesla, tablettes de bord).
   - Boutons d'armement tactiles géants de **80px** de haut, prévenant toute fausse manipulation en conduisant.
   - Pavé numérique grand format avec touches C (Effacer) et ✓ (Valider).
@@ -185,13 +173,13 @@ graph TD
 
 ---
 
-### 📺 7. Mode Kiosque Mural & Expérience Écran Tactile
+### 📺 6. Mode Kiosque Mural & Expérience Écran Tactile
 * **Affichage Plein Écran Kiosque** : Masque les barres de navigation superflues d'un seul tap pour transformer n'importe quelle tablette murale (iPad, Galaxy Tab, Fire HD) en véritable centrale d'alarme de luxe.
 * **Économiseur d'Écran OLED Noir Profond** : Protection anti-marquage d'écran (burn-in) avec horloge discrète en mouvement lent et réveil instantané au simple effleurement de la dalle.
 
 ---
 
-### 💡 8. Simulation de Présence Intelligente & Dissuasion Réflexe
+### 💡 7. Simulation de Présence Intelligente & Dissuasion Réflexe
 * **Rejeu d'Historique Réel à J-7** : Dès que l'alarme est armée en mode Absent, le système rejoue à la seconde près les allumages de lumières et prises enregistrés une semaine plus tôt dans la base de données Home Assistant. Les cambrioleurs ont l'illusion parfaite d'une maison occupée.
 * **Mode Carillon Vocal (Chime)** : Annonce vocale douce sur vos enceintes lors de l'ouverture d'une porte lorsque l'alarme est désarmée (*« Porte d'entrée ouverte »*).
 * **Lumières de Panique** : Flash stroboscopique dissuasif de vos ampoules connectées dès le début du délai d'entrée pour faire fuir l'intrus avant même que la sirène ne retentisse.
