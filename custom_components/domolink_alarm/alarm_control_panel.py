@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import secrets
+import voluptuous as vol
 
 from homeassistant.components.alarm_control_panel import (
     AlarmControlPanelEntity,
@@ -321,9 +322,17 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
         await _require_admin_user(call)
         return entity.get_incident_report_data()
 
-    async_register_admin_service(hass, DOMAIN, "update_settings", async_handle_update_settings)
-    async_register_admin_service(hass, DOMAIN, "media_action", async_handle_media_action)
-    hass.services.async_register(DOMAIN, "test_cameras_recording", async_handle_test_cameras)
+    SCHEMA_ALLOW_ALL = vol.Schema({}, extra=vol.ALLOW_EXTRA)
+
+    async_register_admin_service(
+        hass, DOMAIN, "update_settings", async_handle_update_settings, schema=SCHEMA_ALLOW_ALL
+    )
+    async_register_admin_service(
+        hass, DOMAIN, "media_action", async_handle_media_action, schema=SCHEMA_ALLOW_ALL
+    )
+    hass.services.async_register(
+        DOMAIN, "test_cameras_recording", async_handle_test_cameras, schema=SCHEMA_ALLOW_ALL
+    )
 
     try:
         from homeassistant.core import SupportsResponse
@@ -342,26 +351,59 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
         if supports_opt is not None:
             try:
                 async_register_admin_service(
-                    hass, DOMAIN, svc_name, svc_handler, supports_response=supports_opt
+                    hass,
+                    DOMAIN,
+                    svc_name,
+                    svc_handler,
+                    schema=SCHEMA_ALLOW_ALL,
+                    supports_response=supports_opt,
                 )
             except TypeError:
                 hass.services.async_register(
-                    DOMAIN, svc_name, svc_handler, supports_response=supports_opt
+                    DOMAIN,
+                    svc_name,
+                    svc_handler,
+                    schema=SCHEMA_ALLOW_ALL,
+                    supports_response=supports_opt,
                 )
         else:
-            async_register_admin_service(hass, DOMAIN, svc_name, svc_handler)
+            async_register_admin_service(
+                hass, DOMAIN, svc_name, svc_handler, schema=SCHEMA_ALLOW_ALL
+            )
 
-    async_register_admin_service(hass, DOMAIN, "clean_media", async_handle_clean_media)
-    hass.services.async_register(DOMAIN, "bypass_sensor", async_handle_bypass_sensor)
-    hass.services.async_register(DOMAIN, "unbypass_sensor", async_handle_unbypass_sensor)
-    hass.services.async_register(DOMAIN, "panic", async_handle_panic)
-    hass.services.async_register(DOMAIN, "start_presence_simulation", async_handle_start_sim)
-    hass.services.async_register(DOMAIN, "stop_presence_simulation", async_handle_stop_sim)
-    hass.services.async_register(DOMAIN, "toggle_presence_simulation", async_handle_toggle_sim)
-    async_register_admin_service(hass, DOMAIN, "add_user_profile", async_handle_add_user_profile)
-    async_register_admin_service(hass, DOMAIN, "delete_user_profile", async_handle_delete_user_profile)
-    hass.services.async_register(DOMAIN, "snooze_reminder", async_handle_snooze_reminder)
-    hass.services.async_register(DOMAIN, "sync_physical_keypad", async_handle_sync_physical_keypad)
+    async_register_admin_service(
+        hass, DOMAIN, "clean_media", async_handle_clean_media, schema=SCHEMA_ALLOW_ALL
+    )
+    hass.services.async_register(
+        DOMAIN, "bypass_sensor", async_handle_bypass_sensor, schema=SCHEMA_ALLOW_ALL
+    )
+    hass.services.async_register(
+        DOMAIN, "unbypass_sensor", async_handle_unbypass_sensor, schema=SCHEMA_ALLOW_ALL
+    )
+    hass.services.async_register(
+        DOMAIN, "panic", async_handle_panic, schema=SCHEMA_ALLOW_ALL
+    )
+    hass.services.async_register(
+        DOMAIN, "start_presence_simulation", async_handle_start_sim, schema=SCHEMA_ALLOW_ALL
+    )
+    hass.services.async_register(
+        DOMAIN, "stop_presence_simulation", async_handle_stop_sim, schema=SCHEMA_ALLOW_ALL
+    )
+    hass.services.async_register(
+        DOMAIN, "toggle_presence_simulation", async_handle_toggle_sim, schema=SCHEMA_ALLOW_ALL
+    )
+    async_register_admin_service(
+        hass, DOMAIN, "add_user_profile", async_handle_add_user_profile, schema=SCHEMA_ALLOW_ALL
+    )
+    async_register_admin_service(
+        hass, DOMAIN, "delete_user_profile", async_handle_delete_user_profile, schema=SCHEMA_ALLOW_ALL
+    )
+    hass.services.async_register(
+        DOMAIN, "snooze_reminder", async_handle_snooze_reminder, schema=SCHEMA_ALLOW_ALL
+    )
+    hass.services.async_register(
+        DOMAIN, "sync_physical_keypad", async_handle_sync_physical_keypad, schema=SCHEMA_ALLOW_ALL
+    )
 
 
 class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):

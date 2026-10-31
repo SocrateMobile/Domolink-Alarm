@@ -22,6 +22,15 @@
 
 ---
 
+## 🚀 Nouveautés de la Version 3.0.1
+
+[![Buy Me A Coffee](https://img.buymeacoffee.com/button-api/?text=Buy+me+a+coffee&emoji=☕&slug=Socrate&button_colour=FFDD00&font_colour=000000&font_family=Poppins&outline_colour=000000&coffee_colour=ffffff)](https://www.buymeacoffee.com/Socrate)
+
+- **Correction de la sauvegarde des paramètres (Compatibilité Home Assistant 2024.10+ / DEV)** :
+  - Déclaration explicite du schéma de validation (`schema=vol.Schema({}, extra=vol.ALLOW_EXTRA)`) sur `update_settings` et l'ensemble des services d'administration (`async_register_admin_service`), résolvant l'erreur de validation `not a valid option at 'name'` lors de la sauvegarde.
+- **Diagnostic et Test Google Drive en temps réel** :
+  - Support de la transmission immédiate des identifiants et de l'URL Webhook saisis dans le formulaire vers le service `test_google_drive`, permettant de tester la connexion avant même l'enregistrement de la configuration.
+
 ## 🚀 Nouveautés de la Version 0.9.95
 
 [![Buy Me A Coffee](https://img.buymeacoffee.com/button-api/?text=Buy+me+a+coffee&emoji=☕&slug=Socrate&button_colour=FFDD00&font_colour=000000&font_family=Poppins&outline_colour=000000&coffee_colour=ffffff)](https://www.buymeacoffee.com/Socrate)
