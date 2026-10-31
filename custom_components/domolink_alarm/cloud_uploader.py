@@ -1606,21 +1606,32 @@ class CloudUploader:
         self.google_drive_test_result = {}
         self._append_google_drive_log("🚀 Démarrage du diagnostic Google Drive...", "info")
 
-        self.hass.async_create_task(self._async_run_google_drive_test())
+        data = call.data if (call and hasattr(call, "data")) else {}
+        self.hass.async_create_task(self._async_run_google_drive_test(data))
 
-    async def _async_run_google_drive_test(self):
+    async def _async_run_google_drive_test(self, data=None):
         """Run step-by-step diagnostic of Google Drive asynchronously."""
+        if data is None:
+            data = {}
         import aiohttp
         import time
         from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
         start_time = time.time()
-        method = self._cfg(CONF_GOOGLE_DRIVE_METHOD, "webhook")
-        folder_id = str(self._cfg(CONF_GOOGLE_DRIVE_FOLDER_ID, "") or "").strip()
+        method = str(data.get(CONF_GOOGLE_DRIVE_METHOD) or self._cfg(CONF_GOOGLE_DRIVE_METHOD, "webhook")).strip().lower()
+        folder_id = str(data.get(CONF_GOOGLE_DRIVE_FOLDER_ID, self._cfg(CONF_GOOGLE_DRIVE_FOLDER_ID, "")) or "").strip()
+        webhook_override = str(data.get(CONF_GOOGLE_DRIVE_WEBHOOK_URL, "") or "").strip()
+        client_id_override = str(data.get(CONF_GOOGLE_DRIVE_CLIENT_ID, "") or "").strip()
+
+        is_enabled = bool(
+            data.get(CONF_GOOGLE_DRIVE_ENABLED)
+            if CONF_GOOGLE_DRIVE_ENABLED in data
+            else (webhook_override or client_id_override or self._cfg(CONF_GOOGLE_DRIVE_ENABLED, False))
+        )
 
         try:
             await asyncio.sleep(0.2)
-            if not self._cfg(CONF_GOOGLE_DRIVE_ENABLED, False):
+            if not is_enabled:
                 self._append_google_drive_log(
                     "Le service Google Drive est désactivé dans la configuration.",
                     "error",
@@ -1634,7 +1645,7 @@ class CloudUploader:
             session = async_get_clientsession(self.hass)
 
             if method == "webhook":
-                webhook_url = str(self._cfg(CONF_GOOGLE_DRIVE_WEBHOOK_URL, "") or "").strip()
+                webhook_url = webhook_override or str(self._cfg(CONF_GOOGLE_DRIVE_WEBHOOK_URL, "") or "").strip()
                 if not webhook_url:
                     self._append_google_drive_log(
                         "Aucune URL Webhook Google Apps Script configurée.",
@@ -1711,9 +1722,13 @@ class CloudUploader:
                     return
 
             elif method == "oauth":
-                client_id = str(self._cfg(CONF_GOOGLE_DRIVE_CLIENT_ID, "") or "").strip()
-                client_secret = str(self._cfg(CONF_GOOGLE_DRIVE_CLIENT_SECRET, "") or "").strip()
-                refresh_token = str(self._cfg(CONF_GOOGLE_DRIVE_REFRESH_TOKEN, "") or "").strip()
+                client_id = client_id_override or str(self._cfg(CONF_GOOGLE_DRIVE_CLIENT_ID, "") or "").strip()
+                client_secret = str(data.get(CONF_GOOGLE_DRIVE_CLIENT_SECRET, "") or "").strip()
+                if not client_secret or client_secret in (SECRET_MASK, "••••••••", "••••", "********"):
+                    client_secret = str(self._cfg(CONF_GOOGLE_DRIVE_CLIENT_SECRET, "") or "").strip()
+                refresh_token = str(data.get(CONF_GOOGLE_DRIVE_REFRESH_TOKEN, "") or "").strip()
+                if not refresh_token or refresh_token in (SECRET_MASK, "••••••••", "••••", "********"):
+                    refresh_token = str(self._cfg(CONF_GOOGLE_DRIVE_REFRESH_TOKEN, "") or "").strip()
 
                 if not (client_id and client_secret and refresh_token):
                     self._append_google_drive_log(

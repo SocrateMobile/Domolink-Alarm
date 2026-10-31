@@ -3882,7 +3882,13 @@ class DomolinkPanel extends HTMLElement {
         this._lastArmKey = '';
         this.render();
         try {
-          await this._hass.callService('domolink_alarm', 'test_google_drive', {});
+          const gdrivePayload = {};
+          if (this._configDraft) {
+            ['google_drive_enabled', 'google_drive_method', 'google_drive_webhook_url', 'google_drive_folder_id', 'google_drive_client_id', 'google_drive_client_secret', 'google_drive_refresh_token'].forEach(k => {
+              if (this._configDraft[k] !== undefined) gdrivePayload[k] = this._configDraft[k];
+            });
+          }
+          await this._hass.callService('domolink_alarm', 'test_google_drive', gdrivePayload);
         } catch (err) {
           console.error("Erreur lors du lancement du test Google Drive:", err);
           alert("Erreur lors du lancement du test Google Drive : " + (err.message || err));
@@ -5727,7 +5733,7 @@ mode: single`;
       `;
     }
 
-    const currentVer = attrs.system_version || '0.9.95';
+    const currentVer = attrs.system_version || '3.0.1';
 
     const html = `
       <div style="max-width:960px; margin:0 auto;">
@@ -6406,6 +6412,22 @@ mode: single`;
     const gdriveCfgBtn = container.querySelector('#btn-test-gdrive-cfg');
     if (gdriveCfgBtn) {
       gdriveCfgBtn.addEventListener('click', () => {
+        const gdrivePayload = {};
+        container.querySelectorAll('.config-input, .config-select:not(.config-entity-picker)').forEach(input => {
+          const field = input.getAttribute('data-field');
+          if (field && field.startsWith('google_drive_')) {
+            gdrivePayload[field] = input.value;
+            if (this._configDraft) this._configDraft[field] = input.value;
+          }
+        });
+        container.querySelectorAll('.config-toggle').forEach(chk => {
+          const field = chk.getAttribute('data-field');
+          if (field && field.startsWith('google_drive_')) {
+            gdrivePayload[field] = Boolean(chk.checked);
+            if (this._configDraft) this._configDraft[field] = Boolean(chk.checked);
+          }
+        });
+
         this._showGoogleDriveTestConsole = true;
         this._activeTab = 'arm';
         this._paramRendered = false;
@@ -6413,7 +6435,7 @@ mode: single`;
         this.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'pane-arm'));
         this._lastArmKey = '';
         this.render();
-        this._hass.callService('domolink_alarm', 'test_google_drive', {});
+        this._hass.callService('domolink_alarm', 'test_google_drive', gdrivePayload);
       });
     }
 
@@ -6975,7 +6997,7 @@ mode: single`;
       const isGdrive = Boolean(attrs.google_drive_enabled);
       const countCloud = (isFtp ? 1 : 0) + (isDav ? 1 : 0) + (isGdrive ? 1 : 0);
       const cloudLabel = countCloud > 1 ? 'MULTI-CLOUD' : (isGdrive ? 'G-DRIVE' : (isDav ? 'WEBDAV' : (isFtp ? 'FTP' : 'LOCAL')));
-      const versionBadgeHtml = `<span class="nav-badge-pill badge-version">v${attrs.system_version || '0.9.95'}</span>`;
+      const versionBadgeHtml = `<span class="nav-badge-pill badge-version">v${attrs.system_version || '3.0.1'}</span>`;
 
       elParam.innerHTML = `
         <div class="nav-badge-stack">

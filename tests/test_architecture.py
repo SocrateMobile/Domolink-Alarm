@@ -206,6 +206,36 @@ class TestCloudUploader(unittest.TestCase):
         finally:
             loop.close()
 
+    def test_google_drive_test_with_payload_override(self):
+        """Ensure Google Drive diagnostic uses override credentials from data payload."""
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            mock_session = MagicMock()
+            mock_resp = MagicMock()
+            mock_resp.status = 200
+            mock_session.post.return_value.__aenter__.return_value = mock_resp
+
+            with patch(
+                "homeassistant.helpers.aiohttp_client.async_get_clientsession",
+                return_value=mock_session,
+            ):
+                loop.run_until_complete(
+                    self.uploader._async_run_google_drive_test(
+                        {
+                            "google_drive_enabled": True,
+                            "google_drive_method": "webhook",
+                            "google_drive_webhook_url": "https://script.google.com/macros/s/TEST/exec",
+                        }
+                    )
+                )
+                self.assertTrue(mock_session.post.called)
+                post_url = mock_session.post.call_args[0][0]
+                self.assertEqual(post_url, "https://script.google.com/macros/s/TEST/exec")
+                self.assertEqual(self.uploader.google_drive_status, "Connecté")
+        finally:
+            loop.close()
+
 
 class TestNotificationManager(unittest.TestCase):
     """Test NotificationManager dispatching and failover structures."""
