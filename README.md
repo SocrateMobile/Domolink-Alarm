@@ -1,5 +1,10 @@
 # <p align="center"><img src="images/logo@2x.png" alt="Domolink Alarm Logo" width="120"><br>🚨 Domolink Alarm</p>
 
+[![Documentation Officielle](https://img.shields.io/badge/Documentation-socratemobile.fr-06b6d4.svg?logo=googlechrome&logoColor=white)](https://socratemobile.fr/integration.html?id=domolink-alarm)
+
+> 🌐 **Site officiel & Documentation complète** : Retrouvez le guide d'installation pas à pas, les entités supportées et les exemples d'automatisations sur [socratemobile.fr](https://socratemobile.fr/integration.html?id=domolink-alarm).
+
+
 <p align="center">
   <strong>La centrale d'alarme intelligente la plus puissante, complète et modulaire jamais conçue pour Home Assistant.</strong><br>
   <em>Sécurité certifiable NF A2P • Multi-Cloud & NAS • Apple CarPlay & Android Auto • Rapports PDF SHA-256</em>
