@@ -190,13 +190,25 @@ class GeofenceManager:
         reply_text = event.data.get("reply_text")
 
         if action == "DOMOLINK_DISARM":
+            if self.alarm_entity._users:
+                pin = str(reply_text).strip() if reply_text else ""
+                validated_user = self.alarm_entity._validate_code(pin) if pin else None
+                if not validated_user:
+                    _LOGGER.warning("Domolink: Tentative de désarmement mobile DOMOLINK_DISARM sans code PIN valide")
+                    self._log_event("Tentative désarmement mobile refusée (PIN requis)")
+                    await self.alarm_entity.notification_manager.async_send_notification(
+                        "🔒 Désarmement refusé : code PIN requis."
+                    )
+                    return
+                user_name = f"{validated_user} (Mobile)"
+            else:
+                user_name = "App Mobile"
+                if event.context and event.context.user_id:
+                    user_obj = await self.hass.auth.async_get_user(event.context.user_id)
+                    if user_obj and user_obj.name:
+                        user_name = f"{user_obj.name} (Mobile)"
             _LOGGER.info("Disarm triggered via mobile actionable notification")
             self.alarm_entity._cancel_all_tasks()
-            user_name = "App Mobile"
-            if event.context and event.context.user_id:
-                user_obj = await self.hass.auth.async_get_user(event.context.user_id)
-                if user_obj and user_obj.name:
-                    user_name = f"{user_obj.name} (Mobile)"
             self._log_event(f"Alarme Désarmée par {user_name}")
             self.alarm_entity._record_arm_event("disarm", user_name)
             await self.alarm_entity.async_internal_disarm("Géolocalisation")

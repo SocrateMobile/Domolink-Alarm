@@ -980,7 +980,7 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             CONF_PERSONS_LABELS: list(_val(CONF_PERSONS_LABELS, []) or []),
             CONF_USERS_CODES: self._get_masked_users_codes(),
             CONF_DURESS_CODE: mask_secret(str(_val(CONF_DURESS_CODE, "") or "")),
-            CONF_RFID_TAGS: str(_val(CONF_RFID_TAGS, "") or ""),
+            CONF_RFID_TAGS: mask_secret(str(_val(CONF_RFID_TAGS, "") or "")),
             CONF_EXIT_DELAY: int(_val(CONF_EXIT_DELAY, DEFAULT_EXIT_DELAY) or DEFAULT_EXIT_DELAY),
             CONF_ENTRY_DELAY: int(_val(CONF_ENTRY_DELAY, DEFAULT_ENTRY_DELAY) or DEFAULT_ENTRY_DELAY),
             CONF_SIREN_DURATION: int(_val(CONF_SIREN_DURATION, DEFAULT_SIREN_DURATION) or DEFAULT_SIREN_DURATION),
@@ -1023,8 +1023,8 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
             CONF_NAS_CONFIGS: self._get_safe_nas_configs(),
             CONF_GOOGLE_DRIVE_ENABLED: bool(_val(CONF_GOOGLE_DRIVE_ENABLED, DEFAULT_GOOGLE_DRIVE_ENABLED)),
             CONF_GOOGLE_DRIVE_METHOD: str(_val(CONF_GOOGLE_DRIVE_METHOD, DEFAULT_GOOGLE_DRIVE_METHOD) or DEFAULT_GOOGLE_DRIVE_METHOD),
-            CONF_GOOGLE_DRIVE_WEBHOOK_URL: str(_val(CONF_GOOGLE_DRIVE_WEBHOOK_URL, "") or ""),
-            CONF_GOOGLE_DRIVE_CLIENT_ID: str(_val(CONF_GOOGLE_DRIVE_CLIENT_ID, "") or ""),
+            CONF_GOOGLE_DRIVE_WEBHOOK_URL: mask_secret(str(_val(CONF_GOOGLE_DRIVE_WEBHOOK_URL, "") or "")),
+            CONF_GOOGLE_DRIVE_CLIENT_ID: mask_secret(str(_val(CONF_GOOGLE_DRIVE_CLIENT_ID, "") or "")),
             CONF_GOOGLE_DRIVE_CLIENT_SECRET: mask_secret(str(_val(CONF_GOOGLE_DRIVE_CLIENT_SECRET, "") or "")),
             CONF_GOOGLE_DRIVE_REFRESH_TOKEN: mask_secret(str(_val(CONF_GOOGLE_DRIVE_REFRESH_TOKEN, "") or "")),
             CONF_GOOGLE_DRIVE_FOLDER_ID: str(_val(CONF_GOOGLE_DRIVE_FOLDER_ID, "") or ""),
@@ -1305,14 +1305,17 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         if command in ("arm", "disarm", "emergency", "panic"):
             _LOGGER.info("Domolink: Événement clavier physique reçu : command=%s, arm_mode=%s", command, arm_mode)
             if command == "disarm" or arm_mode == 0:
-                user = self._validate_code(code) if code else None
-                if user or not self._users:
-                    self._last_user = f"{user or 'Clavier'} (Mur)"
-                    await self.async_alarm_disarm(code)
+                if self._users:
+                    user = self._validate_code(code) if code else None
+                    if not user:
+                        _LOGGER.warning("Domolink: Tentative de désarmement clavier sans code valide")
+                        self._log_event("Code erroné ou manquant sur clavier physique")
+                        await self._async_sync_keypads("error")
+                        return
+                    self._last_user = f"{user} (Mur)"
                 else:
-                    _LOGGER.warning("Domolink: Code clavier physique erroné")
-                    self._log_event("Code erroné sur clavier physique")
-                    await self._async_sync_keypads("error")
+                    self._last_user = "Clavier (Mur)"
+                await self.async_alarm_disarm(code)
             elif arm_mode in (1, "arm_day_zones"):
                 await self.async_alarm_arm_home(code)
             elif arm_mode in (2, "arm_night_zones"):

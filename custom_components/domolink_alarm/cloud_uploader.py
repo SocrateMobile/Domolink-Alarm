@@ -432,7 +432,8 @@ class CloudUploader:
                 import paramiko
 
                 ssh = paramiko.SSHClient()
-                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                ssh.load_system_host_keys()
+                ssh.set_missing_host_key_policy(paramiko.WarningPolicy())
                 port_int = int(self._cfg(CONF_FTP_PORT, 22) or 22)
                 ssh.connect(
                     self._cfg(CONF_FTP_HOST, ""),
@@ -776,7 +777,8 @@ class CloudUploader:
                     import paramiko
 
                     ssh = paramiko.SSHClient()
-                    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                    ssh.load_system_host_keys()
+                    ssh.set_missing_host_key_policy(paramiko.WarningPolicy())
                     ssh.connect(
                         clean_host,
                         port=port_int,
@@ -1086,7 +1088,7 @@ class CloudUploader:
             auth = aiohttp.BasicAuth(user, passwd) if user and passwd else None
 
             base_url = webdav_url.rstrip("/")
-            ssl_opt = False if base_url.startswith("https://") else None
+            ssl_opt = None
 
             # Ensure target directories exist via MKCOL
             target_path = str(self._cfg(CONF_WEBDAV_PATH, "domolink/alarm")).strip().strip("/")
@@ -1307,7 +1309,7 @@ class CloudUploader:
             session = async_get_clientsession(self.hass)
             auth = aiohttp.BasicAuth(user, passwd) if user and passwd else None
             base_url = url.rstrip("/")
-            ssl_opt = False if base_url.startswith("https://") else None
+            ssl_opt = None
 
             try:
                 async with session.request(
