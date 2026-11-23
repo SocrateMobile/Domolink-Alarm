@@ -601,13 +601,15 @@ class DomolinkAlarm(AlarmControlPanelEntity, RestoreEntity):
         device_reg = dr.async_get(self.hass)
         matched_entities = set()
 
-        for entity in entity_reg.entities.values():
-            if entity.labels and any(label in entity.labels for label in label_ids):
+        for ent_item in entity_reg.entities:
+            entity = entity_reg.async_get(ent_item) if isinstance(ent_item, str) else ent_item
+            if entity and entity.labels and any(label in entity.labels for label in label_ids):
                 if not allowed_domains or entity.domain in allowed_domains:
                     matched_entities.add(entity.entity_id)
 
-        for device in device_reg.devices.values():
-            if device.labels and any(label in device.labels for label in label_ids):
+        for dev_item in device_reg.devices:
+            device = device_reg.async_get(dev_item) if isinstance(dev_item, str) else dev_item
+            if device and device.labels and any(label in device.labels for label in label_ids):
                 for entity in er.async_entries_for_device(entity_reg, device.id):
                     if not allowed_domains or entity.domain in allowed_domains:
                         matched_entities.add(entity.entity_id)
